@@ -1,0 +1,4 @@
+{
+  "authInfoPath": ".env.local",
+  "functions": "convex"
+}
