@@ -1,0 +1,41 @@
+# Google GenAI Toolbox Configuration
+# See https://github.com/googleapis/genai-toolbox for all options
+
+# 1. Define your data sources (PostgreSQL, BigQuery, Cloud SQL, etc.)
+kind: source
+name: main-db
+type: postgres
+host: ${DB_HOST:localhost}
+port: 5432
+database: ${DB_NAME:my_db}
+user: ${DB_USER}
+password: ${DB_PASSWORD}
+
+---
+# 2. Define specific "Tools" the AI can use to access data
+# This is SAFER than raw SQL because you control the statement and parameters.
+kind: tool
+name: query_user_records
+type: postgres-sql
+source: main-db
+description: "Fetches user profile data from the database by user ID."
+parameters:
+  - name: user_id
+    type: integer
+    description: "The unique ID of the user."
+statement: "SELECT id, name, email FROM users WHERE id = $1"
+
+---
+# 3. Example of a Semantic Search tool (RAG)
+# Uncomment if using vector search / Gemini embeddings
+# kind: tool
+# name: search_documentation
+# type: postgres-sql
+# source: main-db
+# description: "Search technical docs using natural language (semantic search)"
+# parameters:
+#   - name: query
+#     type: string
+#     description: "Search query in natural language"
+# statement: "SELECT title, content FROM documentation ORDER BY embedding <=> $1 LIMIT 5"
+# embeddingModel: "text-embedding-004"
