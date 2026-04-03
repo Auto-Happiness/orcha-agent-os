@@ -9,13 +9,53 @@ import {
   Container,
   Group,
   Button,
+  Skeleton,
+  Center
 } from "@mantine/core";
+import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { SavedConfigsList } from "@/components/Configure/SavedConfigsList";
-import { DatasetList } from "@/components/Configure/DatasetList";
+import { McpToolList } from "@/components/Configure/McpToolList";
 
 export default function ConfigurePage() {
   const { saas } = useParams();
+  const organization = useQuery(api.organizations.getSafeBySlug, { 
+    slug: saas as string 
+  });
+
+  // Handle Initial Loading State
+  if (organization === undefined) {
+    return (
+      <Box p="4rem" style={{ maxWidth: "1600px" }}>
+        <Stack gap="4rem">
+          <Box mb="xl">
+             <Skeleton h={40} w={400} mb="xs" radius="md" />
+             <Skeleton h={20} w={600} radius="md" />
+          </Box>
+          <Skeleton h={200} radius="md" mt="xl" />
+          <Divider color="rgba(255,255,255,0.05)" />
+          <Skeleton h={300} radius="md" />
+        </Stack>
+      </Box>
+    );
+  }
+
+  // Handle Not Found State
+  if (organization === null) {
+    return (
+      <Center h="400px" style={{ color: "white" }}>
+        <Stack align="center" gap="xs">
+          <Title order={3}>Workspace Not Found</Title>
+          <Text c="dimmed">The workspace "{saas}" could not be located in the database.</Text>
+          <Button component={Link} href="/dashboard" variant="light" color="violet">
+            Back to Dashboard
+          </Button>
+        </Stack>
+      </Center>
+    );
+  }
 
   return (
     <Box p="4rem" style={{ maxWidth: "1600px" }}>
@@ -30,6 +70,14 @@ export default function ConfigurePage() {
         {/* ── Saved Configurations ─────────────────────────────────────── */}
         <Box>
           <SavedConfigsList />
+        </Box>
+
+        <Divider color="rgba(255,255,255,0.05)" />
+
+        {/* ── AI Bridge Tools ─────────────────────────────────────────── */}
+        <Box>
+          <Title order={2} c="white" size="1.25rem" mb="xs">AI Bridge (MCP Tools)</Title>
+          <McpToolList organizationId={organization._id} />
         </Box>
       </Stack>
     </Box>

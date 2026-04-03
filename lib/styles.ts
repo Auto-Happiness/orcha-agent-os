@@ -19,5 +19,4 @@ export const selectStyles = {
     color: "white" 
   },
   dropdown: { background: "#130f22", borderColor: "rgba(147,51,234,0.18)", color: "white" },
-  option: { "&[data-hovered]": { background: "rgba(147,51,234,0.12)" }, "&[data-selected]": { background: "#9333ea" } }
 };

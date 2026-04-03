@@ -409,3 +409,87 @@ export const getOrganizationMembers = query({
         return members.filter(Boolean);
     },
 });
+
+// ── Webhook Mutations (Clerk Sync) ───────────────────────────────────────────
+
+/**
+ * Synchronize a user from Clerk.
+ */
+export const syncUser = mutation({
+  args: {
+    tokenIdentifier: v.string(),
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
+    type: v.union(v.literal("user.created"), v.literal("user.updated"), v.literal("user.deleted")),
+  },
+  handler: async (ctx, args) => {
+    const { tokenIdentifier, email, name, avatarUrl, type } = args;
+
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", tokenIdentifier))
+      .unique();
+
+    if (type === "user.deleted") {
+      if (existingUser) await ctx.db.delete(existingUser._id);
+      return;
+    }
+
+    if (existingUser) {
+      await ctx.db.patch(existingUser._id, {
+        name: name || existingUser.name,
+        email: email || existingUser.email,
+        avatarUrl: avatarUrl || existingUser.avatarUrl,
+        lastSeenAt: Date.now(),
+      });
+      return existingUser._id;
+    } else {
+      return await ctx.db.insert("users", {
+        tokenIdentifier,
+        name: name || "Anonymous",
+        email: email || "",
+        avatarUrl,
+        role: "member",
+        createdAt: Date.now(),
+      });
+    }
+  },
+});
+
+/**
+ * Synchronize an organization from Clerk.
+ */
+export const syncOrganization = mutation({
+  args: {
+    slug: v.string(),
+    name: v.string(),
+    clerkOrgId: v.string(),
+    type: v.union(v.literal("organization.created"), v.literal("organization.updated"), v.literal("organization.deleted")),
+  },
+  handler: async (ctx, args) => {
+    const { slug, name, type } = args;
+
+    const existing = await ctx.db
+      .query("organizations")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (type === "organization.deleted") {
+      if (existing) await ctx.db.delete(existing._id);
+      return;
+    }
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { name });
+      return existing._id;
+    } else {
+      return await ctx.db.insert("organizations", {
+        name,
+        slug,
+        plan: "free",
+        createdAt: Date.now(),
+      });
+    }
+  },
+});

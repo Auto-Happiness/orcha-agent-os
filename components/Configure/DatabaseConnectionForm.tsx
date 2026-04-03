@@ -1,8 +1,8 @@
-import { 
-  Stack, 
-  Group, 
-  Text, 
-  Button, 
+import {
+  Stack,
+  Group,
+  Text,
+  Button,
   Divider,
   ActionIcon,
   Tooltip,
@@ -11,7 +11,14 @@ import {
   Badge,
   Grid
 } from "@mantine/core";
-import { IconCopy, IconShieldCheck, IconInfoCircle } from "@tabler/icons-react";
+import { IconCopy, IconShieldCheck, IconInfoCircle, IconRefresh } from "@tabler/icons-react";
+import { useState } from "react";
+import { notifications } from "@mantine/notifications";
+import { useCreationWizard } from "@/lib/store/useCreationWizard";
+import { useParams } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useOrganization } from "@clerk/nextjs";
 
 // Individual Form Components
 import { PostgreSQLForm } from "./Forms/PostgreSQL";
@@ -25,23 +32,133 @@ interface ConnectionFormProps {
 }
 
 export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
+  const { data, setStep, updateData } = useCreationWizard();
+  const { saas } = useParams();
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Queries/Mutations
+  const org = useOrganization(); // Clerk hook
+  const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
+  const currentUser = useQuery(api.users.getCurrentUser);
+  const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
+
+  const testConnection = async () => {
+    setTesting(true);
+    try {
+      const response = await fetch("/api/test-connection", {
+        method: "POST",
+        body: JSON.stringify({
+          type: provider === "postgres" || provider === "mysql" ? provider : "postgres",
+          ...data.dbConfig,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        notifications.show({
+          title: "Connection Success",
+          message: result.message,
+          color: "green",
+          icon: <IconShieldCheck size={16} />,
+        });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+      notifications.show({
+        title: "Connection Failed",
+        message: error.message || "Failed to reach the database server.",
+        color: "red",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!activeOrg || !currentUser) {
+      notifications.show({
+        title: "Initialization Error",
+        message: "Failed to resolve organization or user identity.",
+        color: "red",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await saveConfig({
+        organizationId: activeOrg._id,
+        type: (provider === "postgres" || provider === "mysql") ? provider : "postgres",
+        encryptedUri: JSON.stringify(data.dbConfig), // Plaintext for now as per plan
+        updatedBy: currentUser._id,
+      });
+
+      notifications.show({
+        title: "Configuration Saved",
+        message: "Database parameters have been safely initialized.",
+        color: "violet",
+        icon: <IconShieldCheck size={16} />,
+      });
+
+      // Move to next step in wizard
+      setStep(1);
+    } catch (err: any) {
+      notifications.show({
+        title: "Save Failed",
+        message: err.message || "An error occurred while saving your configuration.",
+        color: "red",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Dynamic Form Mapping
   const renderForm = () => {
     switch (provider) {
       case "postgres": return <PostgreSQLForm />;
-      case "mysql":    return <MySQLForm />;
-      case "mssql":    return <MSSQLForm />;
-      case "mongodb":  return <MongoDBForm />;
+      case "mysql": return <MySQLForm />;
+      case "mssql": return <MSSQLForm />;
+      case "mongodb": return <MongoDBForm />;
       case "bigquery": return <BigQueryForm />;
-      // Fallback/Generic for others 
-      default:         return <PostgreSQLForm />; 
+      default: return <PostgreSQLForm />;
     }
   };
 
   const getUriPreview = () => {
-    if (provider === "mongodb") return "mongodb+srv://[user]:[password]@[host]/[database]";
-    if (provider === "bigquery") return "google-cloud://[project-id]/[dataset-id]";
-    return `${provider}://[user]:[password]@[host]:[port]/[database]`;
+    const { host, port, user, database } = data.dbConfig;
+    const h = host || "[host]";
+    const p = port || (provider === "postgres" ? "5432" : "3306");
+    const u = user || "[user]";
+    const d = database || "[database]";
+
+    if (provider === "mongodb") return `mongodb+srv://${u}:****@${h}/${d}`;
+    if (provider === "bigquery") return `google-cloud://${h}/${d}`;
+    return `${provider}://${u}:****@${h}:${p}/${d}`;
+  };
+
+  const useSampleData = () => {
+    if (provider === "mysql") {
+      updateData({
+        dbConfig: {
+          host: "db-mysql-fra1-88231-do-user-14675549-0.b.db.ondigitalocean.com",
+          port: "25060",
+          user: "doadmin",
+          password: "AVNS_sample_password",
+          database: "defaultdb",
+          ssl: true
+        }
+      });
+      notifications.show({
+        title: "Sample Settings Applied",
+        message: "MySQL test parameters have been loaded.",
+        color: "blue",
+      });
+    }
   };
 
   return (
@@ -55,26 +172,24 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
       </Stack>
 
       <Grid>
-        {/* Connection String Context Helper */}
         <Grid.Col span={12}>
-           <Paper p="md" radius="md" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-              <Box h={4} bg="rgba(255,255,255,0.05)" style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: "100px" }}></Box>
-              <Group justify="space-between">
-                <Group gap="xs">
-                  <IconInfoCircle size={14} color="rgba(255,255,255,0.3)" />
-                  <Text size="xs" c="dimmed">Draft Connection URI</Text>
-                </Group>
-                <Tooltip label="Copy Mapping"><ActionIcon variant="transparent" size="sm" color="dimmed"><IconCopy size={12} /></ActionIcon></Tooltip>
+          <Paper p="md" radius="md" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <Box h={4} bg="rgba(255,255,255,0.05)" style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: "100px" }}></Box>
+            <Group justify="space-between">
+              <Group gap="xs">
+                <IconInfoCircle size={14} color="rgba(255,255,255,0.3)" />
+                <Text size="xs" c="dimmed">Draft Connection URI</Text>
               </Group>
-              <Box mt={8}>
-                <Text size="11px" style={{ fontFamily: "monospace", color: "#c084fc", opacity: 0.8 }}>
-                  {getUriPreview()}
-                </Text>
-              </Box>
-           </Paper>
+              <Tooltip label="Copy Mapping"><ActionIcon variant="transparent" size="sm" color="dimmed"><IconCopy size={12} /></ActionIcon></Tooltip>
+            </Group>
+            <Box mt={8}>
+              <Text size="11px" style={{ fontFamily: "monospace", color: "#c084fc", opacity: 0.8 }}>
+                {getUriPreview()}
+              </Text>
+            </Box>
+          </Paper>
         </Grid.Col>
 
-        {/* Dynamic Form Content */}
         <Grid.Col span={12}>
           {renderForm()}
         </Grid.Col>
@@ -83,8 +198,29 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
       <Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />
 
       <Group justify="flex-end" mt="md">
-        <Button variant="light" color="violet">Test Connection</Button>
-        <Button color="violet" px="xl">Save Database</Button>
+        {provider === "mysql" && (
+          <Button variant="subtle" color="dimmed" size="xs" onClick={useSampleData}>
+            Try with Sample MySQL
+          </Button>
+        )}
+        <Button
+          variant="light"
+          color="violet"
+          onClick={testConnection}
+          loading={testing}
+          leftSection={<IconRefresh size={16} />}
+        >
+          Test Connection
+        </Button>
+        <Button
+          color="violet"
+          px="xl"
+          loading={saving}
+          onClick={handleSave}
+          disabled={!data.dbConfig.host || !data.dbConfig.database}
+        >
+          Save Database
+        </Button>
       </Group>
     </Stack>
   );

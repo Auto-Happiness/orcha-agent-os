@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+/WrenAI
+/Chat2DB
+
 # testing
 /coverage
 
@@ -39,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/

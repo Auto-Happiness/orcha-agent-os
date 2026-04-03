@@ -2,6 +2,27 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Mantine Select Overrides */
+.mantine-Select-option {
+  background-color: transparent !important;
+  transition: background-color 150ms ease;
+}
+
+.mantine-Select-option[data-hovered] {
+  background-color: rgba(147, 51, 234, 0.12) !important;
+}
+
+.mantine-Select-option[data-selected] {
+  background-color: #9333ea !important;
+  color: white !important;
+}
+
+.mantine-Select-dropdown {
+  background-color: #130f22 !important;
+  border-color: rgba(147, 51, 234, 0.18) !important;
+  color: white !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

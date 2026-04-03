@@ -18,7 +18,7 @@ import { DatabaseProviderSelector } from "./DatabaseProviderSelector";
 import { DatabaseConnectionForm } from "./DatabaseConnectionForm";
 
 export function DatabaseConfig() {
-  const [selectedProvider, setSelectedProvider] = useState("postgres");
+  const [selectedProvider, setSelectedProvider] = useState("mysql");
 
   return (
     <Grid>

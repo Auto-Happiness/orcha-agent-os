@@ -23,7 +23,7 @@ export default defineSchema({
     slug: v.string(),
     logoUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("enterprise")),
-    ownerId: v.id("users"),
+    ownerId: v.optional(v.id("users")),
     createdAt: v.number(),
   })
     .index("by_slug", ["slug"])
@@ -89,4 +89,24 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
   }).index("by_org", ["organizationId"]),
+  // ─── Bridge: MCP Tool Definitions ────────────────────────
+  mcpTools: defineTable({
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    name: v.string(),
+    description: v.string(),
+    parameters: v.array(
+      v.object({
+        name: v.string(),
+        type: v.string(),
+        description: v.string(),
+      })
+    ),
+    statement: v.string(), // SQL statement with placeholders
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_config", ["configId"])
+    .index("by_name", ["name"]),
 });

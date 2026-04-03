@@ -254,7 +254,7 @@ function AuthPane() {
               appearance={clerkAppearance}
               routing="hash"
               signInUrl="/#login"
-              forceRedirectUrl="/redirect"
+              forceRedirectUrl="/home"
             />
           )}
         </div>

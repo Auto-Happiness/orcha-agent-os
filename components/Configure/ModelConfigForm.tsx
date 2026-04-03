@@ -21,17 +21,25 @@ interface ModelFormProps {
 }
 
 export function ModelConfigForm({ provider }: ModelFormProps) {
-  // Dynamic Form Mapping
-  const renderForm = () => {
-    switch (provider) {
-      case "google":    return <GoogleVertexForm />;
-      case "openai":    return <OpenAIForm />;
-      case "anthropic": return <AnthropicForm />;
-      case "ollama":    return <OllamaForm />;
-      case "qwen":      return <QwenForm />;
-      // Fallback 
-      default:          return <GoogleVertexForm />; 
-    }
+  const { data, updateData, setStep } = useCreationWizard();
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveModel = async () => {
+    setSaving(true);
+    // Simulating a brief save delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    updateData({ modelProvider: provider });
+    
+    notifications.show({
+      title: "Model Configured",
+      message: `The ${provider.toUpperCase()} engine has been paired with this environment.`,
+      color: "violet",
+      icon: <IconShieldCheck size={16} />,
+    });
+    
+    setStep(2); // Move to Metadata step
+    setSaving(false);
   };
 
   return (
@@ -64,7 +72,14 @@ export function ModelConfigForm({ provider }: ModelFormProps) {
 
       <Group justify="flex-end" mt="md">
         <Button variant="light" color="violet" leftSection={<IconSparkles size={16} />}>Test Intelligence</Button>
-        <Button color="violet" px="xl">Save Model Config</Button>
+        <Button 
+          color="violet" 
+          px="xl" 
+          loading={saving}
+          onClick={handleSaveModel}
+        >
+          Save Model Config
+        </Button>
       </Group>
     </Stack>
   );

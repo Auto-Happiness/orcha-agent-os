@@ -10,40 +10,49 @@ A modern full-stack starter template combining **Next.js 16**, **shadcn UI**, an
 - **Convex** for real-time backend with built-in authentication
 - **ESLint** configured for code quality
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Self-Hosted)
 
-### 1. Install Dependencies
+This project is configured to run on a **Self-Hosted Convex** instance via Docker.
 
+### 1. Windows Environment Setup (PowerShell Only)
+If you are on Windows, you must allow script execution to use `npx` properly:
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### 2. Launch Infrastructure
+Start the database (MySQL) and the Convex Backend/Dashboard:
+```bash
+docker-compose up -d
+```
+*Wait for the containers to become healthy (approx 30 seconds).*
+
+### 3. Install Dependencies & Drivers
+You must install the database drivers (not included by default) to enable the Bridge:
 ```bash
 npm install
+npm install mysql2 pg
 ```
 
-### 2. Set Up Convex
-
-```bash
-npm run convex:dev
+### 4. Start Convex Sync
+Run the development sync against your local instance. **Do not use the standard `npx convex dev`** as it defaults to the cloud:
+```powershell
+# Use npx.cmd on Windows to bypass .ps1 restrictions
+npx.cmd convex dev --url http://localhost:3210 --admin-key "convex-self-hosted|01204f53c7b09a60cdd9975785ec0ce915b75dcef849ac14185aa49edbd5f302c9298c0274"
 ```
 
-This will:
-- Start the Convex development server
-- Create a new Convex project
-- Generate your deployment URL
-
-### 3. Configure Environment
-
-Copy your Convex deployment URL to `.env.local`:
-
-```env
-NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
-```
-
-### 4. Run Development Server
-
+### 5. Run Next.js
+In a separate terminal:
 ```bash
 npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000).
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+## 🌉 AI Bridge Configuration
+The Agent OS acts as a bridge between your local databases and your models.
+
+- **Slug Resolution**: The system automatically resolves organization slugs (from the URL) into internal Convex IDs. Ensure you use `api.organizations.getSafeBySlug` when building pages.
+- **MCP Route**: The core MCP tool interface is located at `/api/mcp/route.ts`. It handles authorization and just-in-time database credential resolution.
 
 ## 📦 Project Structure
 
