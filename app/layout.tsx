@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
-import { ColorSchemeScript } from "@mantine/core";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 import { ConvexClientProvider } from "./providers";
 import "@mantine/core/styles.css";
@@ -30,20 +29,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en" className="dark" suppressHydrationWarning>
-        <head>
-          <ColorSchemeScript defaultColorScheme="dark" />
-        </head>
-        <body
-          className={`${spaceGrotesk.variable} ${geistMono.variable} antialiased`}
-          suppressHydrationWarning
-        >
+    <html lang="en" className="dark" data-mantine-color-scheme="dark" suppressHydrationWarning>
+      <head />
+      <body
+        className={`${spaceGrotesk.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
+      >
+        <ClerkProvider>
           <MantineUiProvider>
             <ConvexClientProvider>{children}</ConvexClientProvider>
           </MantineUiProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+        </ClerkProvider>
+      </body>
+    </html>
   );
 }

@@ -173,4 +173,21 @@ export default defineSchema({
     .index("by_org", ["organizationId"])
     .index("by_config", ["configId"])
     .index("by_name", ["name"]),
+  // ─── AI: Provider Configurations (API Keys) ──────────────
+  aiKeys: defineTable({
+    organizationId: v.id("organizations"),
+    provider: v.union(
+      v.literal("gemini"),
+      v.literal("openai"),
+      v.literal("claude"),
+      v.literal("local"),
+      v.literal("grok")
+    ),
+    keyType: v.string(),        // e.g., "apiKey", "baseUrl"
+    keyValue: v.string(),        // The sensitive value (encrypted or raw)
+    storageStrategy: v.string(),  // From KEY_STORAGE env (json, convex, aws_kms)
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_org_provider", ["organizationId", "provider"]),
 });

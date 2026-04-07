@@ -35,6 +35,7 @@ import {
   IconBuildingSkyscraper,
   IconHelpCircle,
   IconPointFilled,
+  IconSettings,
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 
@@ -278,8 +279,13 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                   <Menu.Label c="dimmed" >
                     {user?.primaryEmailAddress?.emailAddress}
                   </Menu.Label>
-                  <Menu.Item leftSection={<IconUserCircle size={15} />} c="rgba(255,255,255,0.75)">
-                    Profile
+                  <Menu.Item 
+                    component={Link}
+                    href={`/${slug}/settings`}
+                    leftSection={<IconSettings size={15} />} 
+                    c="rgba(255,255,255,0.75)"
+                  >
+                    Settings
                   </Menu.Item>
                   <Menu.Item leftSection={<IconBuildingSkyscraper size={15} />} c="rgba(255,255,255,0.75)">
                     {organization?.name ?? "Organization"}

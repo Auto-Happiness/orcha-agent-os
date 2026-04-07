@@ -61,6 +61,9 @@ import { notifications } from "@mantine/notifications";
 import Link from "next/link";
 import { SemanticBridge } from "@/components/Configure/SemanticBridge";
 import { DatabaseConnectionForm } from "@/components/Configure/DatabaseConnectionForm";
+import { QueryLab } from "@/components/Configure/QueryLab";
+import { DeploymentProfile } from "@/components/Configure/DeploymentProfile";
+import { DashboardHeader } from "@/components/Configure/DashboardHeader";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { useUser } from "@clerk/nextjs";
 
@@ -84,10 +87,6 @@ export default function EditConfigurationPage() {
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [activeTab, setActiveTab] = useState<string | null>("general");
 
-  // Query Lab State
-  const [sql, setSql] = useState("-- Type your SQL here\nSELECT * FROM orders LIMIT 10;");
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
 
   // Convex Data
   const organization = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
@@ -151,74 +150,6 @@ export default function EditConfigurationPage() {
     }
   };
 
-  const handleRunQuery = async () => {
-    setIsExecuting(true);
-    setQueryResults(null);
-    const startTime = performance.now();
-    try {
-      const response = await fetch("/api/db/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: currentConfig.type,
-          config: wizardData.dbConfig,
-          sql: sql
-        })
-      });
-
-      const result = await response.json();
-      const endTime = performance.now();
-      const duration = Math.round(endTime - startTime);
-
-      if (result.success) {
-        setQueryResults({ 
-          columns: result.columns, 
-          rows: result.rows,
-          executionTime: duration
-        });
-        notifications.show({
-          title: "Query Success",
-          message: `${result.rowCount} rows returned in ${duration}ms.`,
-          color: "green",
-          icon: <IconCheck size={16} />
-        });
-      } else {
-        throw new Error(result.message);
-      }
-    } catch (err: any) {
-      notifications.show({
-        title: "Query Failed",
-        message: err.message,
-        color: "red"
-      });
-    } finally {
-      setIsExecuting(false);
-    }
-  };
-
-  const handleSaveQuery = async () => {
-    if (!currentUser?._id || !organization?._id) return;
-    
-    const queryName = prompt("Enter a name for this query:", "New Query");
-    if (!queryName) return;
-
-    try {
-      await saveQueryMutation({
-        organizationId: organization._id,
-        configId: currentConfig._id,
-        name: queryName,
-        sql,
-        createdBy: currentUser._id,
-      });
-      notifications.show({
-         title: "Query Saved",
-         message: `"${queryName}" has been added to your library.`,
-         color: "violet"
-      });
-    } catch (err: any) {
-      notifications.show({ title: "Save Failed", message: err.message, color: "red" });
-    }
-  };
 
   const identiconUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${name || 'orcha'}&backgroundColor=13102a`;
 
@@ -261,22 +192,7 @@ export default function EditConfigurationPage() {
         </Group>
 
         {/* ── Dashboard Header ─────────────────────────────────────── */}
-        <Paper withBorder p="2.5rem" radius="md" style={{ background: "rgba(255,255,255,0.012)", borderColor: "rgba(147,51,234,0.12)" }}>
-            <Group align="flex-start" gap="2.5rem">
-               <Avatar src={currentConfig.image || identiconUrl} size={rem(140)} radius="lg" style={{ border: "2px solid rgba(147,51,234,0.3)", background: "rgba(147,51,234,0.05)" }} />
-               <Stack gap={8}>
-                 <Group gap="xs">
-                   <Title order={1} c="white" size="2.5rem">{currentConfig.name}</Title>
-                   <Badge variant="dot" color="green" size="md">STABLE</Badge>
-                 </Group>
-                 <Group gap="xl">
-                    <Group gap={6}><IconWorld size={14} color="rgba(255,255,255,0.4)" /><Text size="xs" c="dimmed">Region: US-EAST-1</Text></Group>
-                    <Group gap={6}><IconCheck size={14} color="#a855f7" /><Text size="xs" c="dimmed">Semantic Sync: Ready</Text></Group>
-                    <Group gap={6}><IconDatabase size={14} color="rgba(255,255,255,0.4)" /><Text size="xs" c="dimmed">{currentConfig.type.toUpperCase()}</Text></Group>
-                 </Group>
-               </Stack>
-            </Group>
-        </Paper>
+        <DashboardHeader currentConfig={currentConfig} identiconUrl={identiconUrl} />
 
         <Tabs value={activeTab} onChange={setActiveTab} color="violet" variant="outline" styles={{
            tab: { border: "none", color: "rgba(255,255,255,0.4)", "&[data-active]": { borderBottom: "2px solid #a855f7", color: "white" } },
@@ -291,39 +207,16 @@ export default function EditConfigurationPage() {
 
            {/* ── Tab: Profile ────────────────────────────────────────── */}
            <Tabs.Panel value="general">
-              <Grid styles={{ inner: { gap: "var(--mantine-spacing-xl)" } }}>
-                 <Grid.Col span={8}>
-                    <Paper withBorder p="2.5rem" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
-                       <Stack gap="xl">
-                          <TextInput label="Friendly Name" size="md" styles={inputStyles} value={name} onChange={(e) => setName(e.target.value)} />
-                          <Textarea label="Environment Description" styles={inputStyles} minRows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
-                          <Textarea label="Librarian's Common Sense Context" styles={inputStyles} minRows={6} value={businessContext} onChange={(e) => setBusinessContext(e.target.value)} />
-                       </Stack>
-                    </Paper>
-                 </Grid.Col>
-                 
-                 <Grid.Col span={4}>
-                    <Stack gap="xl">
-                        <Paper withBorder p="xl" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
-                           <Stack gap="md">
-                              <Text size="xs" fw={700} c="dimmed">Environment Tags</Text>
-                              <Group gap="xs">
-                                {tags.map((tag) => (
-                                  <Badge key={tag} variant="light" color="violet" radius="xs" rightSection={<ActionIcon size="xs" variant="transparent" onClick={() => setTags(tags.filter(t => t !== tag))}>×</ActionIcon>}>{tag}</Badge>
-                                ))}
-                              </Group>
-                              <TextInput placeholder="Add +" size="xs" styles={inputStyles} onKeyDown={(e) => { if (e.key === "Enter") { const val = e.currentTarget.value.trim(); if (val && !tags.includes(val)) { setTags([...tags, val]); e.currentTarget.value = ""; } } }} />
-                           </Stack>
-                        </Paper>
-                        <Paper withBorder p="xl" radius="md" style={{ background: "rgba(147, 51, 234, 0.05)", borderColor: "rgba(147,51,234,0.2)" }}>
-                           <Stack gap="xs">
-                              <Group gap="xs"><IconCheck size={16} color="#a855f7" /><Text size="sm" fw={700} c="white">Sync Status</Text></Group>
-                              <Text size="xs" c="dimmed">Your semantic bridge is synchronized with your database schema.</Text>
-                           </Stack>
-                        </Paper>
-                    </Stack>
-                 </Grid.Col>
-              </Grid>
+              <DeploymentProfile 
+                name={name} 
+                setName={setName} 
+                description={description} 
+                setDescription={setDescription} 
+                businessContext={businessContext} 
+                setBusinessContext={setBusinessContext} 
+                tags={tags} 
+                setTags={setTags} 
+              />
            </Tabs.Panel>
 
            {/* ── Tab: Modeler ────────────────────────────────────────────── */}
@@ -335,140 +228,13 @@ export default function EditConfigurationPage() {
 
            {/* ── Tab: Query Lab ──────────────────────────────────────────── */}
            <Tabs.Panel value="lab">
-              <Grid styles={{ inner: { gap: "var(--mantine-spacing-xs)" } }}>
-                 <Grid.Col span={9}>
-                    <Stack gap="xs">
-                       <Paper withBorder radius="md" style={{ background: "#0c0a1a", borderColor: "rgba(255,255,255,0.05)" }}>
-                          <Group p="xs" justify="space-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                             <Group gap="xs">
-                                <IconTerminal2 size={16} color="#a855f7" />
-                                <Text size="xs" fw={700} c="white" style={{ textTransform: "uppercase", letterSpacing: "1px" }}>SQL Editor</Text>
-                             </Group>
-                             <Group gap="xs">
-                                <Button size="compact-xs" variant="subtle" color="dimmed" leftSection={<IconBookmark size={12} />} onClick={handleSaveQuery}>Save Query</Button>
-                                <Button 
-                                  size="compact-xs" 
-                                  color="violet" 
-                                  leftSection={<IconPlayerPlay size={12} />}
-                                  loading={isExecuting}
-                                  onClick={handleRunQuery}
-                                >
-                                  Run Query
-                                </Button>
-                             </Group>
-                          </Group>
-                          <Box p={0}>
-                             <Textarea 
-                               placeholder="SELECT * FROM my_table..."
-                               minRows={12}
-                               variant="unstyled"
-                               p="md"
-                               value={sql}
-                               onChange={(e) => setSql(e.target.value)}
-                               styles={{ 
-                                 input: { 
-                                   fontFamily: "monospace", 
-                                   fontSize: "13px", 
-                                   color: "#c084fc", 
-                                   background: "transparent",
-                                   resize: "vertical",
-                                   minHeight: "150px"
-                                 } 
-                               }}
-                             />
-                          </Box>
-                       </Paper>
-
-                       <Paper withBorder radius="md" style={{ background: "#0c0a1a", borderColor: "rgba(255,255,255,0.05)", flex: 1, minHeight: "400px" }}>
-                          <Group p="xs" justify="space-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                             <Group gap="xs">
-                                <IconTableExport size={16} color="rgba(255,255,255,0.3)" />
-                                <Text size="xs" fw={700} c="dimmed">Query Results</Text>
-                             </Group>
-                             <Group gap="xs">
-                                {queryResults && (
-                                  <Text size="11px" c="dimmed" fw={500}>
-                                    {queryResults.rows.length} rows returned 
-                                    <span style={{ margin: "0 8px", opacity: 0.3 }}>•</span> 
-                                    {queryResults.executionTime}ms
-                                  </Text>
-                                )}
-                             </Group>
-                          </Group>
-                          {isExecuting ? (
-                            <Center h={300}><Stack align="center"><Loader size="sm" color="violet" /><Text size="xs" c="dimmed">Executing query...</Text></Stack></Center>
-                          ) : queryResults ? (
-                            <ScrollArea h={400}>
-                               <Table variant="simple" verticalSpacing="xs">
-                                  <Table.Thead>
-                                     <Table.Tr>
-                                        {queryResults.columns.map(col => (
-                                          <Table.Th key={col} style={{ color: "white", fontSize: "11px", borderColor: "rgba(255,255,255,0.05)" }}>{col}</Table.Th>
-                                        ))}
-                                     </Table.Tr>
-                                  </Table.Thead>
-                                  <Table.Tbody>
-                                     {queryResults.rows.map((row, i) => (
-                                       <Table.Tr key={i}>
-                                          {queryResults.columns.map(col => (
-                                            <Table.Td key={col} style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px", borderColor: "rgba(255,255,255,0.02)" }}>
-                                              {row[col]?.toString()}
-                                            </Table.Td>
-                                          ))}
-                                       </Table.Tr>
-                                     ))}
-                                  </Table.Tbody>
-                               </Table>
-                            </ScrollArea>
-                          ) : (
-                            <Center h={200}>
-                               <Stack align="center" gap="xs">
-                                  <IconSearch size={32} color="rgba(255,255,255,0.1)" />
-                                  <Text size="xs" c="dimmed">Run a query to see structured results here.</Text>
-                               </Stack>
-                            </Center>
-                          )}
-                       </Paper>
-                    </Stack>
-                 </Grid.Col>
-
-                 <Grid.Col span={3}>
-                    <Paper withBorder h="100%" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderColor: "rgba(255,255,255,0.05)" }}>
-                       <Stack p="md" gap="md">
-                          <Group justify="space-between">
-                             <Text size="xs" fw={700} c="white" style={{ textTransform: "uppercase" }}>Query Library</Text>
-                             <IconHistory size={14} color="rgba(255,255,255,0.3)" />
-                          </Group>
-                          
-                          <TextInput 
-                            placeholder="Find saved query..." 
-                            size="xs" 
-                            styles={inputStyles} 
-                            leftSection={<IconSearch size={12} />}
-                          />
-
-                          <ScrollArea h={600}>
-                             <Stack gap="xs">
-                                {savedQueries ? savedQueries.map((item) => (
-                                  <Paper key={item._id} p="xs" radius="xs" style={{ background: "rgba(147,51,234,0.03)", cursor: "pointer", border: "1px solid transparent" }} 
-                                    onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(147,51,234,0.3)"}
-                                    onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
-                                    onClick={() => setSql(item.sql)}
-                                  >
-                                    <Group justify="space-between" mb={4}>
-                                       <Text size="xs" fw={700} c="white">{item.name}</Text>
-                                       <IconStar size={10} color="#a855f7" />
-                                    </Group>
-                                    <Text size="10px" c="dimmed" truncate>{item.sql}</Text>
-                                    <Text size="10px" c="dimmed" mt={4}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-                                  </Paper>
-                                )) : <Text size="xs" c="dimmed">No saved queries yet.</Text>}
-                             </Stack>
-                          </ScrollArea>
-                       </Stack>
-                    </Paper>
-                 </Grid.Col>
-              </Grid>
+              <QueryLab 
+                currentConfig={currentConfig}
+                organization={organization}
+                currentUser={currentUser}
+                savedQueries={savedQueries || []}
+                wizardData={wizardData}
+              />
            </Tabs.Panel>
 
            {/* ── Tab: Connectivity ──────────────────────────────────────────── */}

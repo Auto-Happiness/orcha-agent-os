@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as aiKeys from "../aiKeys.js";
 import type * as auth from "../auth.js";
 import type * as databaseConfigs from "../databaseConfigs.js";
 import type * as mcpTools from "../mcpTools.js";
@@ -27,6 +28,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  aiKeys: typeof aiKeys;
   auth: typeof auth;
   databaseConfigs: typeof databaseConfigs;
   mcpTools: typeof mcpTools;

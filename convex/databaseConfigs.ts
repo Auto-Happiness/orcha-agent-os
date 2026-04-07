@@ -44,7 +44,11 @@ export const getByOrganization = query({
 export const isConnected = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
-    const config = await getByOrganization(ctx, args);
+    const all = await ctx.db
+      .query("databaseConfigs")
+      .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
+      .collect();
+    const config = all.find((config: any) => config.status === "ready" || config.status === undefined);
     return !!config;
   },
 });

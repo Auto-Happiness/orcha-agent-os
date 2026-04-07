@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { streamText, tool } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { DbExecutor } from "@/lib/db-executor";
+import { KeyManager } from "@/lib/key-manager";
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
 
@@ -11,20 +12,42 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, organizationId } = await req.json();
+    const { messages, organizationId, configId } = await req.json();
 
     if (!organizationId) {
       return NextResponse.json({ error: "Missing organizationId" }, { status: 400 });
     }
 
     // 1. Fetch the semantic models and active config
-    const config = await convex.query(api.databaseConfigs.getByOrganization, { organizationId });
+    let config;
+    if (configId) {
+      // Fetch specific config if provided
+      const allConfigs = await convex.query(api.databaseConfigs.listByOrganization, { organizationId });
+      config = allConfigs.find((c: any) => c._id === configId);
+    } else {
+      // Default logic (first one)
+      config = await convex.query(api.databaseConfigs.getByOrganization, { organizationId });
+    }
+
     if (!config) {
-      return NextResponse.json({ error: "No database connected for this organization." }, { status: 400 });
+      return NextResponse.json({ error: "Deployment environment not found." }, { status: 400 });
     }
 
     const semanticModels = await convex.query(api.semanticModels.listModelsByConfig, { configId: config._id });
     const relationships = await convex.query(api.semanticRelationships.listByConfig, { configId: config._id });
+
+    // 1.5 Fetch AI Config
+    const aiKeys = await convex.query(api.aiKeys.listByOrganization, { organizationId });
+    const geminiKeyRecord = aiKeys.find((k: any) => k.provider === "gemini");
+    let geminiApiKey: string | undefined = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+
+    if (geminiKeyRecord && geminiKeyRecord.keyValue) {
+       try {
+         geminiApiKey = KeyManager.decrypt(geminiKeyRecord.keyValue, organizationId);
+       } catch (e) {
+         console.error("Failed to decrypt Gemini key:", e);
+       }
+    }
 
     // 2. Prepare the System Prompt with Semantic Metadata
     const schemaDescription = semanticModels.map(model => {
@@ -40,10 +63,10 @@ export async function POST(req: NextRequest) {
 
     const relationshipDescription = relationships && relationships.length > 0
       ? `### Relationships (JOIN Paths):\n` + relationships.map((rel: any) => {
-          const fromModel = semanticModels.find(m => m._id === rel.fromModelId);
-          const toModel = semanticModels.find(m => m._id === rel.toModelId);
-          return `- ${rel.fromColumn} in table ${fromModel?.tableName || 'unknown'} links to ${rel.toColumn} in table ${toModel?.tableName || 'unknown'} (${rel.type})`;
-        }).join('\n')
+        const fromModel = semanticModels.find(m => m._id === rel.fromModelId);
+        const toModel = semanticModels.find(m => m._id === rel.toModelId);
+        return `- ${rel.fromColumn} in table ${fromModel?.tableName || 'unknown'} links to ${rel.toColumn} in table ${toModel?.tableName || 'unknown'} (${rel.type})`;
+      }).join('\n')
       : "";
 
     const systemPrompt = `
@@ -66,6 +89,10 @@ export async function POST(req: NextRequest) {
     `;
 
     // 3. Call the LLM with Tools
+    const google = createGoogleGenerativeAI({
+      apiKey: geminiApiKey,
+    });
+
     const result = await streamText({
       model: google("gemini-1.5-flash"),
       system: systemPrompt,
@@ -77,12 +104,12 @@ export async function POST(req: NextRequest) {
             sql: z.string().describe("The SQL query to execute."),
           }),
           execute: async ({ sql }) => {
-             try {
-                const rows = await DbExecutor.execute(config as any, sql);
-                return { success: true, data: rows };
-             } catch (err: any) {
-                return { success: false, error: err.message };
-             }
+            try {
+              const rows = await DbExecutor.execute(config as any, sql);
+              return { success: true, data: rows };
+            } catch (err: any) {
+              return { success: false, error: err.message };
+            }
           },
         }),
       },
