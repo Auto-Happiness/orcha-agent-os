@@ -64,9 +64,36 @@ export const createOrUpdate = mutation({
         organizationId: args.organizationId,
         type: args.type,
         encryptedUri: args.encryptedUri,
+        name: `New ${args.type.charAt(0).toUpperCase() + args.type.slice(1)} Environment`,
         updatedBy: args.updatedBy,
         updatedAt: Date.now(),
       });
     }
+  },
+});
+
+/**
+ * finalizeConfiguration
+ * 
+ * Finalizes the environment by saving profile metadata and AI model settings.
+ */
+export const finalizeConfiguration = mutation({
+  args: {
+    configId: v.id("databaseConfigs"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    image: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    modelProvider: v.optional(v.string()),
+    modelConfig: v.optional(v.string()),
+    businessContext: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { configId, ...updates } = args;
+    await ctx.db.patch(configId, {
+      ...updates,
+      updatedAt: Date.now(),
+    });
+    return { success: true };
   },
 });

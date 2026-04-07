@@ -46,15 +46,13 @@ const theme = createTheme({
         dropdown: { background: "#130f22", borderColor: "rgba(147,51,234,0.18)", color: "white" },
         option: {
           backgroundColor: "transparent",
-          "&[data-hovered]": { backgroundColor: "rgba(147,51,234,0.12)" },
-          "&[data-selected]": { backgroundColor: "#9333ea" }
         }
       }
     },
     TextInput: {
       styles: {
         input: {
-          "&:focus": { borderColor: "#9333ea" }
+          borderColor: "rgba(147,51,234,0.18)",
         }
       }
     }

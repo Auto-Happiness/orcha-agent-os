@@ -1,10 +1,11 @@
-Review the entir project the goalof this project is to use google MCP database toolbox
-for users to talk to their data we need to build a special bridge 
+Review the entir project the goal of this project is to replicate Wren AI from scratch
+for users to talk to their data 
 
 Review this project
 https://github.com/googleapis/genai-toolbox 
 
-Is is only applicable to one  tools.yaml where the user configures the database connection 
-the special bridge we are going to build is to allow multiple users to connect to the MCP
+I have downloaded Chat2DB and WrenAI because these projects are the closest that we are going to build
 
-We need production ready bridge for more reference I have downloaded Chat2DB and WrenAI because these projects are the closest that we are going to build
+
+prioritize MYSQL feature first we eneed to talk the sample data hosted in my local machine
+

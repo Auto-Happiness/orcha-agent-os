@@ -18,7 +18,7 @@ import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useOrganization } from "@clerk/nextjs";
+import { useOrganization, useUser } from "@clerk/nextjs";
 
 // Individual Form Components
 import { PostgreSQLForm } from "./Forms/PostgreSQL";
@@ -38,10 +38,13 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   const [saving, setSaving] = useState(false);
 
   // Queries/Mutations
-  const org = useOrganization(); // Clerk hook
+  const { user } = useUser();
+  const { organization } = useOrganization();
   const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
   const currentUser = useQuery(api.users.getCurrentUser);
   const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
+  const syncOrg = useMutation(api.webhooks.syncOrganization);
+  const syncUser = useMutation(api.users.storeUser);
 
   const testConnection = async () => {
     setTesting(true);
@@ -79,38 +82,99 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   };
 
   const handleSave = async () => {
-    if (!activeOrg || !currentUser) {
+    if (activeOrg === undefined || currentUser === undefined) {
       notifications.show({
-        title: "Initialization Error",
-        message: "Failed to resolve organization or user identity.",
-        color: "red",
+        title: "Loading Identity",
+        message: "Please wait a moment while your session resolves.",
+        color: "orange",
       });
       return;
     }
 
     setSaving(true);
     try {
-      await saveConfig({
-        organizationId: activeOrg._id,
+      let finalOrgId: any = activeOrg?._id;
+      let finalUserId: any = currentUser?._id;
+
+      // Lazy sync for local development (if webhooks didn't fire)
+      if (!finalOrgId) {
+        if (!organization) throw new Error("Clerk organization not found in session.");
+        finalOrgId = await syncOrg({
+          slug: organization.slug || (saas as string),
+          name: organization.name,
+          clerkOrgId: organization.id,
+          type: "organization.created"
+        });
+      }
+
+      if (!finalUserId) {
+        if (!user) throw new Error("Clerk user not found in session.");
+        finalUserId = await syncUser({
+          email: user.primaryEmailAddress?.emailAddress,
+          name: user.fullName || undefined,
+          avatarUrl: user.imageUrl,
+        });
+      }
+
+      // 1. Persist the credentials in Convex
+      const configId = await saveConfig({
+        organizationId: finalOrgId as any,
         type: (provider === "postgres" || provider === "mysql") ? provider : "postgres",
-        encryptedUri: JSON.stringify(data.dbConfig), // Plaintext for now as per plan
-        updatedBy: currentUser._id,
+        encryptedUri: JSON.stringify(data.dbConfig),
+        updatedBy: finalUserId as any,
       });
 
+      // 2. Trigger the "Wren AI" Semantic Scan (Phase 1 Creation)
+      const notificationId = "scanning-schema";
       notifications.show({
-        title: "Configuration Saved",
-        message: "Database parameters have been safely initialized.",
-        color: "violet",
-        icon: <IconShieldCheck size={16} />,
+        id: notificationId,
+        title: "Scanning Schema",
+        message: "Building your initial semantic models...",
+        color: "blue",
+        loading: true,
+        autoClose: false,
       });
 
-      // Move to next step in wizard
-      setStep(1);
+      const scanResponse = await fetch("/api/db/scan", {
+        method: "POST",
+        body: JSON.stringify({
+          configId,
+          organizationId: finalOrgId as any,
+          type: provider,
+          config: data.dbConfig,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const scanResult = await scanResponse.json();
+
+      if (scanResult.success) {
+        // Save configId for next steps
+        updateData({ configId });
+
+        notifications.update({
+          id: notificationId,
+          title: "Setup Complete",
+          message: scanResult.message,
+          color: "violet",
+          icon: <IconShieldCheck size={16} />,
+          loading: false,
+          autoClose: 3000,
+        });
+        
+        // Move to next step in wizard
+        setStep(1);
+      } else {
+        throw new Error(scanResult.message);
+      }
     } catch (err: any) {
-      notifications.show({
+      notifications.update({
+        id: "scanning-schema",
         title: "Save Failed",
         message: err.message || "An error occurred while saving your configuration.",
         color: "red",
+        loading: false,
+        autoClose: 5000,
       });
     } finally {
       setSaving(false);

@@ -67,6 +67,13 @@ export default defineSchema({
     organizationId: v.id("organizations"),
     type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery")),
     encryptedUri: v.string(), // Encrypted DB URI
+    name: v.string(),        // Environment Profile Name
+    description: v.optional(v.string()),
+    image: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    modelProvider: v.optional(v.string()),
+    modelConfig: v.optional(v.string()), // Encrypted LLM JSON
+    businessContext: v.optional(v.string()), // Added for AI semantic memory
     updatedBy: v.id("users"),
     updatedAt: v.number(),
   }).index("by_org", ["organizationId"]),
@@ -109,4 +116,44 @@ export default defineSchema({
     .index("by_org", ["organizationId"])
     .index("by_config", ["configId"])
     .index("by_name", ["name"]),
+
+  // ─── Wren AI: Semantic Layer Models ─────────────────────
+  semanticModels: defineTable({
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    tableName: v.string(),     // Physical table name (e.g. 'users_raw')
+    displayName: v.string(),   // Business name (e.g. 'Customers')
+    description: v.optional(v.string()),
+    fields: v.array(v.object({
+      columnName: v.string(),  // Physical column name
+      displayName: v.string(), // Business name (e.g. 'Revenue')
+      description: v.optional(v.string()),
+      type: v.string(),        // 'dimension' or 'measure'
+      aggregation: v.optional(v.string()), // 'sum', 'avg', etc.
+      expression: v.optional(v.string()),  // e.g. 'price * quantity'
+      isPrimary: v.optional(v.boolean()),
+      isHidden: v.optional(v.boolean()),
+    })),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_config", ["configId"]),
+
+  // ─── Wren AI: Semantic Relationships (JOINs) ───────────
+  semanticRelationships: defineTable({
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    name: v.string(), // e.g. "orders_to_customers"
+    fromModelId: v.id("semanticModels"),
+    fromColumn: v.string(),
+    toModelId: v.id("semanticModels"),
+    toColumn: v.string(),
+    type: v.union(v.literal("one_to_one"), v.literal("one_to_many"), v.literal("many_to_one")),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_config", ["configId"])
+    .index("by_from", ["fromModelId"])
+    .index("by_to", ["toModelId"]),
 });

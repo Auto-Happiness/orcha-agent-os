@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
-import { ColorSchemeScript, MantineProvider } from "@mantine/core";
-import { Notifications } from "@mantine/notifications";
+import { ColorSchemeScript } from "@mantine/core";
+import { MantineUiProvider } from "@/lib/mantine-provider";
 import { ConvexClientProvider } from "./providers";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
@@ -39,12 +39,12 @@ export default function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
           suppressHydrationWarning
         >
-          <MantineProvider defaultColorScheme="dark">
-            <Notifications position="top-right" zIndex={2000} />
+          <MantineUiProvider>
             <ConvexClientProvider>{children}</ConvexClientProvider>
-          </MantineProvider>
+          </MantineUiProvider>
         </body>
       </html>
     </ClerkProvider>
   );
 }
+

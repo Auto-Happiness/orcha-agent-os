@@ -3,13 +3,17 @@ import { DbExecutor, DbConfig } from "@/lib/db-executor";
 
 export async function POST(req: NextRequest) {
   try {
-    const config: DbConfig = await req.json();
+    const body = await req.json();
+    const config: DbConfig = {
+      ...body,
+      port: body.port ? parseInt(body.port, 10) : (body.type === "postgres" ? 5432 : 3306),
+    };
 
     // Basic validation
     if (!config.host || !config.user || !config.database) {
       return NextResponse.json({ 
         success: false, 
-        message: "Missing required connection parameters." 
+        message: "Missing required connection parameters. Host, User, and Database are mandatory." 
       }, { status: 400 });
     }
 

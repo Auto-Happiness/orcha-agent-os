@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise';
+import serverlessMysql from 'serverless-mysql';
 import { Client as PgClient } from 'pg';
 
 export type DbConfig = {
@@ -29,23 +29,24 @@ export class DbExecutor {
   }
 
   private static async executeMysql(config: DbConfig, sql: string, params: any[]): Promise<any[]> {
-    const connection = await mysql.createConnection({
-      host: config.host,
-      port: config.port,
-      user: config.user,
-      password: config.password,
-      database: config.database,
-      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+    const db = serverlessMysql({
+      config: {
+        host: config.host,
+        port: config.port,
+        user: config.user,
+        password: config.password,
+        database: config.database,
+        ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+      }
     });
 
     try {
       // Convert $1, $2 (Postgres style) to ? (MySQL style) if necessary
-      // Google GenAI Toolbox uses $n placeholders in YAML.
       const mysqlSql = sql.replace(/\$\d+/g, '?');
-      const [rows] = await connection.execute(mysqlSql, params);
-      return rows as any[];
+      const results = await db.query(mysqlSql, params);
+      return results as any[];
     } finally {
-      await connection.end();
+      await db.quit();
     }
   }
 

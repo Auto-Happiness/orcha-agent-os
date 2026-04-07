@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "mysql2/promise": ["./node_modules/mysql2/promise.d.ts"],
+      "pg": ["./node_modules/@types/pg/index.d.ts"]
     }
   },
   "include": [
@@ -30,5 +32,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "WrenAI", "Chat2DB"]
 }

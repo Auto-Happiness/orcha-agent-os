@@ -14,6 +14,8 @@ import type * as mcpTools from "../mcpTools.js";
 import type * as messages from "../messages.js";
 import type * as organizations from "../organizations.js";
 import type * as seed from "../seed.js";
+import type * as semanticModels from "../semanticModels.js";
+import type * as semanticRelationships from "../semanticRelationships.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
 
@@ -30,6 +32,8 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   organizations: typeof organizations;
   seed: typeof seed;
+  semanticModels: typeof semanticModels;
+  semanticRelationships: typeof semanticRelationships;
   users: typeof users;
   webhooks: typeof webhooks;
 }>;

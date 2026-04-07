@@ -21,24 +21,68 @@ import {
   IconFingerprint,
   IconSettingsCheck
 } from "@tabler/icons-react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { notifications } from "@mantine/notifications";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { DatabaseConfig } from "@/components/Configure/DatabaseConfig";
 import { LLMConfig } from "@/components/Configure/LLMConfig";
 import { WizardDetailsStep } from "@/components/Configure/WizardDetailsStep";
+import { CatalogScan } from "@/components/Configure/CatalogScan";
+import { SemanticBridge } from "@/components/Configure/SemanticBridge";
 
 export default function NewConfigurationPage() {
   const { saas } = useParams();
   const router = useRouter();
-  const { step, setStep, reset } = useCreationWizard();
+  const searchParams = useSearchParams();
+  const stepParam = searchParams.get("step");
+  const { step, setStep, reset, data } = useCreationWizard();
+  const finalizeConfiguration = useMutation(api.databaseConfigs.finalizeConfiguration);
+
+  const stepMapping: Record<string, number> = {
+    "connectivity": 0,
+    "catalog": 1,
+    "bridge": 2,
+    "intelligence": 3,
+    "finalize": 4,
+  };
+
+  const reverseMapping = Object.fromEntries(
+    Object.entries(stepMapping).map(([k, v]) => [v, k])
+  );
+
+  // Sync step from URL on initial load and param changes
+  useEffect(() => {
+    if (stepParam && stepMapping[stepParam] !== undefined) {
+      if (step !== stepMapping[stepParam]) {
+        setStep(stepMapping[stepParam]);
+      }
+    }
+  }, [stepParam]);
+
+  // Sync URL when step changes internally
+  const updateUrlForStep = (newStep: number) => {
+    const slug = reverseMapping[newStep] || "connectivity";
+    router.push(`/${saas}/configure/new?step=${slug}`);
+  };
 
   const handleBack = () => {
-    if (step > 0) setStep(step - 1);
-    else router.push(`/${saas}/configure`);
+    const newStep = Math.max(0, step - 1);
+    if (step === 0) {
+      router.push(`/${saas}/configure`);
+    } else {
+      updateUrlForStep(newStep);
+    }
   };
 
   const handleNext = () => {
-    setStep(step + 1);
+    updateUrlForStep(step + 1);
+  };
+
+  const onStepClick = (newStep: number) => {
+    updateUrlForStep(newStep);
   };
 
   return (
@@ -68,7 +112,7 @@ export default function NewConfigurationPage() {
 
         <Stepper 
           active={step} 
-          onStepClick={setStep} 
+          onStepClick={onStepClick} 
           color="violet" 
           iconSize={42}
           allowNextStepsSelect={false}
@@ -78,10 +122,10 @@ export default function NewConfigurationPage() {
             stepDescription: { fontSize: rem(10), textTransform: "uppercase", letterSpacing: rem(1) }
           }}
         >
-          {/* Step 1: Database Selector */}
+          {/* Step 1: Connectivity (Data Source) */}
           <Stepper.Step 
-            label="Database" 
-            description="Select Data Source"
+            label="Connectivity" 
+            description="Secure Source Link"
             icon={<IconDatabase size={20} />}
           >
             <Stack gap="xl" py="2rem">
@@ -96,13 +140,87 @@ export default function NewConfigurationPage() {
               
                <Group justify="flex-end">
                   <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
-                    Connect and Select Model
+                    Connect and Scan Schema
                   </Button>
                </Group>
             </Stack>
           </Stepper.Step>
 
-          {/* Step 2: Model Selector */}
+          {/* Step 2: Catalog Scanning */}
+          <Stepper.Step 
+            label="Catalog" 
+            description="Scan and Select Tables"
+            icon={<IconFingerprint size={20} />}
+          >
+            <Stack gap="xl" py="2rem">
+              <Box>
+                <Title order={3} size="h3" c="white" mb={4}>Metadata Extraction</Title>
+                <Text size="xs" c="dimmed">Discover tables and columns available in your data source. Selective scanning ensures focus and precision.</Text>
+              </Box>
+              
+              <Box pt="md">
+                {data.configId ? (
+                   <CatalogScan configId={data.configId} />
+                ) : (
+                   <Stack align="center" gap="sm" py="3rem">
+                     <IconDatabase size={48} color="rgba(147,51,234,0.4)" />
+                     <Text c="dimmed">Please connect a data source in the previous step first.</Text>
+                   </Stack>
+                )}
+              </Box>
+
+              <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
+              
+              <Group justify="space-between">
+                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Source Link</Button>
+                <Button 
+                  color="violet" 
+                  size="md" 
+                  onClick={handleNext} 
+                  disabled={!data.configId || (data.selectedTables?.length || 0) === 0}
+                  rightSection={<IconArrowRight size={16} />}
+                >
+                  Enter Semantic Bridge
+                </Button>
+              </Group>
+            </Stack>
+          </Stepper.Step>
+
+          {/* Step 3: Semantic Bridge (Modeling) */}
+          <Stepper.Step 
+            label="Semantic Bridge" 
+            description="Define Business Logic"
+            icon={<IconSettingsCheck size={20} />}
+          >
+             <Stack gap="xl" py="2rem">
+              <Box>
+                <Title order={3} size="h3" c="white" mb={4}>Semantic Layer (MDL)</Title>
+                <Text size="xs" c="dimmed">Map raw database columns to business concepts (Dimensions and Measures). Define the relationships that drive intelligent SQL generation.</Text>
+              </Box>
+
+              <Box pt="md">
+                {data.configId ? (
+                   <SemanticBridge configId={data.configId} />
+                ) : (
+                   <Stack align="center" gap="sm" py="3rem">
+                     <IconDatabase size={48} color="rgba(147,51,234,0.4)" />
+                     <Text c="dimmed">Please select tables in the previous step first.</Text>
+                   </Stack>
+                )}
+              </Box>
+
+              <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
+              
+              <Group justify="space-between">
+                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Metadata Discovery</Button>
+                <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
+                  Configure Cognitive Intelligence
+                </Button>
+              </Group>
+            </Stack>
+          </Stepper.Step>
+
+          {/* Step 4: Cognitive Intelligence (Model Selector) */}
           <Stepper.Step 
             label="Intelligence" 
             description="Pair AI Engine"
@@ -111,7 +229,7 @@ export default function NewConfigurationPage() {
             <Stack gap="xl" py="2rem">
               <Box>
                 <Title order={3} size="h3" c="white" mb={4}>Cognitive Processing Engine</Title>
-                <Text size="xs" c="dimmed">Configure the large language model that will interface with your data source.</Text>
+                <Text size="xs" c="dimmed">Configure the large language model that will interface with your semantic layer.</Text>
               </Box>
               
               <LLMConfig />
@@ -119,7 +237,7 @@ export default function NewConfigurationPage() {
               <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
               
               <Group justify="space-between">
-                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Database Settings</Button>
+                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Modeling</Button>
                 <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
                   Finalize Connection Identity
                 </Button>
@@ -127,7 +245,7 @@ export default function NewConfigurationPage() {
             </Stack>
           </Stepper.Step>
 
-          {/* Step 3: Metadata Details */}
+          {/* Step 5: Final Profile Metadata */}
           <Stepper.Step 
             label="Finalize" 
             description="Environment Branding"
@@ -145,11 +263,40 @@ export default function NewConfigurationPage() {
 
               <Group justify="space-between">
                 <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Intelligence Settings</Button>
-                <Button color="violet" size="lg" px={50} onClick={() => {
-                  alert("Environment Initialized!");
-                  reset();
-                  router.push(`/${saas}/configure`);
-                }} leftSection={<IconCheck size={18} />}>Initialize Environment</Button>
+                <Button color="violet" size="lg" px={50} 
+                  disabled={!data.name || !data.configId}
+                  onClick={async () => {
+                    if (!data.configId) return;
+                    
+                    try {
+                      await finalizeConfiguration({
+                        configId: data.configId as any,
+                        name: data.name,
+                        description: data.description,
+                        image: data.image || undefined,
+                        tags: data.tags,
+                        modelProvider: data.modelProvider,
+                        modelConfig: JSON.stringify(data.modelConfig),
+                        businessContext: data.businessContext,
+                      });
+
+                      notifications.show({
+                         title: "Environment Ready",
+                         message: `${data.name} has been successfully initialized.`,
+                         color: "violet",
+                         icon: <IconCheck size={16} />
+                      });
+
+                      reset();
+                      router.push(`/${saas}/configure`);
+                    } catch (err: any) {
+                       notifications.show({
+                         title: "Initialization Failed",
+                         message: err.message || "An error occurred while finalizing your environment.",
+                         color: "red"
+                       });
+                    }
+                  }} leftSection={<IconCheck size={18} />}>Initialize Environment</Button>
               </Group>
             </Stack>
           </Stepper.Step>
