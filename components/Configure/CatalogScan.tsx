@@ -20,7 +20,7 @@ import {
   IconChevronDown, 
   IconChevronRight, 
 } from "@tabler/icons-react";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
@@ -37,6 +37,13 @@ export function CatalogScan({ configId }: CatalogScanProps) {
   const toggleTable = (tableName: string) => {
     setOpenedTables(prev => ({ ...prev, [tableName]: !prev[tableName] }));
   };
+
+  // Auto-select all tables by default (Zero-Config)
+  useEffect(() => {
+    if (models && models.length > 0 && (!data.selectedTables || data.selectedTables.length === 0)) {
+      updateData({ selectedTables: models.map(m => m.tableName) });
+    }
+  }, [models, data.selectedTables]);
 
   const handleToggleSelect = (tableName: string) => {
     const current = data.selectedTables || [];
@@ -170,4 +177,3 @@ export function CatalogScan({ configId }: CatalogScanProps) {
   );
 }
 
-import React from "react";

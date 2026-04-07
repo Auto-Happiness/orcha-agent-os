@@ -208,4 +208,47 @@ export class DatabaseScanner {
       await client.end();
     }
   }
+
+  /**
+   * Executes a raw SQL query and returns rows & column definitions.
+   */
+  static async executeQuery(type: string, config: any, sql: string): Promise<{ rows: any[], columns: string[] }> {
+    if (type === "mysql") {
+      const db = serverlessMysql({
+        config: {
+          host: config.host,
+          port: parseInt(config.port || '3306'),
+          user: config.user,
+          password: config.password,
+          database: config.database,
+          ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+        }
+      });
+      try {
+        const rows: any[] = await db.query(sql);
+        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+        return { rows, columns };
+      } finally {
+        await db.quit();
+      }
+    } else {
+      const client = new PgClient({
+        host: config.host,
+        port: parseInt(config.port || '5432'),
+        user: config.user,
+        password: config.password,
+        database: config.database,
+        ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+      });
+      await client.connect();
+      try {
+        const res = await client.query(sql);
+        const rows = res.rows;
+        const columns = res.fields.map(f => f.name);
+        return { rows, columns };
+      } finally {
+        await client.end();
+      }
+    }
+  }
 }

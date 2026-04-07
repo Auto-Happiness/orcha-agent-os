@@ -16,7 +16,7 @@ import { useState } from "react";
 import { notifications } from "@mantine/notifications";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { useParams } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useOrganization, useUser } from "@clerk/nextjs";
 
@@ -45,6 +45,8 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
   const syncOrg = useMutation(api.webhooks.syncOrganization);
   const syncUser = useMutation(api.users.storeUser);
+  const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
+  const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
 
   const testConnection = async () => {
     setTesting(true);
@@ -152,10 +154,22 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
         // Save configId for next steps
         updateData({ configId });
 
+        // Zero-Config: Auto-run AI suggestions and enrichment
+        // This ensures the Diagram is populated immediately
+        await suggestRelationships({ 
+          organizationId: finalOrgId as any, 
+          configId: configId as any 
+        });
+        
+        await generateAiEnrichment({ 
+          configId: configId as any,
+          businessContext: data.businessContext || "Classic models database for a scale model business."
+        });
+
         notifications.update({
           id: notificationId,
           title: "Setup Complete",
-          message: scanResult.message,
+          message: `${scanResult.message} AI models have been enriched.`,
           color: "violet",
           icon: <IconShieldCheck size={16} />,
           loading: false,

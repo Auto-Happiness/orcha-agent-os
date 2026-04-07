@@ -9,7 +9,7 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 
 const theme = createTheme({
-  fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-space-grotesk), system-ui, sans-serif",
   fontFamilyMonospace: "var(--font-geist-mono), monospace",
   primaryColor: "violet",
   primaryShade: { light: 6, dark: 7 },

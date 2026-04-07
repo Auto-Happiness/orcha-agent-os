@@ -2,33 +2,49 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
+ * listByOrganization
+ * 
+ * Returns only "ready" database configurations for a given organization.
+ * Treats missing status as "ready" for backward compatibility.
+ */
+export const listByOrganization = query({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("databaseConfigs")
+      .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
+      .collect();
+    
+    // Filter manually to handle missing "status" field for old documents
+    return all.filter((config: any) => config.status === "ready" || config.status === undefined);
+  },
+});
+
+/**
  * getByOrganization
  * 
- * Returns the database configuration for a given organization slug.
- * Used by the Bridge to resolve credentials for JIT tool execution.
+ * Returns the latest "ready" configuration.
  */
 export const getByOrganization = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const all = await ctx.db
       .query("databaseConfigs")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
-      .unique();
+      .collect();
+      
+    // Find the first matching "ready" or legacy document
+    return all.find((config: any) => config.status === "ready" || config.status === undefined);
   },
 });
 
 /**
  * isConnected
- * 
- * Simple check if an organization has a database connected.
  */
 export const isConnected = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
-    const config = await ctx.db
-      .query("databaseConfigs")
-      .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
-      .unique();
+    const config = await getByOrganization(ctx, args);
     return !!config;
   },
 });
@@ -36,13 +52,13 @@ export const isConnected = query({
 /**
  * createOrUpdate
  * 
- * Creates or updates the database configuration for an organization.
+ * Starts an environment setup. Sets status to "draft" by default.
  */
 export const createOrUpdate = mutation({
   args: {
     organizationId: v.id("organizations"),
     type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery")),
-    encryptedUri: v.string(), // In this demo, we're storing the JSON string (encryption TODO)
+    encryptedUri: v.string(), 
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -57,12 +73,14 @@ export const createOrUpdate = mutation({
         encryptedUri: args.encryptedUri,
         updatedBy: args.updatedBy,
         updatedAt: Date.now(),
+        // Keep existing status if it exists
       });
       return existing._id;
     } else {
       return await ctx.db.insert("databaseConfigs", {
         organizationId: args.organizationId,
         type: args.type,
+        status: "draft", 
         encryptedUri: args.encryptedUri,
         name: `New ${args.type.charAt(0).toUpperCase() + args.type.slice(1)} Environment`,
         updatedBy: args.updatedBy,
@@ -75,7 +93,7 @@ export const createOrUpdate = mutation({
 /**
  * finalizeConfiguration
  * 
- * Finalizes the environment by saving profile metadata and AI model settings.
+ * Promotes the environment from "draft" to "ready".
  */
 export const finalizeConfiguration = mutation({
   args: {
@@ -92,8 +110,34 @@ export const finalizeConfiguration = mutation({
     const { configId, ...updates } = args;
     await ctx.db.patch(configId, {
       ...updates,
+      status: "ready", 
       updatedAt: Date.now(),
     });
+    return { success: true };
+  },
+});
+
+/**
+ * remove
+ */
+export const remove = mutation({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    const relationships = await ctx.db
+      .query("semanticRelationships")
+      .withIndex("by_config", (q: any) => q.eq("configId", args.configId))
+      .collect();
+    for (const rel of relationships) {
+      await ctx.db.delete(rel._id);
+    }
+    const models = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_config", (q: any) => q.eq("configId", args.configId))
+      .collect();
+    for (const model of models) {
+      await ctx.db.delete(model._id);
+    }
+    await ctx.db.delete(args.configId);
     return { success: true };
   },
 });

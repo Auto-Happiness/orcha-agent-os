@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import { 
   Stack, 
   Group, 
@@ -8,6 +9,8 @@ import {
   Badge,
 } from "@mantine/core";
 import { IconSparkles, IconShieldCheck, IconSettings2 } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
+import { useCreationWizard } from "@/lib/store/useCreationWizard";
 
 // Individual Model Form Components
 import { GoogleVertexForm } from "./ModelForms/GoogleVertex";
@@ -24,6 +27,17 @@ export function ModelConfigForm({ provider }: ModelFormProps) {
   const { data, updateData, setStep } = useCreationWizard();
   const [saving, setSaving] = useState(false);
 
+  const renderForm = () => {
+    switch (provider) {
+      case "google": return <GoogleVertexForm />;
+      case "openai": return <OpenAIForm />;
+      case "anthropic": return <AnthropicForm />;
+      case "ollama": return <OllamaForm />;
+      case "qwen": return <QwenForm />;
+      default: return <GoogleVertexForm />;
+    }
+  };
+
   const handleSaveModel = async () => {
     setSaving(true);
     // Simulating a brief save delay for better UX
@@ -38,7 +52,7 @@ export function ModelConfigForm({ provider }: ModelFormProps) {
       icon: <IconShieldCheck size={16} />,
     });
     
-    setStep(2); // Move to Metadata step
+    setStep(4); // Move to Finalize step
     setSaving(false);
   };
 

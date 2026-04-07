@@ -25,28 +25,17 @@ export function WizardDetailsStep() {
         <Grid.Col span={{ base: 12, md: 4 }}>
            <Stack align="center" gap="md">
               <Text size="sm" fw={700} c="dimmed" style={{ textTransform: "uppercase" }}>Identity Profile</Text>
-              <Box style={{ position: "relative" }}>
+              <Box>
                  <Avatar 
-                    src={data.image} 
+                    src={`https://api.dicebear.com/7.x/identicon/svg?seed=${data.name || 'orcha'}&backgroundColor=13102a`} 
                     size={rem(180)} 
                     radius="md" 
                     variant="light" 
                     color="violet"
-                    style={{ border: "2px dashed rgba(147,51,234,0.3)", background: "rgba(147,51,234,0.05)" }}
-                  >
-                    <IconPhoto size={48} color="rgba(147,51,234,0.4)" />
-                  </Avatar>
-                  <ActionIcon 
-                    variant="filled" 
-                    color="violet" 
-                    radius="xl" 
-                    size="lg"
-                    style={{ position: "absolute", bottom: -10, right: -10, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
-                  >
-                    <IconCameraPlus size={18} />
-                  </ActionIcon>
+                    style={{ border: "2px solid rgba(147,51,234,0.3)", background: "rgba(147,51,234,0.05)" }}
+                  />
               </Box>
-              <Text size="xs" c="dimmed" ta="center" px="xl">Upload a custom avatar or identifier for this connection profile.</Text>
+              <Text size="xs" c="dimmed" ta="center" px="xl">An automatic environment identifier has been generated based on your name.</Text>
            </Stack>
         </Grid.Col>
 
@@ -63,11 +52,21 @@ export function WizardDetailsStep() {
 
               <Textarea 
                 label="Deployment Description" 
-                placeholder="Briefly describe the purpose of this connection for the AI agent context..." 
+                placeholder="Briefly describe the purpose of this connection..." 
                 styles={inputStyles}
-                minRows={4}
+                minRows={3}
                 value={data.description}
                 onChange={(e) => updateData({ description: e.target.value })}
+              />
+
+              <Textarea 
+                label="Business Context (Domain Knowledge)" 
+                placeholder="Describe your business domain (e.g. 'Scale model shop with customers and orders'). This helps the AI understand your data." 
+                styles={inputStyles}
+                minRows={5}
+                value={data.businessContext}
+                onChange={(e) => updateData({ businessContext: e.target.value })}
+                description="This is injected into the AI agent to give it 'common sense' about your industry."
               />
 
               <Stack gap="xs">

@@ -52,8 +52,10 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
   const [viewMode, setViewMode] = useState<string>("list");
   
   // Only show models that were selected in the previous step
+  // If in edit mode (data.selectedTables is empty), show all models for this config
   const models: any[] = useMemo(() => {
     if (!allModels) return [];
+    if (!data.selectedTables || data.selectedTables.length === 0) return allModels;
     return allModels.filter((m: any) => data.selectedTables?.includes(m.tableName));
   }, [allModels, data.selectedTables]);
 

@@ -13,6 +13,7 @@ import type * as databaseConfigs from "../databaseConfigs.js";
 import type * as mcpTools from "../mcpTools.js";
 import type * as messages from "../messages.js";
 import type * as organizations from "../organizations.js";
+import type * as savedQueries from "../savedQueries.js";
 import type * as seed from "../seed.js";
 import type * as semanticModels from "../semanticModels.js";
 import type * as semanticRelationships from "../semanticRelationships.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   mcpTools: typeof mcpTools;
   messages: typeof messages;
   organizations: typeof organizations;
+  savedQueries: typeof savedQueries;
   seed: typeof seed;
   semanticModels: typeof semanticModels;
   semanticRelationships: typeof semanticRelationships;

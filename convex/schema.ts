@@ -74,9 +74,11 @@ export default defineSchema({
     modelProvider: v.optional(v.string()),
     modelConfig: v.optional(v.string()), // Encrypted LLM JSON
     businessContext: v.optional(v.string()), // Added for AI semantic memory
+    status: v.optional(v.union(v.literal("draft"), v.literal("ready"))),
     updatedBy: v.id("users"),
     updatedAt: v.number(),
-  }).index("by_org", ["organizationId"]),
+  }).index("by_org", ["organizationId"])
+    .index("by_status", ["status"]),
 
   // ─── Bridge: Large Scale Data Exports (10M+ ) ──────────
   dataExports: defineTable({
@@ -156,4 +158,19 @@ export default defineSchema({
     .index("by_config", ["configId"])
     .index("by_from", ["fromModelId"])
     .index("by_to", ["toModelId"]),
+
+  // ─── Bridge: Saved Data Lab Queries ──────────────────────
+  savedQueries: defineTable({
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    name: v.string(),
+    sql: v.string(),
+    description: v.optional(v.string()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    lastExecutedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_config", ["configId"])
+    .index("by_name", ["name"]),
 });

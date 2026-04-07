@@ -45,8 +45,7 @@ export default function NewConfigurationPage() {
     "connectivity": 0,
     "catalog": 1,
     "bridge": 2,
-    "intelligence": 3,
-    "finalize": 4,
+    "finalize": 3,
   };
 
   const reverseMapping = Object.fromEntries(
@@ -105,7 +104,7 @@ export default function NewConfigurationPage() {
           <Title order={1} c="white" size={rem(32)} mb="xs" style={{ letterSpacing: "-0.02em" }}>
             Initialize Environment
           </Title>
-          <Text c="dimmed" size="md">Connect your database, pair it with AI intelligence, and deploy it to your workspace.</Text>
+          <Text c="dimmed" size="md">Connect your database, define your semantic bridge, and deploy it to your workspace.</Text>
         </Box>
 
         <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} />
@@ -214,42 +213,17 @@ export default function NewConfigurationPage() {
               <Group justify="space-between">
                 <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Metadata Discovery</Button>
                 <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
-                  Configure Cognitive Intelligence
+                   Finalize Connection Identity
                 </Button>
               </Group>
             </Stack>
           </Stepper.Step>
 
-          {/* Step 4: Cognitive Intelligence (Model Selector) */}
-          <Stepper.Step 
-            label="Intelligence" 
-            description="Pair AI Engine"
-            icon={<IconRobot size={20} />}
-          >
-            <Stack gap="xl" py="2rem">
-              <Box>
-                <Title order={3} size="h3" c="white" mb={4}>Cognitive Processing Engine</Title>
-                <Text size="xs" c="dimmed">Configure the large language model that will interface with your semantic layer.</Text>
-              </Box>
-              
-              <LLMConfig />
-
-              <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
-              
-              <Group justify="space-between">
-                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Modeling</Button>
-                <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
-                  Finalize Connection Identity
-                </Button>
-              </Group>
-            </Stack>
-          </Stepper.Step>
-
-          {/* Step 5: Final Profile Metadata */}
+          {/* Step 4: Final Profile Metadata */}
           <Stepper.Step 
             label="Finalize" 
             description="Environment Branding"
-            icon={<IconSettingsCheck size={20} />}
+            icon={<IconCheck size={20} />}
           >
             <Stack gap="xl" py="2rem">
               <Box>
@@ -262,21 +236,26 @@ export default function NewConfigurationPage() {
               <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
 
               <Group justify="space-between">
-                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Intelligence Settings</Button>
-                <Button color="violet" size="lg" px={50} 
+                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Bridge</Button>
+                <Button 
+                  color="violet" 
+                  size="lg" 
+                  px={50} 
                   disabled={!data.name || !data.configId}
                   onClick={async () => {
                     if (!data.configId) return;
                     
                     try {
+                      const identiconUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${data.name || 'orcha'}&backgroundColor=13102a`;
+                      
                       await finalizeConfiguration({
                         configId: data.configId as any,
                         name: data.name,
                         description: data.description,
-                        image: data.image || undefined,
+                        image: data.image || identiconUrl,
                         tags: data.tags,
-                        modelProvider: data.modelProvider,
-                        modelConfig: JSON.stringify(data.modelConfig),
+                        modelProvider: data.modelProvider || "google", 
+                        modelConfig: JSON.stringify(data.modelConfig || {}),
                         businessContext: data.businessContext,
                       });
 
@@ -296,7 +275,11 @@ export default function NewConfigurationPage() {
                          color: "red"
                        });
                     }
-                  }} leftSection={<IconCheck size={18} />}>Initialize Environment</Button>
+                  }} 
+                  leftSection={<IconCheck size={18} />}
+                >
+                  Initialize Environment
+                </Button>
               </Group>
             </Stack>
           </Stepper.Step>

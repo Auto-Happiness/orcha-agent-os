@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Space_Grotesk, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ColorSchemeScript } from "@mantine/core";
 import { MantineUiProvider } from "@/lib/mantine-provider";
@@ -8,8 +8,8 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 });
 
@@ -36,7 +36,7 @@ export default function RootLayout({
           <ColorSchemeScript defaultColorScheme="dark" />
         </head>
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+          className={`${spaceGrotesk.variable} ${geistMono.variable} antialiased`}
           suppressHydrationWarning
         >
           <MantineUiProvider>
@@ -47,4 +47,3 @@ export default function RootLayout({
     </ClerkProvider>
   );
 }
-

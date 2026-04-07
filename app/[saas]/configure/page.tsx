@@ -17,7 +17,6 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SavedConfigsList } from "@/components/Configure/SavedConfigsList";
-import { McpToolList } from "@/components/Configure/McpToolList";
 
 export default function ConfigurePage() {
   const { saas } = useParams();
@@ -70,14 +69,6 @@ export default function ConfigurePage() {
         {/* ── Saved Configurations ─────────────────────────────────────── */}
         <Box>
           <SavedConfigsList />
-        </Box>
-
-        <Divider color="rgba(255,255,255,0.05)" />
-
-        {/* ── AI Bridge Tools ─────────────────────────────────────────── */}
-        <Box>
-          <Title order={2} c="white" size="1.25rem" mb="xs">AI Bridge (MCP Tools)</Title>
-          <McpToolList organizationId={organization._id} />
         </Box>
       </Stack>
     </Box>

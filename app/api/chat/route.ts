@@ -39,9 +39,11 @@ export async function POST(req: NextRequest) {
     }).join('\n\n');
 
     const relationshipDescription = relationships && relationships.length > 0
-      ? `### Relationships (JOIN Paths):\n` + relationships.map((rel: any) => 
-          `- ${rel.name}: ${rel.fromColumn} in table ${rel.fromModelId} links to ${rel.toColumn} in table ${rel.toModelId} (${rel.type})`
-        ).join('\n')
+      ? `### Relationships (JOIN Paths):\n` + relationships.map((rel: any) => {
+          const fromModel = semanticModels.find(m => m._id === rel.fromModelId);
+          const toModel = semanticModels.find(m => m._id === rel.toModelId);
+          return `- ${rel.fromColumn} in table ${fromModel?.tableName || 'unknown'} links to ${rel.toColumn} in table ${toModel?.tableName || 'unknown'} (${rel.type})`;
+        }).join('\n')
       : "";
 
     const systemPrompt = `
