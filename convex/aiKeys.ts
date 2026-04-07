@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { checkMembership } from "./authUtils";
 
 /**
  * listByOrganization
@@ -7,6 +8,7 @@ import { v } from "convex/values";
 export const listByOrganization = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
     return await ctx.db
       .query("aiKeys")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
@@ -29,6 +31,7 @@ export const getByProvider = query({
     ),
   },
   handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
     return await ctx.db
       .query("aiKeys")
       .withIndex("by_org_provider", (q: any) => 
@@ -56,6 +59,7 @@ export const upsertKey = mutation({
     storageStrategy: v.string(),
   },
   handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
     const existing = await ctx.db
       .query("aiKeys")
       .withIndex("by_org_provider", (q: any) => 
@@ -98,6 +102,7 @@ export const removeKey = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
     const existing = await ctx.db
       .query("aiKeys")
       .withIndex("by_org_provider", (q: any) => 

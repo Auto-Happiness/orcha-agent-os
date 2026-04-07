@@ -1,5 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 /**
  * handleClerkUserEvent
@@ -56,13 +57,13 @@ export const syncOrganization = mutation({
   args: {
     slug: v.string(),
     name: v.string(),
-    clerkOrgId: v.string(), // We may want to store Clerk's own ID too
+    clerkOrgId: v.string(),
+    clerkUserId: v.optional(v.string()), // The user who created/updated the org
     type: v.union(v.literal("organization.created"), v.literal("organization.updated"), v.literal("organization.deleted")),
   },
   handler: async (ctx, args) => {
-    const { slug, name, clerkOrgId, type } = args;
+    const { slug, name, clerkOrgId, clerkUserId, type } = args;
 
-    // We assume the slug is unique across organizations
     const existing = await ctx.db
       .query("organizations")
       .withIndex("by_slug", (q: any) => q.eq("slug", slug))
@@ -73,17 +74,29 @@ export const syncOrganization = mutation({
       return;
     }
 
+    let ownerId: Id<"users"> | undefined;
+    if (clerkUserId) {
+       const user = await ctx.db
+         .query("users")
+         .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", `https://${process.env.CLERK_HOSTNAME}|${clerkUserId}`))
+         .unique();
+       if (user) ownerId = user._id;
+    }
+
     if (existing) {
-      await ctx.db.patch(existing._id, { name });
+      await ctx.db.patch(existing._id, { 
+        name, 
+        clerkId: clerkOrgId,
+        ownerId: ownerId || existing.ownerId
+      });
       return existing._id;
     } else {
-      // For webhooks, we may not have an 'owner' immediately
-      // but we should probably handle that in the membership webhook
       return await ctx.db.insert("organizations", {
         name,
         slug,
+        clerkId: clerkOrgId,
+        ownerId,
         plan: "free",
-        // ownerId: ... // Handle via membership event
         createdAt: Date.now(),
       });
     }

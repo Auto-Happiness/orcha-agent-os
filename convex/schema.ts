@@ -22,12 +22,14 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),
     logoUrl: v.optional(v.string()),
+    clerkId: v.optional(v.string()), // Clerk's 'org_123...' identifier
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("enterprise")),
     ownerId: v.optional(v.id("users")),
     createdAt: v.number(),
   })
     .index("by_slug", ["slug"])
-    .index("by_owner", ["ownerId"]),
+    .index("by_owner", ["ownerId"])
+    .index("by_clerk_id", ["clerkId"]),
 
   // ─── Organization Memberships ──────────────────────────────
   memberships: defineTable({

@@ -38,11 +38,14 @@ import { ChatPromptBox } from "@/components/Chat/ChatPromptBox";
 
 export default function ChatPage() {
   const { saas } = useParams();
-  const { user } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
   const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
   
   // Environment selection
-  const allConfigs = useQuery(api.databaseConfigs.listByOrganization, activeOrg?._id ? { organizationId: activeOrg._id } : "skip");
+  const allConfigs = useQuery(
+    api.databaseConfigs.listByOrganization, 
+    activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
+  );
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
 
   // Sync initial config
@@ -54,15 +57,23 @@ export default function ChatPage() {
 
   const isConnected = useQuery(
     api.databaseConfigs.isConnected,
-    activeOrg?._id ? { organizationId: activeOrg._id } : "skip"
+    activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
+  
+  // AI Keys and Model Selection
+  const aiKeys = useQuery(
+    api.aiKeys.listByOrganization, 
+    activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
+  );
+  const [selectedModel, setSelectedModel] = useState<string>("gemini:gemini-1.5-flash");
 
   const { messages, input, setInput, handleInputChange, handleSubmit, status } = useChat({
     api: "/api/chat",
     body: { 
       organizationId: activeOrg?._id,
       configId: selectedConfigId,
-      slug: saas 
+      slug: saas,
+      modelId: selectedModel 
     },
   } as any) as any;
 
@@ -124,6 +135,9 @@ export default function ChatPage() {
           allConfigs={allConfigs || []}
           selectedConfigId={selectedConfigId}
           setSelectedConfigId={setSelectedConfigId}
+          aiKeys={aiKeys || []}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
         />
 
       </Stack>

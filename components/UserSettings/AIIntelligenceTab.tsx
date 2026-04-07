@@ -26,6 +26,7 @@ import {
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useUser } from "@clerk/nextjs";
 import { notifications } from "@mantine/notifications";
 import { inputStyles } from "@/lib/styles";
 
@@ -88,7 +89,11 @@ interface AIIntelligenceTabProps {
 }
 
 export function AIIntelligenceTab({ organization }: AIIntelligenceTabProps) {
-  const existingKeys = useQuery(api.aiKeys.listByOrganization, organization?._id ? { organizationId: organization._id } : "skip");
+  const { isSignedIn } = useUser();
+  const existingKeys = useQuery(
+    api.aiKeys.listByOrganization, 
+    organization?._id && isSignedIn ? { organizationId: organization._id } : "skip"
+  );
   
   const [loadingProvider, setLoadingProvider] = useState<ProviderId | null>(null);
   const [editingProvider, setEditingProvider] = useState<ProviderId | null>(null);

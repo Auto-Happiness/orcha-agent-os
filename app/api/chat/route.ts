@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { streamText, tool } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { DbExecutor } from "@/lib/db-executor";
 import { KeyManager } from "@/lib/key-manager";
 import { z } from "zod";
 import { Id } from "@/convex/_generated/dataModel";
+import { auth } from "@clerk/nextjs/server";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, organizationId, configId } = await req.json();
+    const { userId, orgId } = await auth();
+    const { messages, organizationId, configId, modelId } = await req.json();
 
-    if (!organizationId) {
-      return NextResponse.json({ error: "Missing organizationId" }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify multi-tenant isolation: User MUST belong to the organization they are querying
+    if (orgId !== organizationId) {
+       console.error(`[Security] Unauthorized access attempt: User ${userId} tried to access Org ${organizationId}`);
+       return NextResponse.json({ error: "Access Denied: You do not belong to this organization." }, { status: 403 });
     }
 
     // 1. Fetch the semantic models and active config
@@ -36,17 +45,39 @@ export async function POST(req: NextRequest) {
     const semanticModels = await convex.query(api.semanticModels.listModelsByConfig, { configId: config._id });
     const relationships = await convex.query(api.semanticRelationships.listByConfig, { configId: config._id });
 
-    // 1.5 Fetch AI Config
+    // 1.5 Fetch AI Config and Initialize Requested Model
+    const selectedModelStr = modelId || "gemini:gemini-1.5-flash";
+    const [provider, modelName] = selectedModelStr.split(":");
+    
     const aiKeys = await convex.query(api.aiKeys.listByOrganization, { organizationId });
-    const geminiKeyRecord = aiKeys.find((k: any) => k.provider === "gemini");
-    let geminiApiKey: string | undefined = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    
+    let aiModel: any;
 
-    if (geminiKeyRecord && geminiKeyRecord.keyValue) {
-       try {
-         geminiApiKey = KeyManager.decrypt(geminiKeyRecord.keyValue, organizationId);
-       } catch (e) {
-         console.error("Failed to decrypt Gemini key:", e);
-       }
+    if (provider === "openai") {
+      const keyRecord = aiKeys.find((k: any) => k.provider === "openai");
+      let apiKey = process.env.OPENAI_API_KEY;
+      if (keyRecord && keyRecord.keyValue) {
+         try {
+           apiKey = KeyManager.decrypt(keyRecord.keyValue, organizationId);
+         } catch (e) { console.error("Failed to decrypt OpenAI key:", e); }
+      }
+      if (!apiKey) return NextResponse.json({ error: "OpenAI API key is missing or invalid." }, { status: 400 });
+      
+      const openai = createOpenAI({ apiKey });
+      aiModel = openai(modelName);
+    } else {
+      // Default to Gemini
+      const keyRecord = aiKeys.find((k: any) => k.provider === "gemini");
+      let apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      if (keyRecord && keyRecord.keyValue) {
+         try {
+           apiKey = KeyManager.decrypt(keyRecord.keyValue, organizationId);
+         } catch (e) { console.error("Failed to decrypt Gemini key:", e); }
+      }
+      if (!apiKey) return NextResponse.json({ error: "Gemini API key is missing or invalid." }, { status: 400 });
+      
+      const google = createGoogleGenerativeAI({ apiKey });
+      aiModel = google(modelName || "gemini-1.5-flash");
     }
 
     // 2. Prepare the System Prompt with Semantic Metadata
@@ -89,21 +120,17 @@ export async function POST(req: NextRequest) {
     `;
 
     // 3. Call the LLM with Tools
-    const google = createGoogleGenerativeAI({
-      apiKey: geminiApiKey,
-    });
-
     const result = await streamText({
-      model: google("gemini-1.5-flash"),
+      model: aiModel,
       system: systemPrompt,
       messages,
       tools: {
-        execute_sql: tool({
+        execute_sql: {
           description: "Executes a SQL query against the connected database and returns the result data.",
           parameters: z.object({
             sql: z.string().describe("The SQL query to execute."),
           }),
-          execute: async ({ sql }) => {
+          execute: async ({ sql }: { sql: string }) => {
             try {
               const rows = await DbExecutor.execute(config as any, sql);
               return { success: true, data: rows };
@@ -111,8 +138,8 @@ export async function POST(req: NextRequest) {
               return { success: false, error: err.message };
             }
           },
-        }),
-      },
+        },
+      } as any,
     });
 
     return result.toTextStreamResponse();

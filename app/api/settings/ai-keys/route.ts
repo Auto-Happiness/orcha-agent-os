@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { KeyManager } from "@/lib/key-manager";
+import { auth } from "@clerk/nextjs/server";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(req: NextRequest) {
   try {
+    const { userId, orgId } = await auth();
     const { organizationId, provider, keyType, keyValue } = await req.json();
 
-    if (!organizationId || !provider || !keyValue) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!userId || orgId !== organizationId) {
+       return NextResponse.json({ error: "Access Denied" }, { status: 403 });
     }
 
     // Use KeyManager to determine how and what to store
@@ -39,10 +41,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const { userId, orgId } = await auth();
     const { organizationId, provider } = await req.json();
 
-    if (!organizationId || !provider) {
-       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    if (!userId || orgId !== organizationId) {
+       return NextResponse.json({ error: "Access Denied" }, { status: 403 });
     }
 
     await convex.mutation(api.aiKeys.removeKey, { organizationId, provider });

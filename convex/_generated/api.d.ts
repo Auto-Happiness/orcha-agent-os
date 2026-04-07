@@ -10,8 +10,10 @@
 
 import type * as aiKeys from "../aiKeys.js";
 import type * as auth from "../auth.js";
+import type * as authUtils from "../authUtils.js";
 import type * as databaseConfigs from "../databaseConfigs.js";
 import type * as mcpTools from "../mcpTools.js";
+import type * as memberships from "../memberships.js";
 import type * as messages from "../messages.js";
 import type * as organizations from "../organizations.js";
 import type * as savedQueries from "../savedQueries.js";
@@ -30,8 +32,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   aiKeys: typeof aiKeys;
   auth: typeof auth;
+  authUtils: typeof authUtils;
   databaseConfigs: typeof databaseConfigs;
   mcpTools: typeof mcpTools;
+  memberships: typeof memberships;
   messages: typeof messages;
   organizations: typeof organizations;
   savedQueries: typeof savedQueries;
