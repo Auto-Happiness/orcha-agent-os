@@ -42,8 +42,22 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
           {m.parts.map((part, i) => {
             if (part.type !== "tool-invocation") return null;
             const { toolInvocation } = part;
+            const { toolCallId, toolName } = toolInvocation;
+
+            // Show spinner while query is running
+            if (toolInvocation.state === "call" || toolInvocation.state === "partial-call") {
+              return (
+                <Box key={toolCallId ?? i} ml="3rem" mt="sm">
+                  <Group gap={6}>
+                    <Loader size="xs" color="violet" type="dots" />
+                    <Text size="xs" c="dimmed">Running query...</Text>
+                  </Group>
+                </Box>
+              );
+            }
+
             if (toolInvocation.state !== "result") return null;
-            const { result, toolCallId, toolName } = toolInvocation;
+            const { result } = toolInvocation;
             if (toolName === "execute_sql" && result?.success && result.data?.length > 0) {
               return (
                 <Box key={toolCallId ?? i} ml="3rem" mt="sm">

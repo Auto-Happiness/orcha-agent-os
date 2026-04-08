@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { streamText, convertToModelMessages, UIMessage, jsonSchema } from "ai";
+import { streamText, convertToModelMessages, UIMessage, jsonSchema, ToolLoopAgent } from "ai";
 import { resolveModel } from "@/lib/model-resolver";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
@@ -56,6 +56,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No ready database configuration found." }, { status: 400 });
     }
 
+    // Parse the connection details from encryptedUri (stored as JSON)
+    let dbConfig: any;
+    try {
+      dbConfig = { ...JSON.parse(config.encryptedUri), type: config.type };
+      if (dbConfig.port) dbConfig.port = parseInt(dbConfig.port, 10);
+      console.log(`[Chat API] DB config resolved: ${dbConfig.type}://${dbConfig.user}@${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+    } catch (e) {
+      return NextResponse.json({ error: "Failed to parse database configuration." }, { status: 500 });
+    }
+
     // 2. Fetch semantic layer
     const [semanticModels, relationships, aiKeys] = await Promise.all([
       convex.query(api.semanticModels.listModelsByConfig, { configId: config._id }),
@@ -108,34 +118,39 @@ export async function POST(req: NextRequest) {
             5. Ensure SQL is compatible with ${config.type.toUpperCase()}.
             6. If a question is ambiguous or impossible, explain why.`;
 
-          // 5. Stream response
-          const result = streamText({
-            model: aiModel,
-            system: systemPrompt,
-            messages: await convertToModelMessages(messages),
-            tools: {
-              execute_sql: {
-                description: "Executes a SQL query against the connected database and returns the results.",
-                inputSchema: jsonSchema({
-                  type: "object",
-                  properties: {
-                    sql: { type: "string", description: "The SQL query to execute." },
-                  },
-                  required: ["sql"],
-                }),
-                execute: async ({ sql }: { sql: string }): Promise<{ success: boolean; data?: any[]; error?: string }> => {
-                  console.log(`[Chat API] Executing SQL:\n${sql}`);
-                  try {
-                    const rows = await DbExecutor.execute(config, sql);
-                    console.log(`[Chat API] SQL returned ${rows.length} rows`);
-                    return { success: true, data: rows };
-                  } catch (err: any) {
-                    console.error(`[Chat API] SQL execution failed:`, err.message);
-                    return { success: false, error: err.message };
-                  }
+          // 5. Stream response with tool loop (auto-continues after tool calls)
+          const tools = {
+            execute_sql: {
+              description: "Executes a SQL query against the connected database and returns the results.",
+              inputSchema: jsonSchema({
+                type: "object",
+                properties: {
+                  sql: { type: "string", description: "The SQL query to execute." },
                 },
+                required: ["sql"],
+              }),
+              execute: async ({ sql }: { sql: string }): Promise<{ success: boolean; data?: any[]; error?: string }> => {
+                console.log(`[Chat API] Executing SQL:\n${sql}`);
+                try {
+                  const rows = await DbExecutor.execute(dbConfig, sql);
+                  console.log(`[Chat API] SQL returned ${rows.length} rows`);
+                  return { success: true, data: rows };
+                } catch (err: any) {
+                  console.error(`[Chat API] SQL execution failed:`, err.message);
+                  return { success: false, error: err.message };
+                }
               },
-            } as any,
+            },
+          } as any;
+
+          const agent = new ToolLoopAgent({
+            model: aiModel,
+            instructions: systemPrompt,
+            tools,
+          });
+
+          const result = await agent.stream({
+            messages: await convertToModelMessages(messages),
           });
 
     return result.toUIMessageStreamResponse();
