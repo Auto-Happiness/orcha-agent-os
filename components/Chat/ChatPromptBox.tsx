@@ -152,7 +152,7 @@ export function ChatPromptBox({
         >
           <Stack gap="xs">
             <TextInput
-              placeholder="Ask anything, @ to mention, / for workflows"
+              placeholder="Talk to your database"
               variant="unstyled"
               size="md"
               value={localValue}

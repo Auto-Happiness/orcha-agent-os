@@ -4,29 +4,14 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  TextInput,
   Button,
   Stack,
-  Paper,
   Text,
-  Group,
   ScrollArea,
   Box,
-  Alert,
-  Badge,
   Avatar,
-  Loader,
-  Table,
-  ActionIcon,
-  rem,
   Title,
-  UnstyledButton,
-  Transition,
   Center,
-  Grid,
-  Tooltip,
-  Select,
-  Divider
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useUser } from "@clerk/nextjs";
@@ -46,15 +31,15 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (activeOrg?._id && isSignedIn) {
-       syncMembership({ organizationId: activeOrg._id }).catch(console.error);
+      syncMembership({ organizationId: activeOrg._id }).catch(console.error);
     }
   }, [activeOrg?._id, isSignedIn, syncMembership]);
 
   const allConfigs = useQuery(
-    api.databaseConfigs.listByOrganization, 
+    api.databaseConfigs.listByOrganization,
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
-  
+
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,9 +52,9 @@ export default function ChatPage() {
     api.databaseConfigs.isConnected,
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
-  
+
   const aiKeys = useQuery(
-    api.aiKeys.listByOrganization, 
+    api.aiKeys.listByOrganization,
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
 
@@ -152,24 +137,24 @@ export default function ChatPage() {
   return (
     <Box h="calc(100vh - 100px)" pos="relative" style={{ overflow: "hidden" }}>
       <Stack h="100%" gap={0} mx="auto" maw={900} p="md">
-        
-        <ScrollArea 
-          viewportRef={scrollRef} 
-          style={{ flex: 1 }} 
+
+        <ScrollArea
+          viewportRef={scrollRef}
+          style={{ flex: 1 }}
           scrollbarSize={6}
         >
           <Stack gap={40} py="4rem">
-            
+
             {messages?.length === 0 && (
               <WelcomeScreen user={user} setInput={setInput} />
             )}
 
             <ChatMessages messages={messages || []} isLoading={isLoading} showResults={showResults} />
-            
+
           </Stack>
         </ScrollArea>
 
-        <ChatPromptBox 
+        <ChatPromptBox
           input={input}
           handleInputChange={handleInputChange}
           handleSubmit={handleSubmit}
