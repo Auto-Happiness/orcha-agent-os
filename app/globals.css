@@ -281,3 +281,8 @@
 .animate-dash {
   animation: dash-travel 3s ease-in-out infinite alternate;
 }
+
+/* Chat session sidebar — show actions on row hover */
+.session-row:hover .session-actions {
+  opacity: 1 !important;
+}
