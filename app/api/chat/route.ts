@@ -1,148 +1,144 @@
 import { NextRequest, NextResponse } from "next/server";
-import { streamText, tool } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
+import { streamText, convertToModelMessages, UIMessage, jsonSchema } from "ai";
+import { resolveModel } from "@/lib/model-resolver";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { DbExecutor } from "@/lib/db-executor";
-import { KeyManager } from "@/lib/key-manager";
-import { z } from "zod";
-import { Id } from "@/convex/_generated/dataModel";
 import { auth } from "@clerk/nextjs/server";
+import { Id } from "@/convex/_generated/dataModel";
+
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, orgId } = await auth();
-    const { messages, organizationId, configId, modelId } = await req.json();
+    const clerkAuth = await auth();
+    const { userId, orgId: clerkOrgId } = clerkAuth;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify multi-tenant isolation: User MUST belong to the organization they are querying
-    if (orgId !== organizationId) {
-       console.error(`[Security] Unauthorized access attempt: User ${userId} tried to access Org ${organizationId}`);
-       return NextResponse.json({ error: "Access Denied: You do not belong to this organization." }, { status: 403 });
+    const { messages, organizationId: rawOrgId, configId: rawConfigId, modelId }: {
+      messages: UIMessage[];
+      organizationId: string;
+      configId: string;
+      modelId: string;
+    } = await req.json();
+
+    // Keep raw string for encryption/decryption (KeyManager needs plain string)
+    const orgIdStr: string = rawOrgId || clerkOrgId || "";
+    if (!orgIdStr) {
+      return NextResponse.json({ error: "Organization context is missing." }, { status: 400 });
     }
 
-    // 1. Fetch the semantic models and active config
-    let config;
+    const organizationId = orgIdStr as Id<"organizations">;
+    const configId = rawConfigId as Id<"databaseConfigs"> | undefined;
+
+    console.log(`[Chat API] User=${userId}, Org=${orgIdStr}, Model=${modelId}, Config=${configId}`);
+
+    // Attach Clerk JWT so Convex auth-gated queries work
+    const token = await clerkAuth.getToken({ template: "convex" });
+    if (token) convex.setAuth(token);
+
+    // 1. Resolve the database config
+    let config: any;
     if (configId) {
-      // Fetch specific config if provided
       const allConfigs = await convex.query(api.databaseConfigs.listByOrganization, { organizationId });
       config = allConfigs.find((c: any) => c._id === configId);
-    } else {
-      // Default logic (first one)
+    }
+    // Fallback to first ready config if none found
+    if (!config) {
       config = await convex.query(api.databaseConfigs.getByOrganization, { organizationId });
     }
 
     if (!config) {
-      return NextResponse.json({ error: "Deployment environment not found." }, { status: 400 });
+      return NextResponse.json({ error: "No ready database configuration found." }, { status: 400 });
     }
 
-    const semanticModels = await convex.query(api.semanticModels.listModelsByConfig, { configId: config._id });
-    const relationships = await convex.query(api.semanticRelationships.listByConfig, { configId: config._id });
+    // 2. Fetch semantic layer
+    const [semanticModels, relationships, aiKeys] = await Promise.all([
+      convex.query(api.semanticModels.listModelsByConfig, { configId: config._id }),
+      convex.query(api.semanticRelationships.listByConfig, { configId: config._id }),
+      convex.query(api.aiKeys.listByOrganization, { organizationId }),
+    ]);
 
-    // 1.5 Fetch AI Config and Initialize Requested Model
+    // 3. Initialize the requested model
     const selectedModelStr = modelId || "gemini:gemini-1.5-flash";
-    const [provider, modelName] = selectedModelStr.split(":");
-    
-    const aiKeys = await convex.query(api.aiKeys.listByOrganization, { organizationId });
-    
     let aiModel: any;
-
-    if (provider === "openai") {
-      const keyRecord = aiKeys.find((k: any) => k.provider === "openai");
-      let apiKey = process.env.OPENAI_API_KEY;
-      if (keyRecord && keyRecord.keyValue) {
-         try {
-           apiKey = KeyManager.decrypt(keyRecord.keyValue, organizationId);
-         } catch (e) { console.error("Failed to decrypt OpenAI key:", e); }
-      }
-      if (!apiKey) return NextResponse.json({ error: "OpenAI API key is missing or invalid." }, { status: 400 });
-      
-      const openai = createOpenAI({ apiKey });
-      aiModel = openai(modelName);
-    } else {
-      // Default to Gemini
-      const keyRecord = aiKeys.find((k: any) => k.provider === "gemini");
-      let apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-      if (keyRecord && keyRecord.keyValue) {
-         try {
-           apiKey = KeyManager.decrypt(keyRecord.keyValue, organizationId);
-         } catch (e) { console.error("Failed to decrypt Gemini key:", e); }
-      }
-      if (!apiKey) return NextResponse.json({ error: "Gemini API key is missing or invalid." }, { status: 400 });
-      
-      const google = createGoogleGenerativeAI({ apiKey });
-      aiModel = google(modelName || "gemini-1.5-flash");
+    try {
+      aiModel = resolveModel(selectedModelStr, aiKeys, orgIdStr);
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
     }
 
-    // 2. Prepare the System Prompt with Semantic Metadata
-    const schemaDescription = semanticModels.map(model => {
-      const fields = model.fields.map(f => {
+    // 4. Build system prompt from semantic layer
+    const schemaDescription = semanticModels.map((model: any) => {
+      const fields = model.fields.map((f: any) => {
         let fieldDesc = `- ${f.displayName} (${f.columnName}): ${f.type}`;
         if (f.expression) fieldDesc += ` [CALCULATED: ${f.expression}]`;
         if (f.aggregation) fieldDesc += `, aggregation: ${f.aggregation}`;
         if (f.isPrimary) fieldDesc += ` (PRIMARY KEY)`;
         return fieldDesc;
-      }).join('\n');
+      }).join("\n");
       return `### Table: ${model.displayName} (Physical name: ${model.tableName})\n${fields}`;
-    }).join('\n\n');
+    }).join("\n\n");
 
-    const relationshipDescription = relationships && relationships.length > 0
-      ? `### Relationships (JOIN Paths):\n` + relationships.map((rel: any) => {
-        const fromModel = semanticModels.find(m => m._id === rel.fromModelId);
-        const toModel = semanticModels.find(m => m._id === rel.toModelId);
-        return `- ${rel.fromColumn} in table ${fromModel?.tableName || 'unknown'} links to ${rel.toColumn} in table ${toModel?.tableName || 'unknown'} (${rel.type})`;
-      }).join('\n')
+    const relationshipDescription = relationships?.length > 0
+      ? "### Relationships (JOIN Paths):\n" + relationships.map((rel: any) => {
+          const from = semanticModels.find((m: any) => m._id === rel.fromModelId);
+          const to = semanticModels.find((m: any) => m._id === rel.toModelId);
+          return `- ${rel.fromColumn} in ${from?.tableName ?? "unknown"} → ${rel.toColumn} in ${to?.tableName ?? "unknown"} (${rel.type})`;
+        }).join("\n")
       : "";
 
-    const systemPrompt = `
-      You are an expert Data Analyst specializing in ${config.type.toUpperCase()} SQL.
-      
-      Your goal is to answer the user's data questions by generating and executing SQL queries.
-      
-      Use the following Semantic Layer definition to understand the database structure:
-      ${schemaDescription}
+    const systemPrompt = `You are an expert Data Analyst specializing in ${config.type.toUpperCase()} SQL.
+            Your goal is to answer the user's data questions by generating and executing SQL queries.
 
-      ${relationshipDescription}
+            Use the following Semantic Layer to understand the database:
+            ${schemaDescription}
 
-      Rules:
-      1. Use the physical table names and column names in your SQL.
-      2. If you need to join tables, use the JOIN paths defined in the Relationships section.
-      3. For calculated fields, treat the expression as the source of TRUTH for that logic.
-      4. If you need to answer a question, use the "execute_sql" tool.
-      5. For any SQL you generate, ensure it's compatible with ${config.type.toUpperCase()}.
-      6. If the question is ambiguous or impossible, explain why.
-    `;
+            ${relationshipDescription}
 
-    // 3. Call the LLM with Tools
-    const result = await streamText({
-      model: aiModel,
-      system: systemPrompt,
-      messages,
-      tools: {
-        execute_sql: {
-          description: "Executes a SQL query against the connected database and returns the result data.",
-          parameters: z.object({
-            sql: z.string().describe("The SQL query to execute."),
-          }),
-          execute: async ({ sql }: { sql: string }) => {
-            try {
-              const rows = await DbExecutor.execute(config as any, sql);
-              return { success: true, data: rows };
-            } catch (err: any) {
-              return { success: false, error: err.message };
-            }
-          },
-        },
-      } as any,
-    });
+            Rules:
+            1. Use physical table and column names in your SQL.
+            2. Use the JOIN paths defined above when joining tables.
+            3. For calculated fields, use the expression as the source of truth.
+            4. Always use the "execute_sql" tool to run queries — never just show SQL without executing it.
+            5. Ensure SQL is compatible with ${config.type.toUpperCase()}.
+            6. If a question is ambiguous or impossible, explain why.`;
 
-    return result.toTextStreamResponse();
+          // 5. Stream response
+          const result = streamText({
+            model: aiModel,
+            system: systemPrompt,
+            messages: await convertToModelMessages(messages),
+            tools: {
+              execute_sql: {
+                description: "Executes a SQL query against the connected database and returns the results.",
+                inputSchema: jsonSchema({
+                  type: "object",
+                  properties: {
+                    sql: { type: "string", description: "The SQL query to execute." },
+                  },
+                  required: ["sql"],
+                }),
+                execute: async ({ sql }: { sql: string }): Promise<{ success: boolean; data?: any[]; error?: string }> => {
+                  console.log(`[Chat API] Executing SQL:\n${sql}`);
+                  try {
+                    const rows = await DbExecutor.execute(config, sql);
+                    console.log(`[Chat API] SQL returned ${rows.length} rows`);
+                    return { success: true, data: rows };
+                  } catch (err: any) {
+                    console.error(`[Chat API] SQL execution failed:`, err.message);
+                    return { success: false, error: err.message };
+                  }
+                },
+              },
+            } as any,
+          });
+
+    return result.toUIMessageStreamResponse();
 
   } catch (error: any) {
     console.error("Chat Error:", error);

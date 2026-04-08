@@ -12,7 +12,14 @@ export interface AIKeyPayload {
 }
 
 const ALGORITHM = "aes-256-gcm";
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "default_fallback_key_32_chars_long!!"; // Must be 32 chars
+
+function getEncryptionKey(): Buffer {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key || key.length < 32) {
+    throw new Error("ENCRYPTION_KEY env var must be set and at least 32 characters.");
+  }
+  return Buffer.from(key.slice(0, 32));
+}
 
 export class KeyManager {
   private static strategy: KeyStorageStrategy = (process.env.KEY_STORAGE as KeyStorageStrategy) || "convex";
@@ -22,31 +29,21 @@ export class KeyManager {
    */
   static encrypt(text: string, organizationId: string): string {
     const iv = crypto.randomBytes(16);
-    // Bind the encryption to the organizationId by including it in the key derivation or as AAD
-    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.slice(0, 32)), iv);
-    
-    // In GCM mode, we can add Additional Authenticated Data (AAD)
-    // This ensures the data can ONLY be decrypted if the same orgId is provided
+    const cipher = crypto.createCipheriv(ALGORITHM, getEncryptionKey(), iv);
     cipher.setAAD(Buffer.from(organizationId), { plaintextLength: text.length });
-    
     let encrypted = cipher.update(text, "utf8", "hex");
     encrypted += cipher.final("hex");
     const authTag = cipher.getAuthTag().toString("hex");
     return `${iv.toString("hex")}:${authTag}:${encrypted}`;
   }
 
-  /**
-   * Helper to decrypt data, verifying the organization context
-   */
   static decrypt(encryptedData: string, organizationId: string): string {
     const [ivHex, authTagHex, encryptedHex] = encryptedData.split(":");
     const iv = Buffer.from(ivHex, "hex");
     const authTag = Buffer.from(authTagHex, "hex");
-    const decipher = crypto.createDecipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY.slice(0, 32)), iv);
-    
+    const decipher = crypto.createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
     decipher.setAuthTag(authTag);
     decipher.setAAD(Buffer.from(organizationId));
-    
     let decrypted = decipher.update(encryptedHex, "hex", "utf8");
     decrypted += decipher.final("utf8");
     return decrypted;

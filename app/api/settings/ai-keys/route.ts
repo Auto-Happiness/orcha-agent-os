@@ -8,11 +8,16 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, orgId } = await auth();
+    const { userId, orgId, getToken } = await auth();
+    const token = await getToken({ template: "convex" });
     const { organizationId, provider, keyType, keyValue } = await req.json();
 
-    if (!userId || orgId !== organizationId) {
-       return NextResponse.json({ error: "Access Denied" }, { status: 403 });
+    if (!userId) {
+       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (token) {
+      convex.setAuth(token);
     }
 
     // Use KeyManager to determine how and what to store
@@ -41,11 +46,16 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { userId, orgId } = await auth();
+    const { userId, getToken } = await auth();
+    const token = await getToken({ template: "convex" });
     const { organizationId, provider } = await req.json();
 
-    if (!userId || orgId !== organizationId) {
-       return NextResponse.json({ error: "Access Denied" }, { status: 403 });
+    if (!userId) {
+       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (token) {
+      convex.setAuth(token);
     }
 
     await convex.mutation(api.aiKeys.removeKey, { organizationId, provider });

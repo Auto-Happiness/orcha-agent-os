@@ -19,6 +19,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 
 // Sub-components
 import { AccountTab } from "@/components/UserSettings/AccountTab";
@@ -31,6 +32,7 @@ export default function SettingsPage() {
   const { saas } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isLoaded, isSignedIn } = useUser();
   
   // Read active tab from URL or default to 'account'
   const activeTabFromUrl = searchParams.get("tab") || "account";
@@ -46,10 +48,10 @@ export default function SettingsPage() {
 
   // JIT Sync: Ensure the current user has a membership record in Convex for this org
   useEffect(() => {
-    if (activeOrg?._id) {
+    if (activeOrg?._id && isSignedIn) {
        syncMembership({ organizationId: activeOrg._id }).catch(console.error);
     }
-  }, [activeOrg?._id, syncMembership]);
+  }, [activeOrg?._id, isSignedIn, syncMembership]);
 
   const handleTabChange = (value: string | null) => {
     if (value) {

@@ -2,14 +2,12 @@ import {
   Box, 
   Paper, 
   Stack, 
-  TextInput, 
   Group, 
   ActionIcon, 
   Select, 
-  Badge, 
-  Transition,
   Text,
-  Avatar
+  Avatar,
+  TextInput
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { 
@@ -20,11 +18,12 @@ import {
   IconArrowRight,
   IconSparkles
 } from "@tabler/icons-react";
+import React, { useState, useEffect } from "react";
 
 interface ChatPromptBoxProps {
   input: string;
   handleInputChange: (e: any) => void;
-  handleSubmit: (e: any) => void;
+  handleSubmit: (e?: React.FormEvent) => void;
   isLoading: boolean;
   allConfigs: any[];
   selectedConfigId: string | null;
@@ -62,8 +61,10 @@ const MODEL_OPTIONS = [
     group: "Local & Grok",
     items: [
       { value: "grok:grok-1", label: "Grok-1" },
-      { value: "local:llama-3.1", label: "Llama 3.1 (Local)" },
-      { value: "local:mistral", label: "Mistral (Local)" },
+      { value: "local:qwen3:latest", label: "Qwen3 (Local)" },
+      { value: "local:qwen2.5:latest", label: "Qwen2.5 (Local)" },
+      { value: "local:llama3.1:latest", label: "Llama 3.1 (Local)" },
+      { value: "local:mistral:latest", label: "Mistral (Local)" },
     ],
   }
 ];
@@ -81,28 +82,57 @@ export function ChatPromptBox({
   setSelectedModel
 }: ChatPromptBoxProps) {
 
+  // Defensive local state to ensure typing is ALWAYS fluid
+  const [localValue, setLocalValue] = useState(input || "");
+  const hasText = !!(localValue && localValue.trim());
+
+  // Background sync for Clearing state (controlled by AI SDK)
+  useEffect(() => {
+    setLocalValue(input || "");
+  }, [input]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalValue(e.target.value);
+    if (typeof handleInputChange === 'function') {
+      handleInputChange(e);
+    }
+  };
+
   const handleModelChange = (val: string | null) => {
     if (!val) return;
     const provider = val.split(":")[0];
-    
-    // Check if key exists for this provider
     const hasKey = aiKeys?.some(k => k.provider === provider);
-    
     if (!hasKey && provider !== "local") {
       notifications.show({ 
         title: "Configuration Error", 
         message: "API key not configured for this provider in Settings.", 
         color: "red" 
       });
-      // Optionally we could return early to prevent selection, but let's allow it 
-      // so the user knows what they selected. The backend will also reject it if they try to query.
     }
     setSelectedModel(val);
   };
 
+  const executeSend = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    if (!isLoading && hasText) {
+      // Create a mocked event if called directly via keyboard press
+      const submitEvent = e || { preventDefault: () => {} } as any;
+      handleSubmit(submitEvent);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      executeSend();
+    }
+  };
+
   return (
     <Box p="md" style={{ background: "transparent" }}>
-      <form onSubmit={handleSubmit}>
+      <Box component="form" onSubmit={executeSend} style={{ margin: 0 }}>
         <Paper 
           radius="lg" 
           p="sm" 
@@ -111,21 +141,22 @@ export function ChatPromptBox({
             border: "1px solid rgba(255,255,255,0.1)",
             transition: "all 0.2s ease",
           }}
-          onFocusCapture={(e) => e.currentTarget.style.borderColor = "rgba(147,51,234,0.4)"}
-          onBlurCapture={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}
         >
           <Stack gap="xs">
             <TextInput
               placeholder="Ask anything, @ to mention, / for workflows"
               variant="unstyled"
               size="md"
-              value={input}
-              onChange={handleInputChange}
+              value={localValue}
+              autoFocus
+              onChange={handleChange}
+              onKeyDown={onKeyDown}
               styles={{ 
                 input: { 
                   color: "white", 
                   fontSize: "14px",
-                  background: "transparent"
+                  background: "transparent",
+                  padding: "8px 4px"
                 } 
               }}
             />
@@ -176,7 +207,7 @@ export function ChatPromptBox({
                        background: "transparent", 
                        padding: "0 8px 0 12px"
                      },
-                     section: { pointerEvents: "none" },
+                     section: { pointerEvents: "none" as const },
                      dropdown: { 
                         background: "#161616", 
                         borderColor: "rgba(255,255,255,0.1)", 
@@ -188,7 +219,6 @@ export function ChatPromptBox({
                         color: "rgba(255,255,255,0.6)", 
                         padding: "8px 12px",
                         borderRadius: "6px",
-                        "&[data-selected]": { background: "rgba(147,51,234,0.2)", color: "white" } 
                      }
                    }}
                  />
@@ -228,37 +258,36 @@ export function ChatPromptBox({
                         fontSize: "12px", 
                         color: "rgba(255,255,255,0.7)", 
                         padding: "6px 12px",
-                        "&[data-selected]": { background: "rgba(147,51,234,0.2)", color: "white" } 
                      }
                    }}
                  />
-              </Group>
 
-              <Group gap={8}>
                  <ActionIcon variant="transparent" color="dimmed" size="md">
                     <IconMicrophone size={18} />
                  </ActionIcon>
                  
-                 <Transition mounted={(input?.length || 0) > 0} transition="scale" duration={200}>
-                    {(styles) => (
-                      <ActionIcon 
-                        style={styles}
-                        type="submit" 
-                        color="violet" 
-                        radius="xl" 
-                        size="lg" 
-                        variant="filled"
-                        disabled={isLoading}
-                      >
-                        <IconArrowRight size={20} />
-                      </ActionIcon>
-                    )}
-                 </Transition>
+                 <ActionIcon 
+                   type="submit"
+                   radius="xl" 
+                   size="lg" 
+                   variant="filled"
+                   disabled={!hasText || isLoading}
+                   style={{ 
+                     backgroundColor: hasText ? '#3b82f6' : 'rgba(255,255,255,0.05)',
+                     color: hasText ? 'white' : 'rgba(255,255,255,0.3)',
+                     transition: 'all 0.15s ease-in-out',
+                     transform: hasText ? 'scale(1.08)' : 'scale(1)',
+                     boxShadow: hasText ? '0 4px 12px rgba(59, 130, 246, 0.4)' : 'none',
+                     cursor: (!hasText || isLoading) ? 'not-allowed' : 'pointer'
+                   }}
+                 >
+                   <IconArrowRight size={20} />
+                 </ActionIcon>
               </Group>
             </Group>
-          </Stack>
-        </Paper>
-      </form>
+        </Stack>
+      </Paper>
+      </Box>
       
       <Text size="10px" ta="center" c="dimmed" py="xs" mt={4} style={{ opacity: 0.5 }}>
         Orcha can make mistakes. Verify important results with the Query Lab.

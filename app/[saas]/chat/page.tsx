@@ -1,6 +1,8 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import React, { useEffect, useRef, useState } from "react";
 import {
   TextInput,
   Button,
@@ -26,11 +28,11 @@ import {
   Select,
   Divider
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { useUser } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { IconDatabaseOff } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { WelcomeScreen } from "@/components/Chat/WelcomeScreen";
 import { ChatMessages } from "@/components/Chat/ChatMessages";
@@ -40,15 +42,21 @@ export default function ChatPage() {
   const { saas } = useParams();
   const { user, isLoaded, isSignedIn } = useUser();
   const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
-  
-  // Environment selection
+  const syncMembership = useMutation(api.memberships.syncMembership);
+
+  useEffect(() => {
+    if (activeOrg?._id && isSignedIn) {
+       syncMembership({ organizationId: activeOrg._id }).catch(console.error);
+    }
+  }, [activeOrg?._id, isSignedIn, syncMembership]);
+
   const allConfigs = useQuery(
     api.databaseConfigs.listByOrganization, 
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
+  
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
 
-  // Sync initial config
   useEffect(() => {
     if (allConfigs && allConfigs.length > 0 && !selectedConfigId) {
       setSelectedConfigId(allConfigs[0]._id);
@@ -60,24 +68,61 @@ export default function ChatPage() {
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
   
-  // AI Keys and Model Selection
   const aiKeys = useQuery(
     api.aiKeys.listByOrganization, 
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
-  const [selectedModel, setSelectedModel] = useState<string>("gemini:gemini-1.5-flash");
 
-  const { messages, input, setInput, handleInputChange, handleSubmit, status } = useChat({
-    api: "/api/chat",
-    body: { 
-      organizationId: activeOrg?._id,
-      configId: selectedConfigId,
-      slug: saas,
-      modelId: selectedModel 
-    },
-  } as any) as any;
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("orcha_preferred_model") || "gemini:gemini-1.5-flash";
+    }
+    return "gemini:gemini-1.5-flash";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("orcha_preferred_model", selectedModel);
+  }, [selectedModel]);
+
+  const activeOrgId = activeOrg?._id;
+
+  const [input, setInput] = useState("");
+
+  // Use refs so the transport callback always reads the latest values
+  const chatParamsRef = useRef({ activeOrgId, selectedConfigId, selectedModel, saas });
+  useEffect(() => {
+    chatParamsRef.current = { activeOrgId, selectedConfigId, selectedModel, saas };
+  }, [activeOrgId, selectedConfigId, selectedModel, saas]);
+
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: () => ({
+        organizationId: chatParamsRef.current.activeOrgId,
+        configId: chatParamsRef.current.selectedConfigId,
+        slug: chatParamsRef.current.saas,
+        modelId: chatParamsRef.current.selectedModel,
+      }),
+    }),
+    onError: (error) => {
+      console.error("[Chat API Error]", error);
+      notifications.show({ title: "Query Failed", message: error.message, color: "red" });
+    }
+  });
 
   const isLoading = status === "streaming" || status === "submitted";
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!input.trim() || isLoading || !activeOrgId) return;
+    console.log("[UI] Dispatching to SDK");
+    sendMessage({ text: input });
+    setInput("");
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,7 +152,6 @@ export default function ChatPage() {
     <Box h="calc(100vh - 100px)" pos="relative" style={{ overflow: "hidden" }}>
       <Stack h="100%" gap={0} mx="auto" maw={900} p="md">
         
-        {/* ── Chat Canvas ────────────────────────────────────────────── */}
         <ScrollArea 
           viewportRef={scrollRef} 
           style={{ flex: 1 }} 
@@ -115,18 +159,15 @@ export default function ChatPage() {
         >
           <Stack gap={40} py="4rem">
             
-            {/* ── Welcome Screen ── */}
-            {messages.length === 0 && (
+            {messages?.length === 0 && (
               <WelcomeScreen user={user} setInput={setInput} />
             )}
 
-            {/* ── Messages & Tool Invocations ── */}
-            <ChatMessages messages={messages} isLoading={isLoading} />
+            <ChatMessages messages={messages || []} isLoading={isLoading} />
             
           </Stack>
         </ScrollArea>
 
-        {/* ── Fixed Prompt Pill ─────────────────────────── */}
         <ChatPromptBox 
           input={input}
           handleInputChange={handleInputChange}

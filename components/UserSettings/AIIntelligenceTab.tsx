@@ -99,34 +99,46 @@ export function AIIntelligenceTab({ organization }: AIIntelligenceTabProps) {
   const [editingProvider, setEditingProvider] = useState<ProviderId | null>(null);
   const [tempKey, setTempKey] = useState("");
 
-  const handleConnect = async (provider: ProviderId) => {
-    if (!organization?._id || !tempKey) return;
+  const handleConnect = async (providerId: ProviderId) => {
+    if (!organization?._id) return;
     
-    setLoadingProvider(provider);
+    setLoadingProvider(providerId);
     try {
-      const resp = await fetch("/api/settings/ai-keys", {
+      let finalKey = tempKey;
+      // Ensure we have a valid JSON if it's local
+      if (providerId === 'local' && (!tempKey.includes('{') || tempKey === "")) {
+         finalKey = JSON.stringify({ url: "http://127.0.0.1:11434", model: "qwen3:latest" });
+      }
+
+      const res = await fetch("/api/settings/ai-keys", {
         method: "POST",
         body: JSON.stringify({
           organizationId: organization._id,
-          provider,
-          keyValue: tempKey
-        })
+          provider: providerId,
+          keyValue: finalKey,
+        }),
       });
 
-      if (!resp.ok) throw new Error("Failed to save key");
+      if (!res.ok) throw new Error("Failed to save key");
       
-      notifications.show({
-        title: "Connection Successful",
-        message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} key has been stored securely.`,
-        color: "green"
-      });
-      
+      notifications.show({ title: "Success", message: `${providerId} configuration saved.`, color: "green" });
       setEditingProvider(null);
       setTempKey("");
-    } catch (err: any) {
-      notifications.show({ title: "Error", message: err.message, color: "red" });
+    } catch (err) {
+      notifications.show({ title: "Error", message: "Failed to save API key.", color: "red" });
     } finally {
       setLoadingProvider(null);
+    }
+  };
+
+  const getLocalValue = (key: 'url' | 'model'): string => {
+    try {
+      if (!tempKey || !tempKey.startsWith('{')) {
+         return key === 'url' ? "http://127.0.0.1:11434" : "qwen3:latest";
+      }
+      return JSON.parse(tempKey)[key] || "";
+    } catch (e) {
+      return key === 'url' ? "http://127.0.0.1:11434" : "qwen3:latest";
     }
   };
 
@@ -197,14 +209,41 @@ export function AIIntelligenceTab({ organization }: AIIntelligenceTabProps) {
 
                   {isEditing && (
                     <Box mt="xs">
-                       <TextInput 
-                          label={p.keyLabel}
-                          placeholder={p.placeholder}
-                          value={tempKey}
-                          onChange={(e) => setTempKey(e.currentTarget.value)}
-                          type={p.id === 'local' ? 'text' : 'password'}
-                          styles={inputStyles}
-                       />
+                       {p.id === 'local' ? (
+                         <Stack gap="xs">
+                           <TextInput 
+                              label="Base URL / Endpoint"
+                              placeholder="http://127.0.0.1:11434"
+                              value={getLocalValue('url')}
+                              onChange={(e) => {
+                                const currentModel = getLocalValue('model');
+                                setTempKey(JSON.stringify({ url: e.currentTarget.value, model: currentModel }));
+                              }}
+                              styles={inputStyles}
+                              description="Use 127.0.0.1 if localhost fails. Ensure OLLAMA_ORIGINS='*' if using browser-direct calls."
+                           />
+                           <TextInput 
+                              label="Default Model Name"
+                              placeholder="llama3.1, mistral, etc."
+                              value={getLocalValue('model')}
+                              onChange={(e) => {
+                                const currentUrl = getLocalValue('url');
+                                setTempKey(JSON.stringify({ url: currentUrl, model: e.currentTarget.value }));
+                              }}
+                              styles={inputStyles}
+                           />
+                         </Stack>
+                       ) : (
+                         <TextInput 
+                            label={p.keyLabel}
+                            placeholder={p.placeholder}
+                            value={tempKey}
+                            onChange={(e) => setTempKey(e.currentTarget.value)}
+                            type="password"
+                            styles={inputStyles}
+                         />
+                       )}
+                       
                        <Group justify="flex-end" mt="md" gap="xs">
                           <Button variant="subtle" color="gray" size="xs" onClick={() => { setEditingProvider(null); setTempKey(""); }}>Cancel</Button>
                           <Button 
