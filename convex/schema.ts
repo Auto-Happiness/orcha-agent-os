@@ -185,11 +185,36 @@ export default defineSchema({
       v.literal("local"),
       v.literal("grok")
     ),
-    keyType: v.string(),        // e.g., "apiKey", "baseUrl"
-    keyValue: v.string(),        // The sensitive value (encrypted or raw)
-    storageStrategy: v.string(),  // From KEY_STORAGE env (json, convex, aws_kms)
+    keyType: v.string(),
+    keyValue: v.string(),
+    storageStrategy: v.string(),
     updatedAt: v.number(),
   })
     .index("by_org", ["organizationId"])
     .index("by_org_provider", ["organizationId", "provider"]),
+
+  // ─── Chat Sessions ────────────────────────────────────────
+  chatSessions: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.id("users"),
+    title: v.string(),
+    configId: v.optional(v.id("databaseConfigs")),
+    modelId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org_user", ["organizationId", "userId"])
+    .index("by_org", ["organizationId"]),
+
+  // ─── Chat Messages ────────────────────────────────────────
+  chatMessages: defineTable({
+    sessionId: v.id("chatSessions"),
+    organizationId: v.optional(v.id("organizations")),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    parts: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_org", ["organizationId"]),
 });
