@@ -7,7 +7,10 @@ import {
   Select, 
   Text,
   Avatar,
-  TextInput
+  TextInput,
+  Switch,
+  Tooltip,
+  Loader
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { 
@@ -16,7 +19,8 @@ import {
   IconChevronDown, 
   IconMicrophone, 
   IconArrowRight,
-  IconSparkles
+  IconSparkles,
+  IconTable
 } from "@tabler/icons-react";
 import React, { useState, useEffect } from "react";
 
@@ -31,6 +35,8 @@ interface ChatPromptBoxProps {
   aiKeys: any[];
   selectedModel: string;
   setSelectedModel: (val: string) => void;
+  showResults: boolean;
+  setShowResults: (val: boolean) => void;
 }
 
 const MODEL_OPTIONS = [
@@ -79,7 +85,9 @@ export function ChatPromptBox({
   setSelectedConfigId,
   aiKeys,
   selectedModel,
-  setSelectedModel
+  setSelectedModel,
+  showResults,
+  setShowResults,
 }: ChatPromptBoxProps) {
 
   // Defensive local state to ensure typing is ALWAYS fluid
@@ -175,7 +183,10 @@ export function ChatPromptBox({
                    size="xs"
                    w={220}
                    comboboxProps={{ position: 'top-start', width: 320, shadow: 'xl' }}
-                   leftSection={<IconAdjustmentsHorizontal size={14} color="rgba(255,255,255,0.4)" />}
+                   leftSection={allConfigs === undefined
+                     ? <Loader size={12} color="violet" />
+                     : <IconAdjustmentsHorizontal size={14} color="rgba(255,255,255,0.4)" />
+                   }
                    rightSection={<IconChevronDown size={10} color="rgba(255,255,255,0.4)" />}
                    renderOption={({ option }) => {
                       const config = allConfigs?.find(c => c._id === option.value);
@@ -262,10 +273,27 @@ export function ChatPromptBox({
                    }}
                  />
 
+                 <Tooltip label={showResults ? "Hide result table" : "Show result table"} withArrow position="top">
+                   <Group gap={5} align="center">
+                     <IconTable size={14} color={showResults ? "#a855f7" : "rgba(255,255,255,0.25)"} />
+                     <Switch
+                       size="xs"
+                       checked={showResults}
+                       onChange={(e) => {
+                         e.stopPropagation();
+                         setShowResults(e.currentTarget.checked);
+                       }}
+                       onClick={(e) => e.stopPropagation()}
+                       color="violet"
+                       style={{ cursor: "pointer" }}
+                     />
+                   </Group>
+                 </Tooltip>
+
                  <ActionIcon variant="transparent" color="dimmed" size="md">
                     <IconMicrophone size={18} />
                  </ActionIcon>
-                 
+
                  <ActionIcon 
                    type="submit"
                    radius="xl" 

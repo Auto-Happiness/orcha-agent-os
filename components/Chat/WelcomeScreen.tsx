@@ -1,22 +1,15 @@
-import { Title, Text, Box, Stack, Grid, Paper, ActionIcon } from "@mantine/core";
-import { IconDatabaseOff, IconChartBar, IconUser } from "@tabler/icons-react";
+import { Title, Box, Stack } from "@mantine/core";
 
 interface WelcomeScreenProps {
   user: any;
   setInput: (value: string) => void;
 }
 
-export function WelcomeScreen({ user, setInput }: WelcomeScreenProps) {
-  const suggestions = [
-    { label: "Analyze inventory health", icon: <IconDatabaseOff size={14} />, query: "Give me an overview of our current inventory status." },
-    { label: "Sales trends this month", icon: <IconChartBar size={14} />, query: "Show me sales trends for this month compared to last month." },
-    { label: "Identify top customers", icon: <IconUser size={14} />, query: "Who are our top 10 customers by revenue?" },
-  ];
-
+export function WelcomeScreen({ user }: WelcomeScreenProps) {
   return (
     <Stack align="center" gap="xl" py="4rem">
       <Box ta="left" w="100%">
-        <Title order={1} size="3.5rem" mb="xs" style={{ 
+        <Title order={1} size="3.5rem" mb="xs" style={{
           background: "linear-gradient(90deg, #9333ea, #a855f7, #6366f1)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
@@ -29,37 +22,6 @@ export function WelcomeScreen({ user, setInput }: WelcomeScreenProps) {
           How can I help with your data today?
         </Title>
       </Box>
-
-      <Grid grow mt="2rem" w="100%" styles={{ inner: { gap: "var(--mantine-spacing-md)" } }}>
-        {suggestions.map((s, i) => (
-          <Grid.Col key={i} span={{ base: 12, sm: 4 }}>
-            <Paper 
-              p="lg" 
-              radius="lg" 
-              style={{ 
-                background: "rgba(255,255,255,0.02)", 
-                cursor: "pointer", 
-                border: "1px solid rgba(255,255,255,0.05)",
-                transition: "all 0.2s ease"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(147,51,234,0.05)";
-                e.currentTarget.style.borderColor = "rgba(147,51,234,0.2)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)";
-              }}
-              onClick={() => setInput(s.query)}
-            >
-               <Stack gap="md">
-                 <ActionIcon variant="light" color="violet" radius="md">{s.icon}</ActionIcon>
-                 <Text size="sm" fw={500} c="white">{s.label}</Text>
-               </Stack>
-            </Paper>
-          </Grid.Col>
-        ))}
-      </Grid>
     </Stack>
   );
 }

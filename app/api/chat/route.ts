@@ -30,11 +30,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { messages, organizationId: rawOrgId, configId: rawConfigId, modelId }: {
+    const { messages, organizationId: rawOrgId, configId: rawConfigId, modelId, showResults = true }: {
       messages: UIMessage[];
       organizationId: string;
       configId: string;
       modelId: string;
+      showResults: boolean;
     } = await req.json();
 
     const orgIdStr: string = rawOrgId || clerkOrgId || "";
@@ -121,6 +122,7 @@ Rules:
 - Only generate SELECT, SHOW, DESCRIBE, EXPLAIN, or WITH queries. Never mutate data.
 - Always execute queries with the tool — never just show SQL.
 - Limit results to ${MAX_ROWS} rows unless the user asks for more.
+${!showResults ? "- The user has disabled result tables. After executing the query, summarize the findings in plain text only — do not describe the raw data rows." : ""}
 - If a question is ambiguous or impossible, explain why concisely.`;
 
     // 5. Stream with ToolLoopAgent (handles multi-step tool → response loop)

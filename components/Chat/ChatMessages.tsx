@@ -1,13 +1,14 @@
 "use client";
 
-import { Stack, Group, Avatar, Text, Box, Paper, Button, ScrollArea, Loader } from "@mantine/core";
-import { IconUser, IconSparkles, IconTableExport, IconDatabase } from "@tabler/icons-react";
+import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal } from "@mantine/core";
+import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode } from "@tabler/icons-react";
 import { UIMessage } from "ai";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 interface ChatMessagesProps {
   messages: UIMessage[];
   isLoading: boolean;
+  showResults: boolean;
 }
 
 function DataTable({ data }: { data: any[] }) {
@@ -132,7 +133,94 @@ function DataTable({ data }: { data: any[] }) {
   );
 }
 
-function renderToolPart(part: any, i: number) {
+function extractSQLFromParts(parts: any[]): string[] {
+  const queries: string[] = [];
+  for (const part of parts) {
+    const type: string = part.type ?? "";
+    let sql: string | undefined;
+
+    // ToolLoopAgent emits "tool-{toolName}" parts with input.sql
+    if (type === "tool-execute_sql") {
+      sql = part.input?.sql;
+    } else if (type === "tool-invocation" && part.toolInvocation?.toolName === "execute_sql") {
+      sql = part.toolInvocation.input?.sql ?? part.toolInvocation.args?.sql;
+    } else if (type === "tool-result" && part.toolName === "execute_sql") {
+      sql = part.input?.sql ?? part.args?.sql;
+    }
+
+    if (sql && !queries.includes(sql)) queries.push(sql);
+  }
+  return queries;
+}
+
+function SQLModal({ queries, opened, onClose }: { queries: string[]; opened: boolean; onClose: () => void }) {
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={
+        <Group gap={8}>
+          <IconCode size={16} color="#a855f7" />
+          <Text size="sm" fw={600} c="white">SQL Queries</Text>
+        </Group>
+      }
+      size="lg"
+      radius="md"
+      styles={{
+        content: { background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)" },
+        header: { background: "#0d0a1a", borderBottom: "1px solid rgba(147,51,234,0.1)" },
+        title: { color: "white" },
+        close: { color: "rgba(255,255,255,0.5)", "&:hover": { background: "rgba(255,255,255,0.05)" } },
+      }}
+    >
+      <Stack gap="md" pt="xs">
+        {queries.map((sql, i) => (
+          <Box key={i}>
+            {queries.length > 1 && (
+              <Text size="10px" fw={700} c="violet.4" mb={6} style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Query {i + 1}
+              </Text>
+            )}
+            <Box
+              style={{
+                borderRadius: 8,
+                background: "rgba(0,0,0,0.4)",
+                border: "1px solid rgba(147,51,234,0.15)",
+                overflow: "hidden",
+              }}
+            >
+              <Box
+                style={{
+                  padding: "10px 14px",
+                  fontFamily: "var(--font-geist-mono, monospace)",
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.85)",
+                  lineHeight: 1.7,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                }}
+              >
+                {sql}
+              </Box>
+              <Box style={{ borderTop: "1px solid rgba(147,51,234,0.1)", padding: "6px 10px", display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  color="violet"
+                  onClick={() => navigator.clipboard.writeText(sql)}
+                >
+                  Copy
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        ))}
+      </Stack>
+    </Modal>
+  );
+}
+
+function renderToolPart(part: any, i: number, showResults: boolean) {
   // AI SDK v6 part types for tools vary by agent vs streamText
   // Handle: tool-invocation, tool-call, tool-result, and raw type strings
   const type: string = part.type ?? "";
@@ -141,7 +229,8 @@ function renderToolPart(part: any, i: number) {
   if (
     type === "tool-call" ||
     (type === "tool-invocation" && (part.toolInvocation?.state === "call" || part.toolInvocation?.state === "partial-call")) ||
-    type.startsWith("tool-input")
+    type.startsWith("tool-input") ||
+    (type === "tool-execute_sql" && part.state === "input-streaming")
   ) {
     return (
       <Box key={i} ml="3rem" mt="xs">
@@ -157,7 +246,9 @@ function renderToolPart(part: any, i: number) {
   // Result states
   let result: any = null;
 
-  if (type === "tool-result") {
+  if (type === "tool-execute_sql" && part.state === "output-available") {
+    result = part.output;
+  } else if (type === "tool-result") {
     result = part.result;
   } else if (type === "tool-invocation" && part.toolInvocation?.state === "result") {
     result = part.toolInvocation.result;
@@ -176,6 +267,7 @@ function renderToolPart(part: any, i: number) {
   }
 
   if (result.success && result.data?.length > 0) {
+    if (!showResults) return null;
     return (
       <Box key={i} ml="3rem" mt="sm">
         <DataTable data={result.data} />
@@ -194,41 +286,64 @@ function renderToolPart(part: any, i: number) {
   return null;
 }
 
-export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+export function ChatMessages({ messages, isLoading, showResults }: ChatMessagesProps) {
+  const [sqlModal, setSqlModal] = useState<string[] | null>(null);
+
   return (
     <>
-      {messages.map((m) => (
-        <Stack key={m.id} gap="sm">
-          <Group gap="md" align="flex-start" wrap="nowrap">
-            <Avatar
-              size="md"
-              radius="xl"
-              color={m.role === "user" ? "blue" : "violet"}
-              style={{ background: m.role === "user" ? "rgba(37,99,235,0.1)" : "transparent", flexShrink: 0 }}
-            >
-              {m.role === "user"
-                ? <IconUser size={20} />
-                : <IconSparkles size={24} style={{ color: "#a855f7" }} />}
-            </Avatar>
-            <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-              <Text fw={700} size="sm" c="white">{m.role === "user" ? "You" : "Orcha Agent"}</Text>
-              {m.parts.map((part: any, i) => {
-                if (part.type === "text" && part.text) {
-                  return (
-                    <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-                      {part.text}
-                    </Text>
-                  );
-                }
-                return null;
-              })}
-            </Stack>
-          </Group>
+      {messages.map((m) => {
+        const sqlQueries = m.role === "assistant" ? extractSQLFromParts(m.parts as any[]) : [];
 
-          {/* Tool parts rendered outside the bubble */}
-          {m.parts.map((part: any, i) => renderToolPart(part, i))}
-        </Stack>
-      ))}
+        return (
+          <Stack key={m.id} gap="sm">
+            <Group gap="md" align="flex-start" wrap="nowrap">
+              <Avatar
+                size="md"
+                radius="xl"
+                color={m.role === "user" ? "blue" : "violet"}
+                style={{ background: m.role === "user" ? "rgba(37,99,235,0.1)" : "transparent", flexShrink: 0 }}
+              >
+                {m.role === "user"
+                  ? <IconUser size={20} />
+                  : <IconSparkles size={24} style={{ color: "#a855f7" }} />}
+              </Avatar>
+              <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+                <Group gap={8} align="center">
+                  <Text fw={700} size="sm" c="white">{m.role === "user" ? "You" : "Orcha Agent"}</Text>
+                </Group>
+                {m.parts.map((part: any, i) => {
+                  if (part.type === "text" && part.text) {
+                    return (
+                      <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                        {part.text}
+                      </Text>
+                    );
+                  }
+                  return null;
+                })}
+                {sqlQueries.length > 0 && (
+                  <Box mt={6}>
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      color="violet"
+                      radius="md"
+                      leftSection={<IconCode size={11} />}
+                      onClick={() => setSqlModal(sqlQueries)}
+                      styles={{ root: { fontSize: 11, opacity: 0.6, "&:hover": { opacity: 1 } } }}
+                    >
+                      View SQL
+                    </Button>
+                  </Box>
+                )}
+              </Stack>
+            </Group>
+
+            {/* Tool parts rendered outside the bubble */}
+            {(m.parts as any[]).map((part: any, i) => renderToolPart(part, i, showResults))}
+          </Stack>
+        );
+      })}
 
       {isLoading && (
         <Group gap="md" align="flex-start" wrap="nowrap">
@@ -241,6 +356,12 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
           </Stack>
         </Group>
       )}
+
+      <SQLModal
+        queries={sqlModal ?? []}
+        opened={sqlModal !== null}
+        onClose={() => setSqlModal(null)}
+      />
     </>
   );
 }

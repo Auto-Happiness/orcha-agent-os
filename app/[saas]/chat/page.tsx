@@ -85,14 +85,14 @@ export default function ChatPage() {
   }, [selectedModel]);
 
   const activeOrgId = activeOrg?._id;
-
   const [input, setInput] = useState("");
+  const [showResults, setShowResults] = useState(true);
 
   // Use refs so the transport callback always reads the latest values
-  const chatParamsRef = useRef({ activeOrgId, selectedConfigId, selectedModel, saas });
+  const chatParamsRef = useRef({ activeOrgId, selectedConfigId, selectedModel, saas, showResults });
   useEffect(() => {
-    chatParamsRef.current = { activeOrgId, selectedConfigId, selectedModel, saas };
-  }, [activeOrgId, selectedConfigId, selectedModel, saas]);
+    chatParamsRef.current = { activeOrgId, selectedConfigId, selectedModel, saas, showResults };
+  }, [activeOrgId, selectedConfigId, selectedModel, saas, showResults]);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -102,6 +102,7 @@ export default function ChatPage() {
         configId: chatParamsRef.current.selectedConfigId,
         slug: chatParamsRef.current.saas,
         modelId: chatParamsRef.current.selectedModel,
+        showResults: chatParamsRef.current.showResults,
       }),
     }),
     onError: (error) => {
@@ -163,7 +164,7 @@ export default function ChatPage() {
               <WelcomeScreen user={user} setInput={setInput} />
             )}
 
-            <ChatMessages messages={messages || []} isLoading={isLoading} />
+            <ChatMessages messages={messages || []} isLoading={isLoading} showResults={showResults} />
             
           </Stack>
         </ScrollArea>
@@ -179,6 +180,8 @@ export default function ChatPage() {
           aiKeys={aiKeys || []}
           selectedModel={selectedModel}
           setSelectedModel={setSelectedModel}
+          showResults={showResults}
+          setShowResults={setShowResults}
         />
 
       </Stack>
