@@ -8,7 +8,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
 
 // Hard limit on rows returned per query — prevents LLM context overflow
-const MAX_ROWS = 500;
+const MAX_ROWS = 50;
 
 // Allowlist of SQL statement prefixes the agent is permitted to run
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];

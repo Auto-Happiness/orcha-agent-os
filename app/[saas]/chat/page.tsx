@@ -108,6 +108,7 @@ export default function ChatPage() {
 
   const { messages, sendMessage, setMessages, status } = useChat({
     id: activeSessionId ?? undefined,
+    experimental_throttle: 80, // batch UI updates to max ~12fps during streaming
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({
@@ -265,7 +266,13 @@ export default function ChatPage() {
             {messages?.length === 0 && (
               <WelcomeScreen user={user} setInput={setInput} />
             )}
-            <ChatMessages messages={messages || []} isLoading={isLoading} showResults={showResults} />
+            <ChatMessages
+              messages={messages || []}
+              isLoading={isLoading}
+              showResults={showResults}
+              organizationId={activeOrgId}
+              configId={selectedConfigId}
+            />
           </Stack>
         </ScrollArea>
 
