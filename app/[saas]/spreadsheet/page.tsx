@@ -1,16 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Group, ActionIcon, Tooltip, Text, TextInput } from "@mantine/core";
-import { IconUpload, IconDownload, IconTablePlus, IconPlus, IconPhoto } from "@tabler/icons-react";
+import { useParams } from "next/navigation";
+import { Box, Group, ActionIcon, Tooltip, Text } from "@mantine/core";
+import { IconPlus } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import * as XLSX from "xlsx";
-import { Sheet, Selection, Cell, DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, ROW_HEADER_WIDTH, COL_HEADER_HEIGHT, DEFAULT_ROWS, DEFAULT_COLS } from "@/components/Spreadsheet/types";
+import { Sheet, Selection, Cell, ROW_HEADER_WIDTH, COL_HEADER_HEIGHT, DEFAULT_ROWS, DEFAULT_COLS } from "@/components/Spreadsheet/types";
 import { makeEmptySheet, colIndexToLetter, buildOffsets, getColWidth, getRowHeight } from "@/components/Spreadsheet/utils";
 import { evalFormula } from "@/components/Spreadsheet/formulaEngine";
 import type { CanvasHandle } from "@/components/Spreadsheet/SpreadsheetCanvas";
 import { FloatingImages } from "@/components/Spreadsheet/FloatingImages";
 import { SpreadsheetToolbar } from "@/components/Spreadsheet/SpreadsheetToolbar";
+import { QueryImportModal } from "@/components/Spreadsheet/QueryImportModal";
 
 const SpreadsheetCanvas = dynamic(
   () => import("@/components/Spreadsheet/SpreadsheetCanvas"),
@@ -156,7 +160,10 @@ export default function SpreadsheetPage() {
   const [filename, setFilename] = useState("Untitled");
   const [scrollLeft, setScrollLeft] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
+  const [queryModalOpen, setQueryModalOpen] = useState(false);
 
+  const { saas } = useParams();
+  const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
   const canvasRef = useRef<CanvasHandle>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
@@ -256,6 +263,26 @@ export default function SpreadsheetPage() {
       } else if ((e.ctrlKey || e.metaKey) && e.key === "u") {
         const cur = sheet.data[r]?.[c]?.un ?? 0;
         handleFormatRef.current("un", cur ? 0 : 1); e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "x") {
+        // Cut: copy cell value to clipboard then clear the selection
+        const cellsToCut: string[][] = [];
+        for (let row = selection.row[0]; row <= selection.row[1]; row++) {
+          const rowVals: string[] = [];
+          for (let col = selection.col[0]; col <= selection.col[1]; col++) {
+            const cell = sheet.data[row]?.[col];
+            rowVals.push(cell?.f ?? String(cell?.v ?? ""));
+          }
+          cellsToCut.push(rowVals);
+        }
+        navigator.clipboard.writeText(cellsToCut.map(row => row.join("\t")).join("\n")).catch(() => {});
+        updateSheet(s => {
+          const newData = s.data.map(row => [...row]);
+          for (let row = selection.row[0]; row <= selection.row[1]; row++)
+            for (let col = selection.col[0]; col <= selection.col[1]; col++)
+              newData[row][col] = null;
+          return { ...s, data: newData };
+        });
+        e.preventDefault();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         updateSheet(s => {
           const newData = s.data.map(row => [...row]);
@@ -321,20 +348,35 @@ export default function SpreadsheetPage() {
   // ── Insert image ─────────────────────────────────────────────────────────
   const handleInsertImage = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selection) return;
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
       const src = ev.target!.result as string;
-      const { rowFocus: r, colFocus: c } = selection;
-      updateSheet(s => {
-        const newData = s.data.map(row => [...row]);
-        newData[r][c] = { ...newData[r][c], v: `[IMG:${src}]` };
-        return { ...s, data: newData };
-      });
+      // Get natural dimensions then place as a floating overlay (fortune-sheet approach)
+      const img = new window.Image();
+      img.onload = () => {
+        const w = Math.min(img.naturalWidth * 0.5, 400);
+        const h = Math.min(img.naturalHeight * 0.5, 300);
+        // Position near the selected cell
+        const col = selection?.colFocus ?? 0;
+        const row = selection?.rowFocus ?? 0;
+        const colOffsets = buildOffsets(sheet.data[0]?.length ?? 0, c => getColWidth(sheet.config, c));
+        const rowOffsets = buildOffsets(sheet.data.length, r => getRowHeight(sheet.config, r));
+        const left = ROW_HEADER_WIDTH + colOffsets[col] - scrollLeft + 4;
+        const top = COL_HEADER_HEIGHT + rowOffsets[row] - scrollTop + 4;
+        updateSheet(s => ({
+          ...s,
+          images: [...(s.images ?? []), {
+            id: `img_${Date.now()}`,
+            src, left, top, width: w, height: h,
+          }],
+        }));
+      };
+      img.src = src;
     };
     reader.readAsDataURL(file);
     e.target.value = "";
-  }, [selection, updateSheet]);
+  }, [selection, sheet, scrollLeft, scrollTop, updateSheet]);
 
   // ── Add sheet ────────────────────────────────────────────────────────────
   const handleAddSheet = useCallback(() => {
@@ -343,7 +385,25 @@ export default function SpreadsheetPage() {
     setActiveSheetIdx(sheets.length);
   }, [sheets.length]);
 
-  // ── Format selection ─────────────────────────────────────────────────────
+  // ── Query import ─────────────────────────────────────────────────────────
+  const handleQueryImport = useCallback((rows: Cell[][]) => {
+    if (!rows.length) return;
+    const startRow = selection?.rowFocus ?? 0;
+    const startCol = selection?.colFocus ?? 0;
+    updateSheet(s => {
+      const newData = s.data.map(r => [...r]);
+      rows.forEach((row, ri) => {
+        row.forEach((cell, ci) => {
+          const r = startRow + ri;
+          const c = startCol + ci;
+          if (r < newData.length && c < (newData[0]?.length ?? 0)) {
+            newData[r][c] = cell;
+          }
+        });
+      });
+      return { ...s, data: newData };
+    });
+  }, [selection, updateSheet]);
   const handleFormat = useCallback((attr: keyof Cell, value: any) => {
     if (!selection) return;
     updateSheet(s => {
@@ -403,6 +463,7 @@ export default function SpreadsheetPage() {
         onExport={handleExport}
         onInsertImage={handleInsertImage}
         onAddSheet={handleAddSheet}
+        onOpenQueryImport={() => setQueryModalOpen(true)}
         filename={filename}
       />
 
@@ -473,6 +534,19 @@ export default function SpreadsheetPage() {
                 }}
               />
             )}
+
+            {/* Floating images overlay */}
+            <FloatingImages
+              images={sheet.images ?? []}
+              onUpdate={(id, patch) => updateSheet(s => ({
+                ...s,
+                images: (s.images ?? []).map(img => img.id === id ? { ...img, ...patch } : img),
+              }))}
+              onRemove={(id) => updateSheet(s => ({
+                ...s,
+                images: (s.images ?? []).filter(img => img.id !== id),
+              }))}
+            />
           </div>
         </div>
       </Box>
@@ -485,10 +559,17 @@ export default function SpreadsheetPage() {
         onAdd={handleAddSheet}
         onRename={(i, name) => setSheets(prev => prev.map((s, idx) => idx === i ? { ...s, name } : s))}
         onRemove={(i) => {
-          if (sheets.length === 1) return; // keep at least one
+          if (sheets.length === 1) return;
           setSheets(prev => prev.filter((_, idx) => idx !== i));
           setActiveSheetIdx(prev => Math.min(prev, sheets.length - 2));
         }}
+      />
+
+      <QueryImportModal
+        opened={queryModalOpen}
+        onClose={() => setQueryModalOpen(false)}
+        organizationId={activeOrg?._id ?? ""}
+        onImport={handleQueryImport}
       />
     </Box>
   );

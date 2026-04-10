@@ -8,7 +8,7 @@ import {
   IconAlignLeft, IconAlignCenter, IconAlignRight,
   IconLayoutAlignTop, IconLayoutAlignMiddle, IconLayoutAlignBottom,
   IconUpload, IconDownload, IconPhoto, IconPlus,
-  IconPalette,
+  IconPalette, IconDatabaseImport,
 } from "@tabler/icons-react";
 import { Cell } from "./types";
 
@@ -20,10 +20,11 @@ interface Props {
   onExport: () => void;
   onInsertImage: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onAddSheet: () => void;
+  onOpenQueryImport: () => void;
   filename: string;
 }
 
-const FONT_SIZES = ["8","9","10","11","12","14","16","18","20","22","24","28","32","36","48","72"];
+const FONT_SIZES = ["8","9","10","11","12","14","16","18","20","22","24","28","32","36","48","60","72","75"];
 const FONT_FAMILIES = [
   { value: "Arial", label: "Arial" },
   { value: "Helvetica", label: "Helvetica" },
@@ -108,7 +109,7 @@ function ColorPicker({ value, onChange, label }: { value?: string; onChange: (c:
   );
 }
 
-export function SpreadsheetToolbar({ activeCell, onFormat, onImport, onExport, onInsertImage, onAddSheet, filename }: Props) {
+export function SpreadsheetToolbar({ activeCell, onFormat, onImport, onExport, onInsertImage, onAddSheet, onOpenQueryImport, filename }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
 
@@ -132,6 +133,9 @@ export function SpreadsheetToolbar({ activeCell, onFormat, onImport, onExport, o
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={onImport} />
         <Tooltip label="Export as Excel" withArrow>
           <ActionIcon variant="subtle" color="violet" size="sm" onClick={onExport}><IconDownload size={14} /></ActionIcon>
+        </Tooltip>
+        <Tooltip label="Import from saved query" withArrow>
+          <ActionIcon variant="subtle" color="violet" size="sm" onClick={onOpenQueryImport}><IconDatabaseImport size={14} /></ActionIcon>
         </Tooltip>
         {sep}
 
