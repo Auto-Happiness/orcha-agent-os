@@ -194,8 +194,8 @@ export default function EditConfigurationPage() {
         {/* ── Dashboard Header ─────────────────────────────────────── */}
         <DashboardHeader currentConfig={currentConfig} identiconUrl={identiconUrl} />
 
-        <Tabs value={activeTab} onChange={setActiveTab} color="violet" variant="outline" styles={{
-           tab: { border: "none", color: "rgba(255,255,255,0.4)", "&[data-active]": { borderBottom: "2px solid #a855f7", color: "white" } },
+        <Tabs value={activeTab} onChange={setActiveTab} color="violet" variant="pills" styles={{
+           tab: { color: "rgba(255,255,255,0.4)" },
            panel: { paddingTop: "2rem" }
         }}>
            <Tabs.List>

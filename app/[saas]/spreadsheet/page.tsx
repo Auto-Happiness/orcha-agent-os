@@ -40,7 +40,7 @@ export default function SpreadsheetListPage() {
     setRenamingId(null);
   };
 
-  if (spreadsheets === undefined) {
+  if (!isSignedIn || activeOrg === undefined || (activeOrg?._id && spreadsheets === undefined)) {
     return <Center h="60vh"><Loader color="violet" /></Center>;
   }
 
@@ -61,7 +61,7 @@ export default function SpreadsheetListPage() {
           </Button>
         </Group>
 
-        {spreadsheets.length === 0 ? (
+        {(spreadsheets ?? []).length === 0 ? (
           <Paper p="xl" radius="lg" style={{ background: "rgba(255,255,255,0.02)", border: "2px dashed rgba(255,255,255,0.08)", textAlign: "center" }}>
             <IconTableFilled size={40} color="rgba(255,255,255,0.15)" style={{ margin: "0 auto 12px" }} />
             <Text c="dimmed" size="sm">No spreadsheets yet. Create one to get started.</Text>
@@ -71,7 +71,7 @@ export default function SpreadsheetListPage() {
           </Paper>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
-            {spreadsheets.map(s => (
+            {(spreadsheets ?? []).map(s => (
               <Paper
                 key={s._id}
                 p="lg"

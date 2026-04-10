@@ -1,9 +1,11 @@
 "use client";
 
 import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal } from "@mantine/core";
-import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload } from "@tabler/icons-react";
+import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck } from "@tabler/icons-react";
 import { UIMessage } from "ai";
 import { useCallback, useState, memo } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 interface ChatMessagesProps {
   messages: UIMessage[];
@@ -214,7 +216,34 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
 
 // ── SQLModal ─────────────────────────────────────────────────────────────────
 
-function SQLModal({ queries, opened, onClose }: { queries: string[]; opened: boolean; onClose: () => void }) {
+function SQLModal({ queries, opened, onClose, organizationId, configId }: {
+  queries: string[]; opened: boolean; onClose: () => void;
+  organizationId?: string; configId?: string | null;
+}) {
+  const saveQuery = useMutation(api.savedQueries.save);
+  const currentUser = useQuery(api.users.getCurrentUser);
+  const [saving, setSaving] = useState<number | null>(null);
+  const [saved, setSaved] = useState<Set<number>>(new Set());
+
+  const handleSave = async (sql: string, idx: number) => {
+    if (!organizationId || !configId || !currentUser?._id) return;
+    setSaving(idx);
+    try {
+      await saveQuery({
+        organizationId: organizationId as any,
+        configId: configId as any,
+        name: `Query ${new Date().toLocaleString()}`,
+        sql,
+        createdBy: currentUser._id,
+      });
+      setSaved(prev => new Set(prev).add(idx));
+    } catch (e: any) {
+      console.error("[SQLModal] Save failed:", e);
+    } finally {
+      setSaving(null);
+    }
+  };
+
   return (
     <Modal opened={opened} onClose={onClose}
       title={<Group gap={8}><IconCode size={16} color="#a855f7" /><Text size="sm" fw={600} c="white">SQL Queries</Text></Group>}
@@ -227,8 +256,21 @@ function SQLModal({ queries, opened, onClose }: { queries: string[]; opened: boo
             {queries.length > 1 && <Text size="10px" fw={700} c="violet.4" mb={6} style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>Query {i + 1}</Text>}
             <Box style={{ borderRadius: 8, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(147,51,234,0.15)", overflow: "hidden" }}>
               <Box style={{ padding: "10px 14px", fontFamily: "var(--font-geist-mono,monospace)", fontSize: 12, color: "rgba(255,255,255,0.85)", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{sql}</Box>
-              <Box style={{ borderTop: "1px solid rgba(147,51,234,0.1)", padding: "6px 10px", display: "flex", justifyContent: "flex-end" }}>
-                <Button size="compact-xs" variant="subtle" color="violet" onClick={() => navigator.clipboard.writeText(sql)}>Copy</Button>
+              <Box style={{ borderTop: "1px solid rgba(147,51,234,0.1)", padding: "6px 10px", display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                <Button size="compact-xs" variant="subtle" color="dimmed" onClick={() => navigator.clipboard.writeText(sql)}>Copy</Button>
+                {organizationId && configId && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color={saved.has(i) ? "green" : "violet"}
+                    loading={saving === i}
+                    disabled={saved.has(i)}
+                    leftSection={saved.has(i) ? <IconCheck size={11} /> : <IconBookmark size={11} />}
+                    onClick={() => handleSave(sql, i)}
+                  >
+                    {saved.has(i) ? "Saved" : "Save Query"}
+                  </Button>
+                )}
               </Box>
             </Box>
           </Box>
@@ -294,7 +336,7 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
         </Group>
       )}
 
-      <SQLModal queries={sqlModal ?? []} opened={sqlModal !== null} onClose={() => setSqlModal(null)} />
+      <SQLModal queries={sqlModal ?? []} opened={sqlModal !== null} onClose={() => setSqlModal(null)} organizationId={organizationId} configId={configId} />
     </>
   );
 }
