@@ -7,7 +7,10 @@ export type Cell = {
   fc?: string;  // font color
   bl?: 0 | 1;   // bold
   it?: 0 | 1;   // italic
+  un?: 0 | 1;   // underline
+  cl?: 0 | 1;   // strikethrough
   fs?: number;  // font size
+  ff?: string;  // font family
   ht?: 1 | 2 | 3; // horizontal align: 1=left 2=center 3=right
   vt?: 1 | 2 | 3; // vertical align: 1=top 2=middle 3=bottom
 };
@@ -22,8 +25,17 @@ export type Selection = {
 };
 
 export type SheetConfig = {
-  rowlen: Record<number, number>;   // row index → height
-  columnlen: Record<number, number>; // col index → width
+  rowlen: Record<number, number>;
+  columnlen: Record<number, number>;
+};
+
+export type SheetImage = {
+  id: string;
+  src: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 };
 
 export type Sheet = {
@@ -31,6 +43,7 @@ export type Sheet = {
   name: string;
   data: CellMatrix;
   config: SheetConfig;
+  images?: SheetImage[];
 };
 
 export const DEFAULT_ROW_HEIGHT = 25;

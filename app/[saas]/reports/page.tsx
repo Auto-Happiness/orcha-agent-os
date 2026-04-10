@@ -85,20 +85,11 @@ export default function ReportsPage() {
 
         <Divider color="rgba(255,255,255,0.08)" />
 
-        <Tabs value={activeTab} onChange={setActiveTab} variant="unstyled" styles={{
+        <Tabs value={activeTab} onChange={setActiveTab} variant="pills" color="violet" styles={{
           tab: {
             color: "rgba(255,255,255,0.5)",
             fontSize: "13px",
             fontWeight: 500,
-            padding: "8px 16px",
-            borderRadius: "6px",
-            '&[data-active]': {
-              color: "white",
-              backgroundColor: "rgba(255,255,255,0.05)",
-            },
-            '&:hover': {
-              backgroundColor: "rgba(255,255,255,0.03)",
-            }
           },
           list: { gap: "4px" }
         }}>

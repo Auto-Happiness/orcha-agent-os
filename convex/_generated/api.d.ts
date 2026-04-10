@@ -22,6 +22,7 @@ import type * as savedQueries from "../savedQueries.js";
 import type * as seed from "../seed.js";
 import type * as semanticModels from "../semanticModels.js";
 import type * as semanticRelationships from "../semanticRelationships.js";
+import type * as spreadsheets from "../spreadsheets.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
 
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   semanticModels: typeof semanticModels;
   semanticRelationships: typeof semanticRelationships;
+  spreadsheets: typeof spreadsheets;
   users: typeof users;
   webhooks: typeof webhooks;
 }>;
