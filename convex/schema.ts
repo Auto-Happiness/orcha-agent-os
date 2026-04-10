@@ -217,4 +217,38 @@ export default defineSchema({
   })
     .index("by_session", ["sessionId"])
     .index("by_org", ["organizationId"]),
+  // ─── Spreadsheets ─────────────────────────────────────────────────────────
+  spreadsheets: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    // Sparse cell storage per sheet — only non-null cells stored
+    sheets: v.array(v.object({
+      id: v.string(),
+      name: v.string(),
+      order: v.number(),
+      // celldata: sparse [{r, c, v: Cell}]
+      celldata: v.array(v.object({
+        r: v.number(),
+        c: v.number(),
+        v: v.any(), // Cell object
+      })),
+      // column widths / row heights
+      columnlen: v.optional(v.any()),
+      rowlen: v.optional(v.any()),
+      // floating images
+      images: v.optional(v.array(v.object({
+        id: v.string(),
+        src: v.string(),
+        left: v.number(),
+        top: v.number(),
+        width: v.number(),
+        height: v.number(),
+      }))),
+    })),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_org_name", ["organizationId", "name"]),
 });

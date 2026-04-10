@@ -1,5 +1,5 @@
 import { Paper, Group, Avatar, rem, Stack, Title, Badge, Text } from "@mantine/core";
-import { IconWorld, IconCheck, IconDatabase } from "@tabler/icons-react";
+import { IconCheck, IconDatabase } from "@tabler/icons-react";
 
 interface DashboardHeaderProps {
   currentConfig: any;
@@ -17,7 +17,6 @@ export function DashboardHeader({ currentConfig, identiconUrl }: DashboardHeader
              <Badge variant="dot" color="green" size="md">STABLE</Badge>
            </Group>
            <Group gap="xl">
-              <Group gap={6}><IconWorld size={14} color="rgba(255,255,255,0.4)" /><Text size="xs" c="dimmed">Region: US-EAST-1</Text></Group>
               <Group gap={6}><IconCheck size={14} color="#a855f7" /><Text size="xs" c="dimmed">Semantic Sync: Ready</Text></Group>
               <Group gap={6}><IconDatabase size={14} color="rgba(255,255,255,0.4)" /><Text size="xs" c="dimmed">{currentConfig.type.toUpperCase()}</Text></Group>
            </Group>

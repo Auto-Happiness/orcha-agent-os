@@ -36,6 +36,7 @@ import {
   IconHelpCircle,
   IconPointFilled,
   IconSettings,
+  IconChartBar,
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 
@@ -75,6 +76,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "chat", label: "Chat", icon: IconSparkles, badge: null },
       { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
+      { href: "spreadsheet", label: "Reports", icon: IconChartBar, badge: null },
       { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badge: null },
     ],
   },
@@ -392,44 +394,6 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
           </AppShell.Section>
 
           <Divider color={BORDER_COL} />
-
-          {/* Upgrade banner */}
-          {!collapsed && (
-            <Box p="md">
-              <Box
-                p="sm"
-                style={{
-                  background: "linear-gradient(135deg, rgba(147,51,234,0.15), rgba(192,132,252,0.08))",
-                  border: "1px solid rgba(147,51,234,0.2)",
-                  borderRadius: "10px",
-                }}
-              >
-                <Group gap="xs" mb={4}>
-                  <IconSparkles size={14} color="#a855f7" />
-                  <Text size="xs" fw={600} c="violet.3">Free Plan</Text>
-                </Group>
-                <Text size="11px" c="dimmed" lh={1.4} mb={8}>
-                  Upgrade to Pro for unlimited agents and advanced pipelines.
-                </Text>
-                <Box
-                  px="xs"
-                  py={5}
-                  ta="center"
-                  style={{
-                    background: "linear-gradient(135deg, #9333ea, #7c3aed)",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    color: "white",
-                    boxShadow: "0 0 16px rgba(147,51,234,0.35)",
-                  }}
-                >
-                  Upgrade to Pro
-                </Box>
-              </Box>
-            </Box>
-          )}
 
           {/* Status dot */}
           <Box px="md" pb="md">
