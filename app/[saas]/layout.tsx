@@ -36,6 +36,7 @@ import {
   IconHelpCircle,
   IconPointFilled,
   IconSettings,
+  IconChartBar,
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 
@@ -75,6 +76,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "chat", label: "Chat", icon: IconSparkles, badge: null },
       { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
+      { href: "reports", label: "Reports", icon: IconChartBar, badge: null },
       { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badge: null },
     ],
   },
