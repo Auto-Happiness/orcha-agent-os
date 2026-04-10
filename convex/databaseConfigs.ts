@@ -60,16 +60,29 @@ export const isConnected = query({
  */
 export const createOrUpdate = mutation({
   args: {
+    configId: v.optional(v.id("databaseConfigs")),
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery")),
+    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb")),
     encryptedUri: v.string(), 
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("databaseConfigs")
-      .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
-      .unique();
+    let existing: any = null;
+
+    // 1. Try to find by ID if provided
+    if (args.configId) {
+      existing = await ctx.db.get(args.configId);
+    }
+
+    // 2. If no valid ID, try to find by organization + type
+    if (!existing) {
+      existing = await ctx.db
+        .query("databaseConfigs")
+        .withIndex("by_org_type", (q: any) => 
+          q.eq("organizationId", args.organizationId).eq("type", args.type)
+        )
+        .first();
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -77,7 +90,6 @@ export const createOrUpdate = mutation({
         encryptedUri: args.encryptedUri,
         updatedBy: args.updatedBy,
         updatedAt: Date.now(),
-        // Keep existing status if it exists
       });
       return existing._id;
     } else {

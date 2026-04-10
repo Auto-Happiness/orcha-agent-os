@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const config: DbConfig = {
       ...body,
-      port: body.port ? parseInt(body.port, 10) : (body.type === "postgres" ? 5432 : 3306),
+      port: body.port ? parseInt(body.port, 10) : (body.type === "postgres" ? 5432 : body.type === "mssql" ? 1433 : 3306),
     };
 
     // Basic validation
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Attempt to execute a simple query
-    // PostgreSQL uses 'SELECT 1', MySQL also supports 'SELECT 1'
+    console.log(`[API] Testing connection to ${config.type} at ${config.host}...`);
     const startTime = Date.now();
     await DbExecutor.execute(config, "SELECT 1");
     const duration = Date.now() - startTime;

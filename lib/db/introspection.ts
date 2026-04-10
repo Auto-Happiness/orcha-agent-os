@@ -1,5 +1,8 @@
 import serverlessMysql from 'serverless-mysql';
-import { Client as PgClient } from 'pg';
+const pg = require('pg');
+import type { Client } from 'pg';
+const PgClient = pg.Client;
+const mssql = require('mssql');
 
 export interface TableSummary {
   name: string;
@@ -25,6 +28,30 @@ export interface ForeignKeySummary {
 export interface ScanResult {
   tables: TableSummary[];
   foreignKeys: ForeignKeySummary[];
+}
+
+// MSSQL connection pool cache for introspection
+const mssqlPools = new Map<string, any>();
+
+async function getMssqlPool(config: any): Promise<any> {
+  const key = `${config.host}:${config.port || 1433}/${config.database}/${config.user}`;
+  if (!mssqlPools.has(key)) {
+    const pool = new mssql.ConnectionPool({
+      server: config.host,
+      port: parseInt(config.port || '1433'),
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      options: {
+        encrypt: true,
+        trustServerCertificate: true,
+      },
+      connectionTimeout: 10_000,
+    });
+    await pool.connect();
+    mssqlPools.set(key, pool);
+  }
+  return mssqlPools.get(key)!;
 }
 
 export class DatabaseScanner {
@@ -150,7 +177,7 @@ export class DatabaseScanner {
            AND tc.table_name = $1 AND tc.table_schema = 'public'`,
           [tableName]
         );
-        const pks = new Set(pkRes.rows.map(r => r.column_name));
+        const pks = new Set(pkRes.rows.map((r: any) => r.column_name));
 
         // 3. Get columns
         const columnsRes = await client.query(
@@ -210,9 +237,88 @@ export class DatabaseScanner {
   }
 
   /**
+   * Scans an MSSQL database for its schema metadata.
+   */
+  static async scanMSSQL(config: any): Promise<ScanResult> {
+    const pool = await getMssqlPool(config);
+    try {
+      // 1. Get tables
+      const tablesResult = await pool.request().query(
+        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = 'dbo'"
+      );
+
+      const tableSummaries: TableSummary[] = [];
+
+      for (const row of tablesResult.recordset) {
+        const tableName = row.TABLE_NAME;
+
+        // 2. Get Primary Keys for this table
+        const pkResult = await pool.request()
+          .input('tableName', tableName)
+          .query(`
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+            WHERE OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + CONSTRAINT_NAME), 'IsPrimaryKey') = 1
+            AND TABLE_NAME = @tableName AND TABLE_SCHEMA = 'dbo'
+          `);
+        const pks = new Set(pkResult.recordset.map((r: any) => r.COLUMN_NAME));
+
+        // 3. Get columns
+        const columnsResult = await pool.request()
+          .input('tableName', tableName)
+          .query(`
+            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = @tableName AND TABLE_SCHEMA = 'dbo'
+          `);
+
+        tableSummaries.push({
+          name: tableName,
+          columns: columnsResult.recordset.map((col: any) => ({
+            name: col.COLUMN_NAME,
+            dataType: col.DATA_TYPE,
+            isPrimary: pks.has(col.COLUMN_NAME),
+            isNullable: col.IS_NULLABLE === 'YES',
+            defaultValue: col.COLUMN_DEFAULT || undefined,
+          })),
+        });
+      }
+
+      // 4. Get all foreign key relationships
+      const fkResult = await pool.request().query(`
+        SELECT
+            fk.name AS constraint_name,
+            tp.name AS from_table,
+            cp.name AS from_column,
+            tr.name AS to_table,
+            cr.name AS to_column
+        FROM sys.foreign_keys AS fk
+        INNER JOIN sys.tables AS tp ON fk.parent_object_id = tp.object_id
+        INNER JOIN sys.tables AS tr ON fk.referenced_object_id = tr.object_id
+        INNER JOIN sys.foreign_key_columns AS fkc ON fkc.constraint_object_id = fk.object_id
+        INNER JOIN sys.columns AS cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id
+        INNER JOIN sys.columns AS cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id
+      `);
+
+      const foreignKeys: ForeignKeySummary[] = fkResult.recordset.map((fk: any) => ({
+        fromTable: fk.from_table,
+        fromColumn: fk.from_column,
+        toTable: fk.to_table,
+        toColumn: fk.to_column,
+        constraintName: fk.constraint_name,
+      }));
+
+      return { tables: tableSummaries, foreignKeys };
+    } catch (err) {
+      console.error("MSSQL Introspection failed:", err);
+      throw err;
+    }
+  }
+
+  /**
    * Executes a raw SQL query and returns rows & column definitions.
    */
-  static async executeQuery(type: string, config: any, sql: string): Promise<{ rows: any[], columns: string[] }> {
+  static async executeQuery(type: string, config: any, sqlStr: string): Promise<{ rows: any[], columns: string[] }> {
     if (type === "mysql") {
       const db = serverlessMysql({
         config: {
@@ -225,12 +331,18 @@ export class DatabaseScanner {
         }
       });
       try {
-        const rows: any[] = await db.query(sql);
+        const rows: any[] = await db.query(sqlStr);
         const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
         return { rows, columns };
       } finally {
         await db.quit();
       }
+    } else if (type === "mssql") {
+      const pool = await getMssqlPool(config);
+      const result = await pool.request().query(sqlStr);
+      const rows = result.recordset;
+      const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+      return { rows, columns };
     } else {
       const client = new PgClient({
         host: config.host,
@@ -242,9 +354,9 @@ export class DatabaseScanner {
       });
       await client.connect();
       try {
-        const res = await client.query(sql);
+        const res = await client.query(sqlStr);
         const rows = res.rows;
-        const columns = res.fields.map(f => f.name);
+        const columns = res.fields.map((f: any) => f.name);
         return { rows, columns };
       } finally {
         await client.end();

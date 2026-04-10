@@ -54,7 +54,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
       const response = await fetch("/api/test-connection", {
         method: "POST",
         body: JSON.stringify({
-          type: provider === "postgres" || provider === "mysql" ? provider : "postgres",
+          type: provider,
           ...data.dbConfig,
         }),
         headers: { "Content-Type": "application/json" },
@@ -120,8 +120,9 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
 
       // 1. Persist the credentials in Convex
       const configId = await saveConfig({
+        configId: data.configId as any,
         organizationId: finalOrgId as any,
-        type: (provider === "postgres" || provider === "mysql") ? provider : "postgres",
+        type: provider as any,
         encryptedUri: JSON.stringify(data.dbConfig),
         updatedBy: finalUserId as any,
       });
@@ -210,7 +211,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   const getUriPreview = () => {
     const { host, port, user, database } = data.dbConfig;
     const h = host || "[host]";
-    const p = port || (provider === "postgres" ? "5432" : "3306");
+    const p = port || (provider === "postgres" ? "5432" : provider === "mssql" ? "1433" : "3306");
     const u = user || "[user]";
     const d = database || "[database]";
 
