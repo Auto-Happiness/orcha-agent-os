@@ -67,7 +67,7 @@ export default defineSchema({
   // ─── Bridge: Multi-Tenant DB Configs ────────────────────
   databaseConfigs: defineTable({
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery")),
+    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb")),
     encryptedUri: v.string(), // Encrypted DB URI
     name: v.string(),        // Environment Profile Name
     description: v.optional(v.string()),
@@ -80,6 +80,7 @@ export default defineSchema({
     updatedBy: v.id("users"),
     updatedAt: v.number(),
   }).index("by_org", ["organizationId"])
+    .index("by_org_type", ["organizationId", "type"])
     .index("by_status", ["status"]),
 
   // ─── Bridge: Large Scale Data Exports (10M+ ) ──────────

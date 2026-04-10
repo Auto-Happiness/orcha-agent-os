@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const { configId, organizationId, type, config: rawConfig } = await req.json();
     const config = {
       ...rawConfig,
-      port: rawConfig.port ? parseInt(rawConfig.port, 10) : (type === "postgres" ? 5432 : 3306),
+      port: rawConfig.port ? parseInt(rawConfig.port, 10) : (type === "postgres" ? 5432 : type === "mssql" ? 1433 : 3306),
     };
 
     if (!configId || !organizationId || !type || !config) {
@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
       scanResult = await DatabaseScanner.scanMySQL(config);
     } else if (type === "postgres") {
       scanResult = await DatabaseScanner.scanPostgres(config);
+    } else if (type === "mssql") {
+      scanResult = await DatabaseScanner.scanMSSQL(config);
     } else {
       throw new Error(`Unsupported database type: ${type}`);
     }

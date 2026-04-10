@@ -110,12 +110,21 @@ export async function POST(req: NextRequest) {
         }).join("\n")
       : "";
 
+    const dialectRules = config.type === "mssql" 
+      ? "- Dialect: T-SQL (SQL Server). Use TOP instead of LIMIT for limiting rows. Use [schema].[table] if necessary."
+      : config.type === "mysql"
+      ? "- Dialect: MySQL. Use backticks for reserved names. Use LIMIT for limiting rows."
+      : "- Dialect: PostgreSQL. Use double quotes for reserved names. Use LIMIT for limiting rows.";
+
     const systemPrompt = `You are an expert ${config.type.toUpperCase()} Data Analyst.
 Answer data questions by generating and executing SQL queries using the execute_sql tool.
 
 ${schemaDescription}
 
 ${relationshipDescription}
+
+Dialect Instructions:
+${dialectRules}
 
 Rules:
 - Use physical table/column names from the schema above.

@@ -25,18 +25,25 @@ const PROVIDERS = [
   { id: "mssql",    label: "MSSQL",      icon: IconServer, color: "red" },
   { id: "mongodb",  label: "MongoDB",    icon: IconBrandMongodb, color: "green" },
   { id: "bigquery", label: "BigQuery",   icon: IconTableFilled, color: "indigo" },
-  { id: "alloydb",  label: "AlloyDB",    icon: IconCloud, color: "blue" },
-  { id: "spanner",  label: "Spanner",    icon: IconDatabase, color: "blue" },
   { id: "sqlite",   label: "SQLite",     icon: IconDatabase, color: "gray" },
-  { id: "redis",    label: "Redis",      icon: IconServer, color: "red" },
-  { id: "cassandra",label: "Cassandra",  icon: IconDatabase, color: "blue" },
-  { id: "snowflake",label: "Snowflake",  icon: IconCloud, color: "cyan" },
 ];
 
 interface ProviderSelectorProps {
   selected: string;
   onSelect: (provider: string) => void;
 }
+
+const getColorRGB = (color: string) => {
+  switch (color) {
+    case "blue": return "37, 150, 243";
+    case "cyan": return "0, 188, 212";
+    case "red": return "244, 67, 54";
+    case "green": return "76, 175, 80";
+    case "indigo": return "63, 81, 181";
+    case "violet": return "147, 51, 234";
+    default: return "255, 255, 255";
+  }
+};
 
 export function DatabaseProviderSelector({ selected, onSelect }: ProviderSelectorProps) {
   return (
@@ -70,14 +77,14 @@ export function DatabaseProviderSelector({ selected, onSelect }: ProviderSelecto
               <Group gap="md">
                 <ThemeIcon 
                   variant="light" 
-                  color={selected === p.id ? "violet" : "gray"} 
+                  color={selected === p.id ? p.color : "gray"} 
                   size="md" 
                   radius="md"
                   style={{ 
-                    background: selected === p.id ? "rgba(147,51,234,0.2)" : "rgba(255,255,255,0.04)" 
+                    background: selected === p.id ? `rgba(${getColorRGB(p.color)}, 0.15)` : "rgba(255,255,255,0.04)" 
                   }}
                 >
-                  <p.icon size={18} style={{ color: selected === p.id ? "#c084fc" : "rgba(255,255,255,0.3)" }} />
+                  <p.icon size={18} style={{ color: selected === p.id ? `var(--mantine-color-${p.color}-filled)` : "rgba(255,255,255,0.3)" }} />
                 </ThemeIcon>
                 <Text size="sm" fw={selected === p.id ? 700 : 500} c={selected === p.id ? "white" : "dimmed"} style={{ whiteSpace: "nowrap" }}>
                   {p.label}

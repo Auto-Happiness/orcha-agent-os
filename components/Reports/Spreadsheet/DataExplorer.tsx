@@ -1,8 +1,7 @@
 "use client";
 
-import React from "react";
 import { Box, Stack, Group, Text, ActionIcon, Paper, ThemeIcon, UnstyledButton, Divider } from "@mantine/core";
-import { IconSearch, IconSparkles, IconDatabase } from "@tabler/icons-react";
+import { IconSearch, IconSparkles, } from "@tabler/icons-react";
 
 interface DataExplorerProps {
   activeCell: string | null;
@@ -11,11 +10,11 @@ interface DataExplorerProps {
   availableMarkers?: string[];
 }
 
-export function DataExplorer({ 
-  activeCell, 
-  cells, 
-  onInsertMarker, 
-  availableMarkers = ["{d.rows}", "{d.summary.total}", "{d.date_range}"] 
+export function DataExplorer({
+  activeCell,
+  cells,
+  onInsertMarker,
+  availableMarkers = ["{d.rows}", "{d.summary.total}", "{d.date_range}"]
 }: DataExplorerProps) {
   return (
     <Box w={280} style={{ borderLeft: "1px solid rgba(255,255,255,0.1)", background: "#0c0918" }} p="md">
@@ -24,7 +23,7 @@ export function DataExplorer({
           <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase" }}>Data Explorer</Text>
           <ActionIcon variant="subtle" size="sm" color="dimmed"><IconSearch size={14} /></ActionIcon>
         </Group>
-        
+
         <Paper p="xs" radius="sm" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
           <Stack gap={4}>
             <Group gap="xs">
@@ -34,8 +33,8 @@ export function DataExplorer({
             <Text size="10px" c="dimmed">Click to insert at selection:</Text>
             <Stack gap={4} mt={4}>
               {availableMarkers.map(m => (
-                <UnstyledButton 
-                  key={m} 
+                <UnstyledButton
+                  key={m}
                   onClick={() => onInsertMarker(m)}
                   style={{ padding: "4px 8px", borderRadius: "4px", background: "rgba(255,255,255,0.03)" }}
                 >
@@ -47,7 +46,7 @@ export function DataExplorer({
         </Paper>
 
         <Divider color="rgba(255,255,255,0.08)" label="Selection Info" labelPosition="center" />
-        
+
         {activeCell ? (
           <Box>
             <Text size="xs" c="dimmed">Cell: <Text span c="white" fw={600}>{activeCell}</Text></Text>

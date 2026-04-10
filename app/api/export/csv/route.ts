@@ -3,7 +3,9 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Pool as PgPool } from "pg";
+const pg = require("pg");
+import type { Pool } from "pg";
+const PgPool = pg.Pool;
 import QueryStream from "pg-query-stream";
 import serverlessMysql from "serverless-mysql";
 

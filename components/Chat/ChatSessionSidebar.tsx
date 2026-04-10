@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Stack, Text, Group, ActionIcon, Tooltip, ScrollArea, Loader, Menu } from "@mantine/core";
+import { Box, Stack, Text, Group, ActionIcon, Tooltip, ScrollArea, Loader, Menu, Modal, Button as MantineButton } from "@mantine/core";
 import { IconPlus, IconTrash, IconMessage, IconPencil, IconCheck, IconX, IconDots } from "@tabler/icons-react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -34,6 +34,7 @@ export function ChatSessionSidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleRename = async (sessionId: string) => {
     if (editValue.trim()) {
@@ -43,18 +44,26 @@ export function ChatSessionSidebar({
     setEditValue("");
   };
 
-  const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation();
-    await removeSession({ sessionId: sessionId as Id<"chatSessions"> });
-    if (activeSessionId === sessionId) {
-      // Select another session if available, otherwise trigger new
-      const remaining = sessions?.filter(s => s._id !== sessionId) ?? [];
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    
+    await removeSession({ sessionId: deletingId as Id<"chatSessions"> });
+    
+    if (activeSessionId === deletingId) {
+      const remaining = sessions?.filter(s => s._id !== deletingId) ?? [];
       if (remaining.length > 0) {
         onSelectSession(remaining[0]._id);
       } else {
         onNewSession();
       }
     }
+    
+    setDeletingId(null);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    setDeletingId(sessionId);
   };
 
   return (
@@ -172,7 +181,7 @@ export function ChatSessionSidebar({
                             Rename
                           </Menu.Item>
                           <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.06)" }} />
-                          <Menu.Item leftSection={<IconTrash size={13} />} c="red.4" onClick={(e) => handleDelete(e, session._id)}>
+                          <Menu.Item leftSection={<IconTrash size={13} />} c="red.4" onClick={(e) => handleDeleteClick(e, session._id)}>
                             Delete
                           </Menu.Item>
                         </Menu.Dropdown>
@@ -185,6 +194,34 @@ export function ChatSessionSidebar({
           })}
         </Stack>
       </ScrollArea>
+
+      <Modal
+        opened={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        title="Delete Conversation"
+        centered
+        size="sm"
+        overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+        styles={{
+          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 12 },
+          header: { background: "#130f22", color: "white" },
+          title: { fontWeight: 600 }
+        }}
+      >
+        <Stack gap="md">
+          <Text size="sm" c="rgba(255,255,255,0.7)">
+            Are you sure you want to delete this conversation? This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <MantineButton variant="subtle" color="gray" onClick={() => setDeletingId(null)} size="xs">
+              Cancel
+            </MantineButton>
+            <MantineButton color="red" onClick={confirmDelete} size="xs">
+              Delete
+            </MantineButton>
+          </Group>
+        </Stack>
+      </Modal>
     </Box>
   );
 }
