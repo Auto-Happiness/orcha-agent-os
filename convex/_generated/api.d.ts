@@ -14,6 +14,8 @@ import type * as authUtils from "../authUtils.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as chatSessions from "../chatSessions.js";
 import type * as databaseConfigs from "../databaseConfigs.js";
+import type * as integrationActions from "../integrationActions.js";
+import type * as integrationKeys from "../integrationKeys.js";
 import type * as mcpTools from "../mcpTools.js";
 import type * as memberships from "../memberships.js";
 import type * as messages from "../messages.js";
@@ -39,6 +41,8 @@ declare const fullApi: ApiFromModules<{
   chatMessages: typeof chatMessages;
   chatSessions: typeof chatSessions;
   databaseConfigs: typeof databaseConfigs;
+  integrationActions: typeof integrationActions;
+  integrationKeys: typeof integrationKeys;
   mcpTools: typeof mcpTools;
   memberships: typeof memberships;
   messages: typeof messages;

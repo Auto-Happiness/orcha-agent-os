@@ -74,11 +74,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to parse database configuration." }, { status: 500 });
     }
 
-    // 2. Fetch semantic layer + AI keys in parallel
-    const [semanticModels, relationships, aiKeys] = await Promise.all([
+    // 2. Fetch semantic layer + AI keys + Integration keys in parallel
+    const [semanticModels, relationships, aiKeys, integrationKeys] = await Promise.all([
       convex.query(api.semanticModels.listModelsByConfig, { configId: config._id }),
       convex.query(api.semanticRelationships.listByConfig, { configId: config._id }),
       convex.query(api.aiKeys.listByOrganization, { organizationId }),
+      convex.query(api.integrationKeys.listByOrganization, { organizationId }),
     ]);
 
     // 3. Resolve AI model from stored keys
@@ -90,7 +91,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
 
-    // 4. Build system prompt
+    // 4. Resolve and Load MCP Tools
+    const mcpTools: Record<string, any> = {};
+    const mcpRegistry = await import("@/lib/mcp-registry");
+    const { McpClient } = await import("@/lib/mcp-client");
+    const { KeyManager } = await import("@/lib/key-manager");
+
+    for (const key of (integrationKeys as any[])) {
+      let config = mcpRegistry.getMcpServer(key.integration);
+      const url = config?.url || key.mcpUrl;
+      if (!url) continue;
+
+      try {
+        // Decrypt the integration key
+        const decryptedKey = key.keyValue !== "none"
+          ? KeyManager.decrypt(key.keyValue, orgIdStr)
+          : "none";
+
+        // Fetch tools from the MCP server
+        const tools = await McpClient.listTools(url, decryptedKey);
+
+        for (const tool of tools) {
+          // Prefix to avoid collisions and make it clear which service is being used
+          const namespacedName = `${key.integration}_${tool.name}`;
+          mcpTools[namespacedName] = {
+            description: `[${key.integration}] ${tool.description || ""}`,
+            inputSchema: jsonSchema(tool.inputSchema),
+            execute: async (args: any) => {
+              console.log(`[Chat] Calling MCP tool: ${namespacedName}`);
+              const result = await McpClient.callTool(url, tool.name, args, decryptedKey);
+              return result;
+            }
+          };
+        }
+      } catch (e: any) {
+        console.warn(`[Chat] Failed to load MCP tools for ${key.integration}:`, e.message);
+      }
+    }
+
+    // 5. Build system prompt
     const schemaDescription = semanticModels.map((model: any) => {
       const fields = model.fields.map((f: any) => {
         let d = `- ${f.displayName} (${f.columnName}): ${f.type}`;
@@ -104,24 +143,27 @@ export async function POST(req: NextRequest) {
 
     const relationshipDescription = relationships?.length > 0
       ? "### Relationships:\n" + relationships.map((rel: any) => {
-          const from = semanticModels.find((m: any) => m._id === rel.fromModelId);
-          const to = semanticModels.find((m: any) => m._id === rel.toModelId);
-          return `- ${from?.tableName ?? "?"}.${rel.fromColumn} → ${to?.tableName ?? "?"}.${rel.toColumn} (${rel.type})`;
-        }).join("\n")
+        const from = semanticModels.find((m: any) => m._id === rel.fromModelId);
+        const to = semanticModels.find((m: any) => m._id === rel.toModelId);
+        return `- ${from?.tableName ?? "?"}.${rel.fromColumn} → ${to?.tableName ?? "?"}.${rel.toColumn} (${rel.type})`;
+      }).join("\n")
       : "";
 
-    const dialectRules = config.type === "mssql" 
+    const dialectRules = config.type === "mssql"
       ? "- Dialect: T-SQL (SQL Server). Use TOP instead of LIMIT for limiting rows. Use [schema].[table] if necessary."
       : config.type === "mysql"
-      ? "- Dialect: MySQL. Use backticks for reserved names. Use LIMIT for limiting rows."
-      : "- Dialect: PostgreSQL. Use double quotes for reserved names. Use LIMIT for limiting rows.";
+        ? "- Dialect: MySQL. Use backticks for reserved names. Use LIMIT for limiting rows."
+        : "- Dialect: PostgreSQL. Use double quotes for reserved names. Use LIMIT for limiting rows.";
 
-    const systemPrompt = `You are an expert ${config.type.toUpperCase()} Data Analyst.
-Answer data questions by generating and executing SQL queries using the execute_sql tool.
+    const systemPrompt = `You are an expert ${config.type.toUpperCase()} Data Analyst and Operations Agent.
+Answer data questions using the execute_sql tool, and perform operational actions (like sending messages or updating spreadsheets) using the provided integration tools.
 
 ${schemaDescription}
 
 ${relationshipDescription}
+
+Integration Tools:
+${Object.keys(mcpTools).length > 0 ? "You have access to external integrations. Tool names are prefixed with the service name (e.g. slack_send_message)." : "No integrations connected."}
 
 Dialect Instructions:
 ${dialectRules}
@@ -134,7 +176,7 @@ Rules:
 ${!showResults ? "- The user has disabled result tables. After executing the query, summarize the findings in plain text only — do not describe the raw data rows." : ""}
 - If a question is ambiguous or impossible, explain why concisely.`;
 
-    // 5. Stream with ToolLoopAgent (handles multi-step tool → response loop)
+    // 6. Stream with ToolLoopAgent
     const tools = {
       execute_sql: {
         description: `Executes a read-only SQL query. Returns up to ${MAX_ROWS} rows.`,
@@ -164,13 +206,14 @@ ${!showResults ? "- The user has disabled result tables. After executing the que
           }
         },
       },
+      ...mcpTools,
     } as any;
 
     const agent = new ToolLoopAgent({
       model: aiModel,
       instructions: systemPrompt,
       tools,
-      stopWhen: stepCountIs(5), // cap at 5 steps: prevents runaway loops
+      stopWhen: stepCountIs(10), // allow multi-step: SQL → format → send email
     });
 
     const result = await agent.stream({
