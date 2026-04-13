@@ -1,6 +1,6 @@
 # The Orcha Semantic Bridge
 
-This document explains how Orcha transforms a raw database into an "AI-intelligent" business model, using a strategy inspired by **Wren AI**.
+This document explains how Orcha transforms a raw database into an "AI-intelligent" business model.
 
 ## 1. How it Works (Technical Overview)
 
