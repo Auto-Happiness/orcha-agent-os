@@ -74,11 +74,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to parse database configuration." }, { status: 500 });
     }
 
-    // 2. Fetch semantic layer + AI keys in parallel
-    const [semanticModels, relationships, aiKeys] = await Promise.all([
+    // 2. Fetch semantic layer + AI keys + Integration keys in parallel
+    const [semanticModels, relationships, aiKeys, integrationKeys] = await Promise.all([
       convex.query(api.semanticModels.listModelsByConfig, { configId: config._id }),
       convex.query(api.semanticRelationships.listByConfig, { configId: config._id }),
       convex.query(api.aiKeys.listByOrganization, { organizationId }),
+      convex.query(api.integrationKeys.listByOrganization, { organizationId }),
     ]);
 
     // 3. Resolve AI model from stored keys
@@ -90,7 +91,107 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
 
-    // 4. Build system prompt
+    // 4. Resolve and Load MCP Tools
+    const mcpTools: Record<string, any> = {};
+    const mcpRegistry = await import("@/lib/mcp-registry");
+    const { McpClient } = await import("@/lib/mcp-client");
+    const { KeyManager } = await import("@/lib/key-manager");
+    const { resolveGoogleAccessToken } = await import("@/lib/google-token-resolver");
+
+    for (const key of (integrationKeys as any[])) {
+      const regConfig = mcpRegistry.getMcpServer(key.integration);
+
+      try {
+        const decryptedKey = key.keyValue !== "none"
+          ? KeyManager.decrypt(key.keyValue, orgIdStr)
+          : "none";
+
+        // ── GMAIL: Direct Gmail REST API (Smithery server needs local process) ──
+        if (key.integration === "gmail") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGmailTools } = await import("@/lib/gmail-tools");
+          const gmailTools = buildGmailTools(accessToken);
+          for (const [name, tool] of Object.entries(gmailTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(gmailTools).length} Gmail tools (direct API)`);
+          continue;
+        }
+
+        // ── GOOGLE CALENDAR: Direct Calendar REST API ──
+        if (key.integration === "google_calendar") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGoogleCalendarTools } = await import("@/lib/google-calendar-tools");
+          const calTools = buildGoogleCalendarTools(accessToken);
+          for (const [name, tool] of Object.entries(calTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(calTools).length} Google Calendar tools (direct API)`);
+          continue;
+        }
+
+        // ── GOOGLE SHEETS: Direct Sheets REST API ──
+        if (key.integration === "google_sheets") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGoogleSheetsTools } = await import("@/lib/google-sheets-tools");
+          const sheetsTools = buildGoogleSheetsTools(accessToken);
+          for (const [name, tool] of Object.entries(sheetsTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(sheetsTools).length} Google Sheets tools (direct API)`);
+          continue;
+        }
+
+        // ── GOOGLE DRIVE: Direct Drive REST API ──
+        if (key.integration === "google_drive") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGoogleDriveTools } = await import("@/lib/google-drive-tools");
+          const driveTools = buildGoogleDriveTools(accessToken);
+          for (const [name, tool] of Object.entries(driveTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(driveTools).length} Google Drive tools (direct API)`);
+          continue;
+        }
+
+        // ── ALL OTHER INTEGRATIONS: Smithery MCP HTTP ──
+        const url = regConfig?.url || key.mcpUrl;
+        if (!url) continue;
+
+        const tools = await McpClient.listTools(url, decryptedKey, regConfig?.authHeader);
+        for (const tool of tools) {
+          const namespacedName = `${key.integration}_${tool.name}`;
+          mcpTools[namespacedName] = {
+            description: `[${key.integration}] ${tool.description || ""}`,
+            inputSchema: jsonSchema(tool.inputSchema),
+            execute: async (args: any) => {
+              console.log(`[Chat] Calling MCP tool: ${namespacedName}`);
+              return await McpClient.callTool(url, tool.name, args, decryptedKey, regConfig?.authHeader);
+            }
+          };
+        }
+      } catch (e: any) {
+        console.warn(`[Chat] Failed to load tools for ${key.integration}:`, e.message);
+      }
+    }
+
+    // 5. Build system prompt
     const schemaDescription = semanticModels.map((model: any) => {
       const fields = model.fields.map((f: any) => {
         let d = `- ${f.displayName} (${f.columnName}): ${f.type}`;
@@ -104,24 +205,27 @@ export async function POST(req: NextRequest) {
 
     const relationshipDescription = relationships?.length > 0
       ? "### Relationships:\n" + relationships.map((rel: any) => {
-          const from = semanticModels.find((m: any) => m._id === rel.fromModelId);
-          const to = semanticModels.find((m: any) => m._id === rel.toModelId);
-          return `- ${from?.tableName ?? "?"}.${rel.fromColumn} → ${to?.tableName ?? "?"}.${rel.toColumn} (${rel.type})`;
-        }).join("\n")
+        const from = semanticModels.find((m: any) => m._id === rel.fromModelId);
+        const to = semanticModels.find((m: any) => m._id === rel.toModelId);
+        return `- ${from?.tableName ?? "?"}.${rel.fromColumn} → ${to?.tableName ?? "?"}.${rel.toColumn} (${rel.type})`;
+      }).join("\n")
       : "";
 
-    const dialectRules = config.type === "mssql" 
+    const dialectRules = config.type === "mssql"
       ? "- Dialect: T-SQL (SQL Server). Use TOP instead of LIMIT for limiting rows. Use [schema].[table] if necessary."
       : config.type === "mysql"
-      ? "- Dialect: MySQL. Use backticks for reserved names. Use LIMIT for limiting rows."
-      : "- Dialect: PostgreSQL. Use double quotes for reserved names. Use LIMIT for limiting rows.";
+        ? "- Dialect: MySQL. Use backticks for reserved names. Use LIMIT for limiting rows."
+        : "- Dialect: PostgreSQL. Use double quotes for reserved names. Use LIMIT for limiting rows.";
 
-    const systemPrompt = `You are an expert ${config.type.toUpperCase()} Data Analyst.
-Answer data questions by generating and executing SQL queries using the execute_sql tool.
+    const systemPrompt = `You are an expert ${config.type.toUpperCase()} Data Analyst and Operations Agent.
+Answer data questions using the execute_sql tool, and perform operational actions (like sending messages or updating spreadsheets) using the provided integration tools.
 
 ${schemaDescription}
 
 ${relationshipDescription}
+
+Integration Tools:
+${Object.keys(mcpTools).length > 0 ? "You have access to the following external integration tools. Use them to perform operational actions:\n" + Object.keys(mcpTools).map(t => `- ${t}`).join("\n") : "No external integrations connected."}
 
 Dialect Instructions:
 ${dialectRules}
@@ -134,7 +238,7 @@ Rules:
 ${!showResults ? "- The user has disabled result tables. After executing the query, summarize the findings in plain text only — do not describe the raw data rows." : ""}
 - If a question is ambiguous or impossible, explain why concisely.`;
 
-    // 5. Stream with ToolLoopAgent (handles multi-step tool → response loop)
+    // 6. Stream with ToolLoopAgent
     const tools = {
       execute_sql: {
         description: `Executes a read-only SQL query. Returns up to ${MAX_ROWS} rows.`,
@@ -164,13 +268,14 @@ ${!showResults ? "- The user has disabled result tables. After executing the que
           }
         },
       },
+      ...mcpTools,
     } as any;
 
     const agent = new ToolLoopAgent({
       model: aiModel,
       instructions: systemPrompt,
       tools,
-      stopWhen: stepCountIs(5), // cap at 5 steps: prevents runaway loops
+      stopWhen: stepCountIs(10), // allow multi-step: SQL → format → send email
     });
 
     const result = await agent.stream({

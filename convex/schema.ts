@@ -252,4 +252,17 @@ export default defineSchema({
   })
     .index("by_org", ["organizationId"])
     .index("by_org_name", ["organizationId", "name"]),
+  // ─── Integration Keys (Marketplace) ─────────────────────────────────────
+  integrationKeys: defineTable({
+    organizationId: v.id("organizations"),
+    integration: v.string(),  // e.g. "slack", "gmail", "airtable"
+    qualifiedName: v.optional(v.string()), // Smithery qualified name
+    mcpUrl: v.optional(v.string()), // Smithery-hosted MCP URL
+    keyType: v.string(),       // "apiKey", "oauth_token", "webhook_secret"
+    keyValue: v.string(),      // encrypted value
+    storageStrategy: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_org_integration", ["organizationId", "integration"]),
 });

@@ -6,7 +6,7 @@ export type KeyStorageStrategy = "json" | "convex" | "aws_kms";
 
 export interface AIKeyPayload {
   organizationId: string;
-  provider: "gemini" | "openai" | "claude" | "local" | "grok";
+  provider: string; // e.g. "gemini", "slack", "github", etc.
   keyType: string;
   keyValue: string;
 }

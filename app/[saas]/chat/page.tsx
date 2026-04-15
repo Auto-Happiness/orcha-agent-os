@@ -132,8 +132,8 @@ export default function ChatPage() {
         const textContent = (message.parts as any[])?.find((p: any) => p.type === "text")?.text ?? "";
         // Strip large data arrays from tool parts before storing — keep structure for rendering
         const safeParts = (message.parts as any[])?.map((p: any) => {
-          if (p.type === "tool-execute_sql" && p.output?.data) {
-            return { ...p, output: { ...p.output, data: p.output.data.slice(0, 20) } };
+          if (p.output && (p.output as any).data && Array.isArray((p.output as any).data)) {
+            return { ...p, output: { ...p.output as any, data: (p.output as any).data.slice(0, 20) } };
           }
           return p;
         });

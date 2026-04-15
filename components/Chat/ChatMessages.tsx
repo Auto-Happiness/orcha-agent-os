@@ -156,9 +156,10 @@ function extractSQLFromParts(parts: any[]): string[] {
     let sql: string | undefined;
     if (type === "tool-execute_sql") sql = part.input?.sql;
     else if (type === "tool-invocation" && part.toolInvocation?.toolName === "execute_sql")
-      sql = part.toolInvocation.input?.sql ?? part.toolInvocation.args?.sql;
+      sql = (part.toolInvocation.input as any)?.sql ?? (part.toolInvocation.args as any)?.sql;
     else if (type === "tool-result" && part.toolName === "execute_sql")
-      sql = part.input?.sql ?? part.args?.sql;
+      sql = (part.input as any)?.sql ?? (part.args as any)?.sql;
+    
     if (sql && !queries.includes(sql)) queries.push(sql);
   }
   return queries;
@@ -173,32 +174,51 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
     type.startsWith("tool-input") ||
     (type === "tool-execute_sql" && part.state === "input-streaming")
   ) {
+    const toolName = part.toolInvocation?.toolName || part.toolName || "query";
+    const isSQL = toolName === "execute_sql";
+    
     return (
       <Box key={i} ml="3rem" mt="xs">
         <Group gap={6}>
-          <IconDatabase size={13} color="#a855f7" />
+          {isSQL ? <IconDatabase size={13} color="#a855f7" /> : <IconSparkles size={13} color="#a855f7" />}
           <Loader size="xs" color="violet" type="dots" />
-          <Text size="xs" c="dimmed">Running query...</Text>
+          <Text size="xs" c="dimmed">{isSQL ? "Running query..." : `Performing ${toolName.replace(/_/g, ' ')}...`}</Text>
         </Group>
       </Box>
     );
   }
 
   let result: any = null;
-  if (type === "tool-execute_sql" && part.state === "output-available") result = part.output;
-  else if (type === "tool-result") result = part.result;
-  else if (type === "tool-invocation" && part.toolInvocation?.state === "result") result = part.toolInvocation.result;
-  else if (type === "tool-output-available") result = part.output;
+  let toolName = "";
+
+  if (type === "tool-execute_sql" && part.state === "output-available") {
+    result = part.output;
+    toolName = "execute_sql";
+  }
+  else if (type === "tool-result") {
+    result = part.result;
+    toolName = part.toolName;
+  }
+  else if (type === "tool-invocation" && part.toolInvocation?.state === "result") {
+    result = part.toolInvocation.result;
+    toolName = part.toolInvocation.toolName;
+  }
+  else if (type === "tool-output-available") {
+    result = part.output;
+    toolName = part.toolName || "tool";
+  }
 
   if (!result) return null;
 
-  if (result.success === false) {
-    return <Box key={i} ml="3rem" mt="xs"><Text size="xs" c="red.4">SQL Error: {result.error}</Text></Box>;
+  if (result.success === false || result.error) {
+    return <Box key={i} ml="3rem" mt="xs"><Text size="xs" c="red.4">Error: {result.error || result.message || "Action failed"}</Text></Box>;
   }
 
-  const partSql = type === "tool-execute_sql" ? part.input?.sql : undefined;
+  const isSQL = toolName === "execute_sql";
+  const partSql = isSQL ? part.input?.sql : undefined;
 
-  if (result.success && result.data?.length > 0) {
+  // Render SQL Tables
+  if (isSQL && result.data?.length > 0) {
     if (!showResults) return null;
     return (
       <Box key={i} ml="3rem" mt="sm">
@@ -207,11 +227,26 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
     );
   }
 
-  if (result.success && result.data?.length === 0) {
+  if (isSQL && result.data?.length === 0) {
     return <Box key={i} ml="3rem" mt="xs"><Text size="xs" c="dimmed">Query returned no rows.</Text></Box>;
   }
 
-  return null;
+  // Render Generic Tool Results (MCP)
+  return (
+    <Box key={i} ml="3rem" mt="xs">
+      <Group gap={6}>
+        <IconCheck size={12} color="var(--mantine-color-green-4)" />
+        <Text size="xs" fw={600} c="green.3">
+          Completed {toolName.replace(/_/g, ' ')}
+        </Text>
+      </Group>
+      {result.content && typeof result.content === 'string' && (
+        <Box mt={4} p="6px 12px" style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, border: "1px solid rgba(147,51,234,0.1)" }}>
+          <Text size="xs" c="dimmed">{result.content}</Text>
+        </Box>
+      )}
+    </Box>
+  );
 }
 
 // ── SQLModal ─────────────────────────────────────────────────────────────────
