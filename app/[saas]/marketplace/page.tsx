@@ -6,15 +6,17 @@ import {
   Box, Container, Title, Text, Grid, Card, Badge,
   Group, Button, Stack, ActionIcon, Tooltip, Modal, TextInput, Select, Alert,
 } from "@mantine/core";
-import { 
-  IconExternalLink, 
-  IconDownload, 
-  IconPlugConnected, 
-  IconHistory, 
-  IconCheck, 
+import {
+  IconExternalLink,
+  IconDownload,
+  IconPlugConnected,
+  IconHistory,
+  IconCheck,
   IconTrash,
   IconLock,
   IconInfoCircle,
+  IconBolt,
+  IconTool,
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useQuery, useMutation } from "convex/react";
@@ -24,22 +26,72 @@ import { useParams } from "next/navigation";
 import { getMcpServer } from "@/lib/mcp-registry";
 
 const INTEGRATIONS = [
-  { name: "Slack", description: "Send messages, read channels and trigger workflows inside your Slack workspace.", icon: "https://upload.wikimedia.org/wikipedia/commons/d/d5/Slack_icon_2019.svg", category: "Communication", homepage: "https://slack.com" },
-  { name: "Airtable", description: "Connect your Airtable bases to query and sync structured data with your AI agents.", icon: "https://upload.wikimedia.org/wikipedia/commons/4/4b/Airtable_Logo.svg", category: "Database", homepage: "https://airtable.com" },
-  { name: "Confluence", description: "Search, read and create Confluence pages and spaces from your agent pipelines.", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Confluence_logo.svg/240px-Confluence_logo.svg.png", category: "Knowledge", homepage: "https://www.atlassian.com/software/confluence" },
-  { name: "Gmail", description: "Access, search and compose Gmail messages and threads from your agent.", icon: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg", category: "Email", homepage: "https://mail.google.com" },
-  { name: "Google Docs", description: "Read, write and summarise Google Docs documents directly from your agent workflows.", icon: "https://upload.wikimedia.org/wikipedia/commons/0/01/Google_Docs_logo_%282014-2020%29.svg", category: "Productivity", homepage: "https://docs.google.com" },
-  { name: "Google Search Console", description: "Pull search performance data, impressions and click-through rates into your pipelines.", icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Google_Search_Console_logo.png/240px-Google_Search_Console_logo.png", category: "Analytics", homepage: "https://search.google.com/search-console" },
-  { name: "Google Sheets", description: "Read and write Google Sheets data — perfect for reporting and data pipelines.", icon: "https://upload.wikimedia.org/wikipedia/commons/3/30/Google_Sheets_logo_%282014-2020%29.svg", category: "Productivity", homepage: "https://sheets.google.com" },
-  { name: "Google Drive", description: "Browse, upload and manage files stored in Google Drive from your agents.", icon: "https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg", category: "Storage", homepage: "https://drive.google.com" },
-  { name: "Google Calendar", description: "Create, read and update Google Calendar events and schedules programmatically.", icon: "https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg", category: "Productivity", homepage: "https://calendar.google.com" },
-  { name: "Google Slides", description: "Generate and update Google Slides presentations from your data and agent outputs.", icon: "https://upload.wikimedia.org/wikipedia/commons/1/1e/Google_Slides_logo_%282014-2020%29.svg", category: "Productivity", homepage: "https://slides.google.com" },
-  { name: "Google Analytics", description: "Query GA4 metrics, dimensions and reports to power data-driven agent decisions.", icon: "https://upload.wikimedia.org/wikipedia/commons/8/89/Logo_Google_Analytics.svg", category: "Analytics", homepage: "https://analytics.google.com" },
-  { name: "Outlook", description: "Read and send emails, manage calendar events and contacts via Microsoft Outlook.", icon: "https://upload.wikimedia.org/wikipedia/commons/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg", category: "Email", homepage: "https://outlook.microsoft.com" },
-  { name: "Microsoft Teams", description: "Post messages, manage channels and trigger automations inside Microsoft Teams.", icon: "https://upload.wikimedia.org/wikipedia/commons/c/c9/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg", category: "Communication", homepage: "https://teams.microsoft.com" },
-  { name: "Excel", description: "Read and write Microsoft Excel workbooks — on-premise or via Microsoft 365.", icon: "https://upload.wikimedia.org/wikipedia/commons/3/34/Microsoft_Office_Excel_%282019%E2%80%93present%29.svg", category: "Productivity", homepage: "https://microsoft.com/excel" },
-  { name: "SharePoint", description: "Access SharePoint lists, libraries and sites to integrate enterprise content.", icon: "https://upload.wikimedia.org/wikipedia/commons/e/e1/Microsoft_Office_SharePoint_%282019%E2%80%93present%29.svg", category: "Storage", homepage: "https://sharepoint.microsoft.com" },
-  { name: "Databox", description: "Push metrics and KPIs into Databox dashboards directly from your agent workflows.", icon: "https://cdn.worldvectorlogo.com/logos/databox.svg", category: "Analytics", homepage: "https://databox.com" },
+  /* Temporarily hidden
+  {
+    name: "Slack",
+    description: "Send messages, read channels and trigger workflows inside your Slack workspace.",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/d/d5/Slack_icon_2019.svg",
+    category: "Communication",
+    homepage: "https://slack.com",
+    toolCount: 6,
+    toolList: ["Send message", "List channels", "Read messages", "Search messages", "Get channel info", "List users"],
+  },
+  {
+    name: "Airtable",
+    description: "Connect your Airtable bases to query and sync structured data with your AI agents.",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/4/4b/Airtable_Logo.svg",
+    category: "Database",
+    homepage: "https://airtable.com",
+    toolCount: 5,
+    toolList: ["List bases", "List tables", "Get records", "Create record", "Update record"],
+  },
+  {
+    name: "Confluence",
+    description: "Search, read and create Confluence pages and spaces from your agent pipelines.",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Confluence_logo.svg/240px-Confluence_logo.svg.png",
+    category: "Knowledge",
+    homepage: "https://www.atlassian.com/software/confluence",
+    toolCount: 4,
+    toolList: ["Search pages", "Get page content", "Create page", "Update page"],
+  },
+  */
+  {
+    name: "Gmail",
+    description: "Access, search and compose Gmail messages and threads from your agent.",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg",
+    category: "Email",
+    homepage: "https://mail.google.com",
+    toolCount: 4,
+    toolList: ["List emails", "Read email", "Send email", "Create draft"],
+  },
+  {
+    name: "Google Sheets",
+    description: "Read, write and create Google Sheets spreadsheets — perfect for reporting and data pipelines.",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/3/30/Google_Sheets_logo_%282014-2020%29.svg",
+    category: "Productivity",
+    homepage: "https://sheets.google.com",
+    toolCount: 6,
+    toolList: ["List spreadsheets", "Read range", "Write range", "Append rows", "Get metadata", "Create spreadsheet"],
+  },
+  {
+    name: "Google Drive",
+    description: "Browse, search, read and manage files stored in Google Drive from your agents.",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg",
+    category: "Storage",
+    homepage: "https://drive.google.com",
+    toolCount: 5,
+    toolList: ["Search files", "Get file", "List folder", "Read file content", "Move file"],
+  },
+  {
+    name: "Google Calendar",
+    description: "Create, update and send Google Calendar invites with Meet links, reminders and attendees.",
+    icon: "https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg",
+    category: "Productivity",
+    homepage: "https://calendar.google.com",
+    toolCount: 5,
+    toolList: ["List events", "Get event", "Create event + invite", "Update event", "Delete event"],
+  },
+  // Coming soon: Outlook, Microsoft Teams, Excel, SharePoint, Databox (OAuth not yet configured)
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -234,6 +286,21 @@ export default function MarketplacePage() {
                         </Box>
                       </Group>
                       <Group gap={4}>
+                        <Badge variant="filled" color="teal.8" size="xs" radius="sm" leftSection={<IconBolt size={10} />}>Live</Badge>
+                        <Tooltip 
+                          label={
+                            <Stack gap={4} p={4}>
+                              <Text fw={700} size="xs">Available Tools ({item.toolCount}):</Text>
+                              {item.toolList?.map(t => <Text key={t} size="xs">• {t}</Text>)}
+                            </Stack>
+                          } 
+                          withArrow 
+                          position="bottom"
+                        >
+                          <Badge variant="light" color="violet" size="xs" radius="sm" style={{ cursor: 'help' }}>
+                            {item.toolCount} Tools
+                          </Badge>
+                        </Tooltip>
                         {connected && <Badge size="xs" color="green" variant="light" leftSection={<IconCheck size={10} />}>Connected</Badge>}
                         <Tooltip label="Learn more" withArrow>
                           <ActionIcon component="a" href={item.homepage} target="_blank" variant="subtle" color="gray" size="sm">

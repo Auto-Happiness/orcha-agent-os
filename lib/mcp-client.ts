@@ -7,19 +7,14 @@ export interface McpTool {
 /**
  * For Google OAuth tokens stored as JSON:
  * { access_token, refresh_token, expires_at }
- *
- * If the access_token is expired (or within 60s of expiry),
- * we use the refresh_token to get a new one from Google.
  */
 async function resolveGoogleToken(credential: string): Promise<string> {
   const { access_token, refresh_token, expires_at } = JSON.parse(credential);
 
-  // If token is still valid, return as-is
   if (expires_at && Date.now() < expires_at) {
     return access_token;
   }
 
-  // Refresh the token
   if (!refresh_token) {
     throw new Error("Google OAuth token expired and no refresh_token available. Please reconnect.");
   }
@@ -47,33 +42,42 @@ async function resolveGoogleToken(credential: string): Promise<string> {
   }
 
   const data = await res.json();
-  // Note: we return the fresh token; persisting the updated expires_at
-  // is handled by the callback route on next connect. For server-side
-  // usage the in-memory fresh token is sufficient for this request.
   return data.access_token;
 }
 
 /**
  * Builds the final URL for a Smithery-hosted MCP server.
- * - For bearer/Google OAuth: URL unchanged (token goes in Authorization header)
- * - For config_json multi-field: base64-encodes JSON as ?config= param
+ * - For config_json: encodes and appends as ?config=
+ * - For bearer/oauth_google with an authHeader: wraps token in JSON as ?config=
  */
-function buildUrl(baseUrl: string, credential: string): string {
+function buildUrl(baseUrl: string, credential: string, authHeader?: string): string {
   if (!credential || credential === "none") return baseUrl;
 
-  // Multi-field JSON config → Smithery ?config= param
+  let configPayload: Record<string, any> | null = null;
+
+  // 1. Check if it's already a JSON config (e.g. Confluence)
   if (credential.trim().startsWith("{")) {
     try {
       const parsed = JSON.parse(credential);
-      // Google token JSON has access_token — not a Smithery config object
-      if ("access_token" in parsed) return baseUrl;
-
-      const encoded = Buffer.from(JSON.stringify(parsed)).toString("base64");
-      const sep = baseUrl.includes("?") ? "&" : "?";
-      return `${baseUrl}${sep}config=${encoded}`;
+      // Skip if it's a Google OAuth blob (those are resolved to strings before reaching here)
+      if (!("access_token" in parsed)) {
+        configPayload = parsed;
+      }
     } catch {
-      // Fall through
+      // Ignored
     }
+  }
+
+  // 2. If we have an authHeader and a plain string credential (resolved token),
+  // wrap it into a config object for Smithery to inject as an environment variable.
+  if (!configPayload && authHeader && !credential.trim().startsWith("{")) {
+    configPayload = { [authHeader]: credential };
+  }
+
+  if (configPayload) {
+    const encoded = Buffer.from(JSON.stringify(configPayload)).toString("base64");
+    const sep = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${sep}config=${encoded}`;
   }
 
   return baseUrl;
@@ -82,12 +86,10 @@ function buildUrl(baseUrl: string, credential: string): string {
 export class McpClient {
   /**
    * Fetches the available tools from an MCP server.
-   * Handles bearer, Google OAuth (auto-refresh), and config_json transports.
    */
-  static async listTools(url: string, credential?: string): Promise<McpTool[]> {
+  static async listTools(url: string, credential?: string, authHeader?: string): Promise<McpTool[]> {
     let resolvedToken = credential || "";
 
-    // Auto-refresh Google OAuth tokens
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {
       try {
         resolvedToken = await resolveGoogleToken(resolvedToken);
@@ -97,11 +99,13 @@ export class McpClient {
       }
     }
 
-    const finalUrl = buildUrl(url, resolvedToken);
-    const isConfigJson = credential?.trim().startsWith("{") && !credential.includes("access_token");
-
+    const finalUrl = buildUrl(url, resolvedToken, authHeader);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (resolvedToken && resolvedToken !== "none" && !isConfigJson) {
+
+    // If it's NOT handled via ?config= (indicated by buildUrl not having changed the URL based on authHeader),
+    // we send it via Authorization header as a fallback.
+    const isEncodedInUrl = finalUrl.includes("config=");
+    if (resolvedToken && resolvedToken !== "none" && !isEncodedInUrl) {
       headers["Authorization"] = `Bearer ${resolvedToken}`;
       headers["X-API-Key"] = resolvedToken;
     }
@@ -115,8 +119,8 @@ export class McpClient {
 
       if (!res.ok) {
         const text = await res.text();
-        console.error(`[McpClient] listTools failed (${res.status}): ${text.slice(0, 200)}`);
-        throw new Error(`MCP server returned ${res.status}`);
+        console.error(`[McpClient] listTools failed (${res.status}) at ${finalUrl.split('?')[0]}: ${text.slice(0, 200)}`);
+        return [];
       }
 
       const data = await res.json();
@@ -130,19 +134,18 @@ export class McpClient {
   /**
    * Calls a specific tool on an MCP server.
    */
-  static async callTool(url: string, toolName: string, args: any, credential?: string): Promise<any> {
+  static async callTool(url: string, toolName: string, args: any, credential?: string, authHeader?: string): Promise<any> {
     let resolvedToken = credential || "";
 
-    // Auto-refresh Google OAuth tokens
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {
       resolvedToken = await resolveGoogleToken(resolvedToken);
     }
 
-    const finalUrl = buildUrl(url, resolvedToken);
-    const isConfigJson = credential?.trim().startsWith("{") && !credential.includes("access_token");
-
+    const finalUrl = buildUrl(url, resolvedToken, authHeader);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (resolvedToken && resolvedToken !== "none" && !isConfigJson) {
+
+    const isEncodedInUrl = finalUrl.includes("config=");
+    if (resolvedToken && resolvedToken !== "none" && !isEncodedInUrl) {
       headers["Authorization"] = `Bearer ${resolvedToken}`;
       headers["X-API-Key"] = resolvedToken;
     }

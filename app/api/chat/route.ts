@@ -96,36 +96,98 @@ export async function POST(req: NextRequest) {
     const mcpRegistry = await import("@/lib/mcp-registry");
     const { McpClient } = await import("@/lib/mcp-client");
     const { KeyManager } = await import("@/lib/key-manager");
+    const { resolveGoogleAccessToken } = await import("@/lib/google-token-resolver");
 
     for (const key of (integrationKeys as any[])) {
-      let config = mcpRegistry.getMcpServer(key.integration);
-      const url = config?.url || key.mcpUrl;
-      if (!url) continue;
+      const regConfig = mcpRegistry.getMcpServer(key.integration);
 
       try {
-        // Decrypt the integration key
         const decryptedKey = key.keyValue !== "none"
           ? KeyManager.decrypt(key.keyValue, orgIdStr)
           : "none";
 
-        // Fetch tools from the MCP server
-        const tools = await McpClient.listTools(url, decryptedKey);
+        // ── GMAIL: Direct Gmail REST API (Smithery server needs local process) ──
+        if (key.integration === "gmail") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGmailTools } = await import("@/lib/gmail-tools");
+          const gmailTools = buildGmailTools(accessToken);
+          for (const [name, tool] of Object.entries(gmailTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(gmailTools).length} Gmail tools (direct API)`);
+          continue;
+        }
 
+        // ── GOOGLE CALENDAR: Direct Calendar REST API ──
+        if (key.integration === "google_calendar") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGoogleCalendarTools } = await import("@/lib/google-calendar-tools");
+          const calTools = buildGoogleCalendarTools(accessToken);
+          for (const [name, tool] of Object.entries(calTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(calTools).length} Google Calendar tools (direct API)`);
+          continue;
+        }
+
+        // ── GOOGLE SHEETS: Direct Sheets REST API ──
+        if (key.integration === "google_sheets") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGoogleSheetsTools } = await import("@/lib/google-sheets-tools");
+          const sheetsTools = buildGoogleSheetsTools(accessToken);
+          for (const [name, tool] of Object.entries(sheetsTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(sheetsTools).length} Google Sheets tools (direct API)`);
+          continue;
+        }
+
+        // ── GOOGLE DRIVE: Direct Drive REST API ──
+        if (key.integration === "google_drive") {
+          const accessToken = await resolveGoogleAccessToken(decryptedKey);
+          const { buildGoogleDriveTools } = await import("@/lib/google-drive-tools");
+          const driveTools = buildGoogleDriveTools(accessToken);
+          for (const [name, tool] of Object.entries(driveTools)) {
+            mcpTools[name] = {
+              description: tool.description,
+              inputSchema: jsonSchema(tool.parameters),
+              execute: tool.execute,
+            };
+          }
+          console.log(`[Chat] Loaded ${Object.keys(driveTools).length} Google Drive tools (direct API)`);
+          continue;
+        }
+
+        // ── ALL OTHER INTEGRATIONS: Smithery MCP HTTP ──
+        const url = regConfig?.url || key.mcpUrl;
+        if (!url) continue;
+
+        const tools = await McpClient.listTools(url, decryptedKey, regConfig?.authHeader);
         for (const tool of tools) {
-          // Prefix to avoid collisions and make it clear which service is being used
           const namespacedName = `${key.integration}_${tool.name}`;
           mcpTools[namespacedName] = {
             description: `[${key.integration}] ${tool.description || ""}`,
             inputSchema: jsonSchema(tool.inputSchema),
             execute: async (args: any) => {
               console.log(`[Chat] Calling MCP tool: ${namespacedName}`);
-              const result = await McpClient.callTool(url, tool.name, args, decryptedKey);
-              return result;
+              return await McpClient.callTool(url, tool.name, args, decryptedKey, regConfig?.authHeader);
             }
           };
         }
       } catch (e: any) {
-        console.warn(`[Chat] Failed to load MCP tools for ${key.integration}:`, e.message);
+        console.warn(`[Chat] Failed to load tools for ${key.integration}:`, e.message);
       }
     }
 
@@ -163,7 +225,7 @@ ${schemaDescription}
 ${relationshipDescription}
 
 Integration Tools:
-${Object.keys(mcpTools).length > 0 ? "You have access to external integrations. Tool names are prefixed with the service name (e.g. slack_send_message)." : "No integrations connected."}
+${Object.keys(mcpTools).length > 0 ? "You have access to the following external integration tools. Use them to perform operational actions:\n" + Object.keys(mcpTools).map(t => `- ${t}`).join("\n") : "No external integrations connected."}
 
 Dialect Instructions:
 ${dialectRules}
