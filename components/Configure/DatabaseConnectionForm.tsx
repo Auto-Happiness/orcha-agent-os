@@ -47,6 +47,8 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   const syncUser = useMutation(api.users.storeUser);
   const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
   const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
+  const indexConfigSchema = useAction(api.embeddings.indexConfigSchema);
+  const aiKeys = useQuery(api.aiKeys.listByOrganization, activeOrg?._id ? { organizationId: activeOrg._id } : "skip");
 
   const testConnection = async () => {
     setTesting(true);
@@ -166,6 +168,19 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
           configId: configId as any,
           businessContext: data.businessContext || "Classic models database for a scale model business."
         });
+
+        // ── Vector Indexing For Massive Scale ──
+        // Trigger indexing call immediately. The backend now has robust 
+        // fallback logic to find the best available AI key if preferred is missing.
+        const preferredProvider = aiKeys?.find(k => k.provider === "gemini" || k.provider === "openai")?.provider 
+          || (aiKeys?.some(k => k.provider === "local") ? "local" : "gemini");
+
+        console.log(`[Indexing] Triggering background indexing for config ${configId}...`);
+        indexConfigSchema({
+          organizationId: finalOrgId as any,
+          configId: configId as any,
+          provider: preferredProvider as "gemini" | "openai" | "local"
+        }).catch(err => console.error("[Indexing] Background task failed:", err));
 
         notifications.update({
           id: notificationId,

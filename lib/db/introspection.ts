@@ -83,47 +83,52 @@ export class DatabaseScanner {
     });
 
     try {
-      // 1. Get all tables in the current database
-      const tables: any[] = await db.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = ?",
+      // 1. Get all PRIMARY KEYS for the entire schema at once
+      const pkRows: any[] = await db.query(
+        `SELECT TABLE_NAME, COLUMN_NAME
+         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+         WHERE CONSTRAINT_NAME = 'PRIMARY' AND TABLE_SCHEMA = ?`,
         [config.database]
       );
 
-      const tableSummaries: TableSummary[] = [];
+      // Map of TableName -> Set of PK Column Names
+      const pksByTable = new Map<string, Set<string>>();
+      for (const pk of pkRows) {
+        const t = pk.TABLE_NAME || pk.table_name;
+        const c = pk.COLUMN_NAME || pk.column_name;
+        if (!pksByTable.has(t)) pksByTable.set(t, new Set());
+        pksByTable.get(t)!.add(c);
+      }
 
-      for (const tableRow of tables) {
-        const tableName = tableRow.table_name || tableRow.TABLE_NAME;
+      // 2. Get all COLUMNS for the entire schema at once
+      const allColumns: any[] = await db.query(
+        `SELECT table_name, column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_schema = ?
+         ORDER BY table_name, ordinal_position`,
+        [config.database]
+      );
+
+      // Group columns by table
+      const columnsByTable = new Map<string, any[]>();
+      for (const col of allColumns) {
+        const t = col.table_name || col.TABLE_NAME;
+        if (!columnsByTable.has(t)) columnsByTable.set(t, []);
         
-        if (!tableName) continue;
-
-        // 2. Get columns for this table
-        const columns: any[] = await db.query(
-          `SELECT 
-            column_name, 
-            data_type, 
-            is_nullable, 
-            column_key, 
-            column_default 
-          FROM information_schema.columns 
-          WHERE table_schema = ? AND table_name = ?`,
-          [config.database, tableName]
-        );
-
-        tableSummaries.push({
-          name: tableName,
-          columns: columns.map((col) => {
-            const isKeyPri = (col.column_key || col.COLUMN_KEY) === 'PRI';
-            const isNullYes = (col.is_nullable || col.IS_NULLABLE) === 'YES';
-            return {
-              name: col.column_name || col.COLUMN_NAME,
-              dataType: col.data_type || col.DATA_TYPE,
-              isPrimary: isKeyPri,
-              isNullable: isNullYes,
-              defaultValue: col.column_default || col.COLUMN_DEFAULT || undefined,
-            };
-          }),
+        const tablePks = pksByTable.get(t) || new Set();
+        columnsByTable.get(t)!.push({
+          name: col.column_name || col.COLUMN_NAME,
+          dataType: col.data_type || col.DATA_TYPE,
+          isPrimary: tablePks.has(col.column_name || col.COLUMN_NAME),
+          isNullable: (col.is_nullable || col.IS_NULLABLE) === 'YES',
+          defaultValue: col.column_default || col.COLUMN_DEFAULT || undefined,
         });
       }
+
+      const tableSummaries: TableSummary[] = Array.from(columnsByTable.entries()).map(([name, columns]) => ({
+        name,
+        columns,
+      }));
 
       // 3. Get all foreign key relationships
       const fkRows: any[] = await db.query(

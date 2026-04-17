@@ -314,3 +314,27 @@ export const generateAiEnrichment = action({
     return { success: true };
   },
 });
+
+/**
+ * Vector search for relevant models based on an embedding.
+ * NOTE: Vector search MUST be an action in Convex.
+ */
+export const searchRelatedModels = action({
+  args: {
+    configId: v.id("databaseConfigs"),
+    embedding: v.array(v.float64()),
+    indexName: v.union(
+      v.literal("by_embedding_768"),
+      v.literal("by_embedding_1024"),
+      v.literal("by_embedding_1536")
+    ),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.vectorSearch("semanticModels", args.indexName, {
+      vector: args.embedding,
+      filter: (q) => q.eq("configId", args.configId),
+      limit: args.limit || 10,
+    });
+  },
+});
