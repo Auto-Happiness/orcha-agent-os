@@ -1,8 +1,20 @@
 import serverlessMysql from 'serverless-mysql';
-const pg = require('pg');
-import type { Client } from 'pg';
-const PgClient = pg.Client;
-const mssql = require('mssql');
+import postgres from 'postgres';
+import * as mssql from 'mssql';
+
+function createSql(config: any) {
+  return postgres({
+    host: config.host,
+    port: parseInt(config.port || '5432'),
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    ssl: config.ssl ? 'require' : false,
+    max: 1,
+    idle_timeout: 30,
+    connect_timeout: 10,
+  });
+}
 
 export interface TableSummary {
   name: string;
@@ -145,55 +157,43 @@ export class DatabaseScanner {
    * Scans a PostgreSQL database for its schema metadata.
    */
   static async scanPostgres(config: any): Promise<ScanResult> {
-    const client = new PgClient({
-      host: config.host,
-      port: parseInt(config.port || '5432'),
-      user: config.user,
-      password: config.password,
-      database: config.database,
-      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-    });
-
-    await client.connect();
+    const schemaName = config.schema || 'public';
+    const sql = createSql(config);
     try {
       // 1. Get tables
-      const tablesRes = await client.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-      );
+      const tablesRes = await sql`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = ${schemaName}
+      `;
 
       const tableSummaries: TableSummary[] = [];
 
-      for (const row of tablesRes.rows) {
-        const tableName = row.table_name;
-        
+      for (const row of tablesRes) {
+        const tableName = row.table_name as string;
+
         // 2. Get Primary Keys
-        const pkRes = await client.query(
-          `SELECT kcu.column_name 
-           FROM information_schema.table_constraints tc 
-           JOIN information_schema.key_column_usage kcu 
-             ON tc.constraint_name = kcu.constraint_name 
-             AND tc.table_schema = kcu.table_schema 
-           WHERE tc.constraint_type = 'PRIMARY KEY' 
-           AND tc.table_name = $1 AND tc.table_schema = 'public'`,
-          [tableName]
-        );
-        const pks = new Set(pkRes.rows.map((r: any) => r.column_name));
+        const pkRes = await sql`
+          SELECT kcu.column_name
+          FROM information_schema.table_constraints tc
+          JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+          WHERE tc.constraint_type = 'PRIMARY KEY'
+            AND tc.table_name = ${tableName}
+            AND tc.table_schema = ${schemaName}
+        `;
+        const pks = new Set(pkRes.map((r: any) => r.column_name));
 
         // 3. Get columns
-        const columnsRes = await client.query(
-          `SELECT 
-            column_name, 
-            data_type, 
-            is_nullable, 
-            column_default
-          FROM information_schema.columns 
-          WHERE table_schema = 'public' AND table_name = $1`,
-          [tableName]
-        );
+        const columnsRes = await sql`
+          SELECT column_name, data_type, is_nullable, column_default
+          FROM information_schema.columns
+          WHERE table_schema = ${schemaName} AND table_name = ${tableName}
+        `;
 
         tableSummaries.push({
           name: tableName,
-          columns: columnsRes.rows.map((col: any) => ({
+          columns: columnsRes.map((col: any) => ({
             name: col.column_name,
             dataType: col.data_type,
             isPrimary: pks.has(col.column_name),
@@ -204,8 +204,8 @@ export class DatabaseScanner {
       }
 
       // 4. Get all foreign key relationships
-      const fkRes = await client.query(
-        `SELECT
+      const fkRes = await sql`
+        SELECT
           kcu.table_name AS from_table,
           kcu.column_name AS from_column,
           ccu.table_name AS to_table,
@@ -219,10 +219,10 @@ export class DatabaseScanner {
           ON tc.constraint_name = ccu.constraint_name
           AND tc.table_schema = ccu.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
-          AND tc.table_schema = 'public'`
-      );
+          AND tc.table_schema = ${schemaName}
+      `;
 
-      const foreignKeys: ForeignKeySummary[] = fkRes.rows.map((fk: any) => ({
+      const foreignKeys: ForeignKeySummary[] = fkRes.map((fk: any) => ({
         fromTable: fk.from_table,
         fromColumn: fk.from_column,
         toTable: fk.to_table,
@@ -232,7 +232,7 @@ export class DatabaseScanner {
 
       return { tables: tableSummaries, foreignKeys };
     } finally {
-      await client.end();
+      await sql.end();
     }
   }
 
@@ -344,22 +344,15 @@ export class DatabaseScanner {
       const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
       return { rows, columns };
     } else {
-      const client = new PgClient({
-        host: config.host,
-        port: parseInt(config.port || '5432'),
-        user: config.user,
-        password: config.password,
-        database: config.database,
-        ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-      });
-      await client.connect();
+      // postgres (porsager) for PostgreSQL
+      const sql = createSql(config);
       try {
-        const res = await client.query(sqlStr);
-        const rows = res.rows;
-        const columns = res.fields.map((f: any) => f.name);
+        const result = await sql.unsafe(sqlStr);
+        const rows = result as any[];
+        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
         return { rows, columns };
       } finally {
-        await client.end();
+        await sql.end();
       }
     }
   }

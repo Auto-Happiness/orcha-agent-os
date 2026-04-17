@@ -3,10 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-const pg = require("pg");
-import type { Pool } from "pg";
-const PgPool = pg.Pool;
-import QueryStream from "pg-query-stream";
+import postgres from "postgres";
 import serverlessMysql from "serverless-mysql";
 
 export const maxDuration = 300;
@@ -72,48 +69,44 @@ export async function POST(req: NextRequest) {
     const filename = `export_${Date.now()}.csv`;
     const encoder = new TextEncoder();
 
-    // ── Postgres: true row-by-row streaming via pg-query-stream ──────────────
+    // ── Postgres: cursor-based streaming via postgres (porsager) ─────────────
     if (dbConfig.type === "postgres") {
-      const pool = new PgPool({
-        host: dbConfig.host, port: dbConfig.port, user: dbConfig.user,
-        password: dbConfig.password, database: dbConfig.database,
-        ssl: dbConfig.ssl ? { rejectUnauthorized: false } : undefined,
+      const sql = postgres({
+        host: dbConfig.host,
+        port: dbConfig.port,
+        user: dbConfig.user,
+        password: dbConfig.password,
+        database: dbConfig.database,
+        ssl: dbConfig.ssl ? "require" : false,
         max: 1,
       });
 
       const stream = new ReadableStream({
         async start(controller) {
-          const client = await pool.connect();
           let headerWritten = false;
           let cols: string[] = [];
           let rowCount = 0;
-
-          const qs = new QueryStream(exportSql);
-          const pgStream = client.query(qs);
-
-          pgStream.on("data", (row: any) => {
-            if (!headerWritten) {
-              cols = Object.keys(row);
-              controller.enqueue(encoder.encode(cols.join(",") + "\n"));
-              headerWritten = true;
+          try {
+            // postgres cursor streams rows in configurable batch sizes
+            for await (const rows of sql.unsafe(exportSql).cursor(100)) {
+              for (const row of rows) {
+                if (!headerWritten) {
+                  cols = Object.keys(row);
+                  controller.enqueue(encoder.encode(cols.join(",") + "\n"));
+                  headerWritten = true;
+                }
+                controller.enqueue(encoder.encode(cols.map(c => escapeCell(row[c])).join(",") + "\n"));
+                rowCount++;
+              }
             }
-            controller.enqueue(encoder.encode(cols.map(c => escapeCell(row[c])).join(",") + "\n"));
-            rowCount++;
-          });
-
-          pgStream.on("end", () => {
             console.log(`[Export] Streamed ${rowCount} rows`);
-            client.release();
-            pool.end();
             controller.close();
-          });
-
-          pgStream.on("error", (err: Error) => {
+          } catch (err: any) {
             console.error("[Export] Stream error:", err.message);
-            client.release();
-            pool.end();
             controller.error(err);
-          });
+          } finally {
+            await sql.end();
+          }
         },
       });
 

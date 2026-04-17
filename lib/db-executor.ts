@@ -1,8 +1,6 @@
+import postgres from "postgres";
 import serverlessMysql from "serverless-mysql";
-const pg = require("pg");
-import type { Pool } from "pg";
-const PgPool = pg.Pool;
-const mssql = require("mssql");
+import * as mssql from "mssql";
 
 export type DbConfig = {
   type: "mysql" | "postgres" | "mssql";
@@ -11,32 +9,12 @@ export type DbConfig = {
   user: string;
   password?: string;
   database: string;
+  schema?: string;
   ssl?: boolean;
 };
 
-// Postgres connection pool cache
-const pgPools = new Map<string, Pool>();
-
 // MSSQL connection pool cache
 const mssqlPools = new Map<string, any>();
-
-function getPgPool(config: DbConfig): Pool {
-  const key = `${config.host}:${config.port}/${config.database}/${config.user}`;
-  if (!pgPools.has(key)) {
-    pgPools.set(key, new PgPool({
-      host: config.host,
-      port: config.port,
-      user: config.user,
-      password: config.password,
-      database: config.database,
-      ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
-      max: 5,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
-    }));
-  }
-  return pgPools.get(key)!;
-}
 
 async function getMssqlPool(config: DbConfig): Promise<any> {
   const key = `${config.host}:${config.port}/${config.database}/${config.user}`;
@@ -49,15 +27,11 @@ async function getMssqlPool(config: DbConfig): Promise<any> {
       password: config.password,
       database: config.database,
       options: {
-        encrypt: true, // Use encryption for Azure/modern instances
-        trustServerCertificate: true, // Often needed for self-signed or local dev
+        encrypt: true,
+        trustServerCertificate: true,
       },
       connectionTimeout: 5_000,
-      pool: {
-        max: 5,
-        min: 0,
-        idleTimeoutMillis: 30_000,
-      }
+      pool: { max: 5, min: 0, idleTimeoutMillis: 30_000 },
     });
     await pool.connect();
     mssqlPools.set(key, pool);
@@ -91,9 +65,7 @@ export class DbExecutor {
         ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
       },
     });
-
     try {
-      console.log(`[DbExecutor] Running query on MySQL...`);
       const results = await db.query(sqlStr, params);
       await db.end();
       return results as any[];
@@ -104,15 +76,24 @@ export class DbExecutor {
   }
 
   private static async executePostgres(config: DbConfig, sqlStr: string, params: any[]): Promise<any[]> {
-    console.log(`[DbExecutor] Getting Postgres pool...`);
-    const pool = getPgPool(config);
     console.log(`[DbExecutor] Running query on Postgres...`);
-    const client = await pool.connect();
+    // 'postgres' (porsager) is ESM-native — no Turbopack interop issues
+    const sql = postgres({
+      host: config.host,
+      port: config.port,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      ssl: config.ssl ? "require" : false,
+      max: 1,
+      idle_timeout: 30,
+      connect_timeout: 5,
+    });
     try {
-      const res = await client.query(sqlStr, params);
-      return res.rows;
+      const rows = await sql.unsafe(sqlStr, params as any);
+      return rows as any[];
     } finally {
-      client.release();
+      await sql.end();
     }
   }
 
@@ -120,11 +101,9 @@ export class DbExecutor {
     console.log(`[DbExecutor] Getting MSSQL pool...`);
     const pool = await getMssqlPool(config);
     console.log(`[DbExecutor] Running query on MSSQL...`);
-    
-    // MSSQL driver uses @p1, @p2 etc. instead of $1, $2
+
     let mssqlQuery = sqlStr;
     const request = pool.request();
-    
     params.forEach((param, i) => {
       const paramName = `p${i + 1}`;
       mssqlQuery = mssqlQuery.replace(`$${i + 1}`, `@${paramName}`);
