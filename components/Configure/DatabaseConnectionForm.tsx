@@ -120,7 +120,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
 
       // 1. Persist the credentials in Convex
       const configId = await saveConfig({
-        configId: data.configId as any,
+        configId: (data.configId || undefined) as any,
         organizationId: finalOrgId as any,
         type: provider as any,
         encryptedUri: JSON.stringify(data.dbConfig),
