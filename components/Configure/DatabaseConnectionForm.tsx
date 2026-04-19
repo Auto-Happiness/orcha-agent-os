@@ -16,7 +16,7 @@ import { useState } from "react";
 import { notifications } from "@mantine/notifications";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { useParams } from "next/navigation";
-import { useMutation, useQuery, useAction } from "convex/react";
+import { useMutation, useQuery, useAction, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useOrganization, useUser } from "@clerk/nextjs";
 
@@ -40,6 +40,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   // Queries/Mutations
   const { user } = useUser();
   const { organization } = useOrganization();
+  const { isAuthenticated } = useConvexAuth();
   const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
   const currentUser = useQuery(api.users.getCurrentUser);
   const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
@@ -48,7 +49,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
   const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
   const indexConfigSchema = useAction(api.embeddings.indexConfigSchema);
-  const aiKeys = useQuery(api.aiKeys.listByOrganization, activeOrg?._id ? { organizationId: activeOrg._id } : "skip");
+  const aiKeys = useQuery(api.aiKeys.listByOrganization, (isAuthenticated && activeOrg?._id) ? { organizationId: activeOrg._id } : "skip");
 
   const testConnection = async () => {
     setTesting(true);

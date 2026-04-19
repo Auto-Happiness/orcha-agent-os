@@ -121,6 +121,7 @@ export const finalizeConfiguration = mutation({
     modelProvider: v.optional(v.string()),
     modelConfig: v.optional(v.string()),
     businessContext: v.optional(v.string()),
+    memoryProvider: v.optional(v.union(v.literal("openai"), v.literal("gemini"), v.literal("local"))),
   },
   handler: async (ctx, args) => {
     const { configId, ...updates } = args;

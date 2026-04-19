@@ -10,14 +10,29 @@ import {
   Box, 
   rem,
   MultiSelect,
-  Grid
+  Grid,
+  Divider
 } from "@mantine/core";
-import { IconCameraPlus, IconTags, IconPencil, IconPhoto } from "@tabler/icons-react";
+import { IconCameraPlus, IconTags, IconPencil, IconPhoto, IconBrain, IconAlertTriangle, IconCheck } from "@tabler/icons-react";
 import { inputStyles, selectStyles } from "@/lib/styles";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
+import { useQuery, useConvexAuth } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useParams } from "next/navigation";
+import { SegmentedControl, Alert } from "@mantine/core";
 
 export function WizardDetailsStep() {
+  const { saas } = useParams();
   const { data, updateData } = useCreationWizard();
+  const { isAuthenticated } = useConvexAuth();
+
+  // 1. Resolve organization to check for keys
+  const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
+  const aiKeys = useQuery(api.aiKeys.listByOrganization, (isAuthenticated && activeOrg?._id) ? { organizationId: activeOrg._id } : "skip");
+
+  // 2. Validation: Check if the selected memory provider has a key
+  const hasKey = data.memoryProvider === "local" || (aiKeys?.some(k => k.provider === data.memoryProvider));
+  const isLoading = !aiKeys && isAuthenticated;
 
   return (
     <Stack gap={40} py="xl">
@@ -69,7 +84,7 @@ export function WizardDetailsStep() {
                 description="This is injected into the AI agent to give it 'common sense' about your industry."
               />
 
-              <Stack gap="xs">
+               <Stack gap="xs">
                 <TextInput
                   label="Resource Tags"
                   placeholder="Type a tag and press Enter..."
