@@ -79,12 +79,17 @@ export class ChatWorker {
 
             // Capture tool calls (the SQL being run)
             else if (value.type === "tool-call") {
+              const args = typeof (value as any).args === 'string' ? JSON.parse((value as any).args) : (value.input ?? (value as any).args);
               const part = {
-                type: "tool-result",
-                toolName: value.toolName,
-                toolCallId: value.toolCallId,
-                input: value.input ?? (value as any).args,
-                result: null, // will be filled when result arrives
+                type: "tool-invocation",
+                toolInvocation: {
+                  state: "call",
+                  toolCallId: value.toolCallId,
+                  toolName: value.toolName,
+                  args: args,
+                  input: args,
+                  result: null,
+                }
               };
               pendingToolCalls.set(value.toolCallId, part);
               collectedParts.push(part);
@@ -95,17 +100,24 @@ export class ChatWorker {
               const pending = pendingToolCalls.get(value.toolCallId);
               if (pending) {
                 // Truncate data arrays to 20 rows max (matching sync mode)
-                let r = value.result as any;
+                let r = (value as any).result ?? (value as any).output;
                 if (r?.data && Array.isArray(r.data)) {
                   r = { ...r, data: r.data.slice(0, 20) };
                 }
-                pending.result = r;
+                pending.toolInvocation.state = "result";
+                pending.toolInvocation.result = r;
               } else {
+                const args = typeof (value as any).args === 'string' ? JSON.parse((value as any).args) : (value as any).args;
                 collectedParts.push({
-                  type: "tool-result",
-                  toolName: value.toolName,
-                  toolCallId: value.toolCallId,
-                  result: value.result,
+                  type: "tool-invocation",
+                  toolInvocation: {
+                    state: "result",
+                    toolCallId: value.toolCallId,
+                    toolName: value.toolName,
+                    args: args,
+                    input: args,
+                    result: (value as any).result ?? (value as any).output,
+                  }
                 });
               }
             }
