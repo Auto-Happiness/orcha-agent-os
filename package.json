@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "convex:dev": "convex dev",
-    "convex:deploy": "convex deploy"
+    "convex:deploy": "convex deploy",
+    "worker": "npx tsx lib/bridge/worker-runner.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.55",

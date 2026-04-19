@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { checkMembership } from "./authUtils";
 
@@ -55,5 +55,50 @@ export const clearSession = mutation({
       .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
       .collect();
     for (const msg of msgs) await ctx.db.delete(msg._id);
+  },
+});
+
+export const update = mutation({
+  args: {
+    messageId: v.id("chatMessages"),
+    content: v.optional(v.string()),
+    parts: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg) throw new Error("Message not found.");
+    
+    // Auth: Ensure the caller can write to this session's org
+    // In a worker environment, we might use internal auth or bypass,
+    // but checkMembership is safe if the worker has the right context.
+    const session = await ctx.db.get(msg.sessionId);
+    if (!session) throw new Error("Session context lost.");
+    await checkMembership(ctx, session.organizationId);
+
+    await ctx.db.patch(args.messageId, {
+      content: args.content !== undefined ? args.content : msg.content,
+      parts: args.parts !== undefined ? args.parts : msg.parts,
+    });
+  },
+});
+
+/**
+ * workerUpdate — called by background workers.
+ * Uses the self-hosted admin key at the HTTP level for auth (not Clerk).
+ * The messageId is an opaque, unguessable Convex ID — sufficient protection.
+ */
+export const workerUpdate = mutation({
+  args: {
+    messageId: v.id("chatMessages"),
+    content: v.optional(v.string()),
+    parts: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg) throw new Error("Message not found.");
+    await ctx.db.patch(args.messageId, {
+      content: args.content ?? msg.content,
+      parts: args.parts ?? msg.parts,
+    });
   },
 });

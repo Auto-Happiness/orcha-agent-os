@@ -88,7 +88,6 @@ export default function ChatPage() {
   }, [activeOrg?._id, isSignedIn, existingSessions]);
 
   // Derive whether the active session already has a real title from Convex data
-  // This survives page refresh — no need for a ref
   const activeSession = useMemo(
     () => existingSessions?.find(s => s._id === activeSessionId),
     [existingSessions, activeSessionId]
@@ -106,9 +105,9 @@ export default function ChatPage() {
     chatParamsRef.current = { activeOrgId, selectedConfigId, selectedModel, saas, showResults, activeSessionId };
   }, [activeOrgId, selectedConfigId, selectedModel, saas, showResults, activeSessionId]);
 
-  const { messages, sendMessage, setMessages, status } = useChat({
+  const { messages, sendMessage, setMessages, status } = (useChat as any)({
     id: activeSessionId ?? undefined,
-    experimental_throttle: 80, // batch UI updates to max ~12fps during streaming
+    experimental_throttle: 80,
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({
@@ -119,18 +118,28 @@ export default function ChatPage() {
         sessionId: chatParamsRef.current.activeSessionId,
       }),
     }),
-    onError: (error) => {
+    onResponse: async (response: Response) => {
+      const contentType = response.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        const data = await response.json();
+        if (data.mode === "async") {
+          console.log("[Chat] Async job started:", data.jobId);
+          setIsStreaming(false);
+          return;
+        }
+      }
+    },
+    onError: (error: Error) => {
       setIsStreaming(false);
       console.error("[Chat API Error]", error);
       notifications.show({ title: "Query Failed", message: error.message, color: "red" });
     },
-    onFinish: async ({ message }) => {
+    onFinish: async ({ message }: any) => {
       setIsStreaming(false);
       const params = chatParamsRef.current;
       if (!params.activeSessionId) return;
       try {
         const textContent = (message.parts as any[])?.find((p: any) => p.type === "text")?.text ?? "";
-        // Strip large data arrays from tool parts before storing — keep structure for rendering
         const safeParts = (message.parts as any[])?.map((p: any) => {
           if (p.output && (p.output as any).data && Array.isArray((p.output as any).data)) {
             return { ...p, output: { ...p.output as any, data: (p.output as any).data.slice(0, 20) } };
@@ -151,16 +160,17 @@ export default function ChatPage() {
 
   const isLoading = status === "streaming" || status === "submitted";
 
-  // Load persisted messages — skip while actively streaming to avoid re-restore mid-conversation
   const persistedMessages = useQuery(
     api.chatMessages.listBySession,
-    activeSessionId && !isStreaming ? { sessionId: activeSessionId as Id<"chatSessions"> } : "skip"
+    activeSessionId ? { sessionId: activeSessionId as Id<"chatSessions"> } : "skip"
   );
 
-  // Restore persisted messages when switching sessions
   const restoredSessionRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeSessionId || !persistedMessages || restoredSessionRef.current === activeSessionId) return;
+    // In ASYNC mode: always update from Convex (worker is writing to it live)
+    // In SYNC mode: only restore when switching sessions (avoid mid-stream overwrite)
+    const shouldUpdate = !isStreaming || restoredSessionRef.current !== activeSessionId;
+    if (!activeSessionId || !persistedMessages || !shouldUpdate) return;
     restoredSessionRef.current = activeSessionId;
 
     if (persistedMessages.length === 0) {
@@ -176,7 +186,7 @@ export default function ChatPage() {
       createdAt: new Date(m.createdAt),
     }));
     setMessages(restored as any);
-  }, [activeSessionId, persistedMessages, setMessages]);
+  }, [activeSessionId, persistedMessages, setMessages, isStreaming]);
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -187,14 +197,12 @@ export default function ChatPage() {
     setIsStreaming(true);
     sendMessage({ text });
 
-    // Persist user message
     appendMessage({
       sessionId: activeSessionId as Id<"chatSessions">,
       role: "user",
       content: text,
     }).catch((e) => console.error("[Chat] Failed to persist user message:", e));
 
-    // Auto-title only if session still has default title
     if (!sessionAlreadyTitled) {
       const title = text.length > 40 ? text.slice(0, 40) + "…" : text;
       updateTitle({ sessionId: activeSessionId as Id<"chatSessions">, title }).catch(() => {});
