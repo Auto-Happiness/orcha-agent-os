@@ -1,9 +1,11 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useMutation, useQuery, useConvexAuth } from "convex/react";
+import { useMutation, useQuery, useConvexAuth, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { notifications } from "@mantine/notifications";
+import { useUser, useOrganization } from "@clerk/nextjs";
+import { IconShieldCheck } from "@tabler/icons-react";
 
 import { 
   Container, 
@@ -41,8 +43,22 @@ export default function NewConfigurationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const stepParam = searchParams.get("step");
-  const { step, setStep, reset, data } = useCreationWizard();
+  const { step, setStep, reset, data, updateData } = useCreationWizard();
   const finalizeConfiguration = useMutation(api.databaseConfigs.finalizeConfiguration);
+
+  // Identity & Persistence
+  const { user } = useUser();
+  const { organization } = useOrganization();
+  const [initializing, setInitializing] = useState(false);
+  const currentUser = useQuery(api.users.getCurrentUser);
+  const syncOrg = useMutation(api.webhooks.syncOrganization);
+  const syncUser = useMutation(api.users.storeUser);
+  const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
+
+  // AI & Semantic Logic
+  const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
+  const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
+  const indexConfigSchema = useAction(api.embeddings.indexConfigSchema);
 
   // Auth & Keys for validation
   const { isAuthenticated } = useConvexAuth();
@@ -90,6 +106,126 @@ export default function NewConfigurationPage() {
 
   const handleNext = () => {
     updateUrlForStep(step + 1);
+  };
+
+  const handleInitializeConnection = async () => {
+    if (activeOrg === undefined || currentUser === undefined) {
+      notifications.show({
+        title: "Loading Identity",
+        message: "Please wait a moment while your session resolves.",
+        color: "orange",
+      });
+      return;
+    }
+
+    setInitializing(true);
+    try {
+      let finalOrgId: any = activeOrg?._id;
+      let finalUserId: any = currentUser?._id;
+
+      // Lazy sync for local development (if webhooks didn't fire)
+      if (!finalOrgId) {
+        if (!organization) throw new Error("Clerk organization not found in session.");
+        finalOrgId = await syncOrg({
+          slug: organization.slug || (saas as string),
+          name: organization.name,
+          clerkOrgId: organization.id,
+          type: "organization.created"
+        });
+      }
+
+      if (!finalUserId) {
+        if (!user) throw new Error("Clerk user not found in session.");
+        finalUserId = await syncUser({
+          email: user.primaryEmailAddress?.emailAddress,
+          name: user.fullName || undefined,
+          avatarUrl: user.imageUrl,
+        });
+      }
+
+      // 1. Persist the credentials in Convex
+      const configId = await saveConfig({
+        configId: (data.configId || undefined) as any,
+        organizationId: finalOrgId as any,
+        type: data.dbProvider as any, // Fixed: use data.dbProvider
+        encryptedUri: JSON.stringify(data.dbConfig),
+        updatedBy: finalUserId as any,
+      });
+
+      // 2. Trigger the "Wren AI" Semantic Scan
+      const notificationId = "scanning-schema";
+      notifications.show({
+        id: notificationId,
+        title: "Scanning Schema",
+        message: "Building your initial semantic models...",
+        color: "blue",
+        loading: true,
+        autoClose: false,
+      });
+
+      const scanResponse = await fetch("/api/db/scan", {
+        method: "POST",
+        body: JSON.stringify({
+          configId,
+          organizationId: finalOrgId as any,
+          type: data.dbProvider,
+          config: data.dbConfig,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const scanResult = await scanResponse.json();
+
+      if (scanResult.success) {
+        // Save configId for next steps
+        updateData({ configId });
+
+        // Zero-Config: Auto-run AI suggestions and enrichment
+        await suggestRelationships({ 
+          organizationId: finalOrgId as any, 
+          configId: configId as any 
+        });
+        
+        await generateAiEnrichment({ 
+          configId: configId as any,
+          businessContext: data.businessContext || "Database source configuration for Orcha Agent OS."
+        });
+
+        // ── Vector Indexing For Massive Scale ──
+        // Note: memoryProvider is selected in a later step, so we use a safe fallback first
+        // and re-run if they change it. But for initialization, we trigger with their current/default choice.
+        const preferredProvider = data.memoryProvider || (aiKeys?.find(k => k.provider === "gemini" || k.provider === "openai")?.provider 
+          || (aiKeys?.some(k => k.provider === "local") ? "local" : "gemini"));
+
+        indexConfigSchema({
+          organizationId: finalOrgId as any,
+          configId: configId as any,
+          provider: preferredProvider as "gemini" | "openai" | "local"
+        }).catch(err => console.error("[Indexing] Background task failed:", err));
+
+        notifications.update({
+          id: notificationId,
+          title: "Connection Ready",
+          message: `${scanResult.message} AI models have been enriched.`,
+          color: "violet",
+          icon: <IconShieldCheck size={16} />,
+          loading: false,
+          autoClose: 3000,
+        });
+        
+        handleNext(); // Move to catalog
+      } else {
+        throw new Error(scanResult.message);
+      }
+    } catch (err: any) {
+      notifications.show({
+        title: "Connection Failed",
+        message: err.message || "An error occurred while initializing your source.",
+        color: "red",
+      });
+    } finally {
+      setInitializing(false);
+    }
   };
 
   const onStepClick = (newStep: number) => {
@@ -150,7 +286,7 @@ export default function NewConfigurationPage() {
                <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
               
                <Group justify="flex-end">
-                  <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
+                  <Button color="violet" size="md" onClick={handleInitializeConnection} loading={initializing} rightSection={<IconArrowRight size={16} />}>
                     Connect and Scan Schema
                   </Button>
                </Group>

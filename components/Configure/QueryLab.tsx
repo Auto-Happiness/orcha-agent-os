@@ -12,7 +12,11 @@ import {
   Center,
   Loader,
   TextInput,
-  Box
+  Box,
+  Tabs,
+  Accordion,
+  ActionIcon,
+  Divider
 } from "@mantine/core";
 import {
   IconTerminal2,
@@ -21,10 +25,13 @@ import {
   IconTableExport,
   IconSearch,
   IconHistory,
-  IconStar
+  IconStar,
+  IconTable,
+  IconColumns,
+  IconEdit
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { inputStyles } from "@/lib/styles";
 
@@ -42,6 +49,13 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const [sql, setSql] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>("schema");
+
+  const semanticModels = useQuery(api.semanticModels.listModelsByConfig, currentConfig?._id ? { configId: currentConfig._id } : "skip");
+
+  const insertAtCursor = (text: string) => {
+    setSql(prev => prev + text);
+  };
 
   const handleRunQuery = async () => {
     setIsExecuting(true);
@@ -212,38 +226,104 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
 
       <Grid.Col span={3}>
         <Paper withBorder h="100%" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderColor: "rgba(255,255,255,0.05)" }}>
-          <Stack p="md" gap="md">
-            <Group justify="space-between">
-              <Text size="xs" fw={700} c="white" style={{ textTransform: "uppercase" }}>Query Library</Text>
-              <IconHistory size={14} color="rgba(255,255,255,0.3)" />
-            </Group>
+          <Tabs value={activeSidebarTab} onChange={setActiveSidebarTab} color="violet" variant="pills" styles={{ 
+            root: { height: "100%", display: "flex", flexDirection: "column" },
+            list: { padding: "12px", borderBottom: "1px solid rgba(255,255,255,0.05)" },
+            tab: { fontSize: "10px", fontWeight: 700, textTransform: "uppercase" },
+            panel: { flex: 1, padding: "12px" }
+          }}>
+            <Tabs.List>
+                <Tabs.Tab value="schema" leftSection={<IconTable size={12} />}>Schema</Tabs.Tab>
+                <Tabs.Tab value="library" leftSection={<IconHistory size={12} />}>Library</Tabs.Tab>
+            </Tabs.List>
 
-            <TextInput
-              placeholder="Find saved query..."
-              size="xs"
-              styles={inputStyles}
-              leftSection={<IconSearch size={12} />}
-            />
+            <Tabs.Panel value="schema">
+               <Stack gap="md">
+                 <TextInput
+                   placeholder="Filter tables..."
+                   size="xs"
+                   styles={inputStyles}
+                   leftSection={<IconSearch size={12} />}
+                 />
+                 
+                 <ScrollArea h={600}>
+                   <Accordion variant="separated" styles={{ 
+                     item: { border: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)", marginBottom: "4px" },
+                     control: { padding: "8px 12px" },
+                     label: { fontSize: "12px", color: "white", fontWeight: 600 },
+                     content: { padding: "8px" }
+                   }}>
+                     {semanticModels?.map((model) => (
+                       <Accordion.Item key={model._id} value={model.tableName}>
+                         <Accordion.Control>
+                            <Group gap="xs">
+                                <IconTable size={14} color="#a855f7" />
+                                <Text size="xs" truncate>{model.tableName}</Text>
+                            </Group>
+                         </Accordion.Control>
+                         <Accordion.Panel>
+                            <Stack gap={4}>
+                               <Button 
+                                 size="compact-xs" 
+                                 variant="light" 
+                                 color="violet" 
+                                 onClick={() => insertAtCursor(model.tableName)}
+                                 fullWidth
+                                 mb={8}
+                               >
+                                 Use Table
+                               </Button>
+                               <Divider label="Columns" labelPosition="center" styles={{ label: { fontSize: '9px', opacity: 0.5 }}} mb={4} />
+                               {model.fields.map(f => (
+                                 <Group key={f.columnName} justify="space-between" wrap="nowrap" style={{ 
+                                   padding: "4px 8px", 
+                                   borderRadius: "4px",
+                                   background: "rgba(255,255,255,0.02)",
+                                   cursor: "pointer"
+                                 }} onClick={() => insertAtCursor(f.columnName)}>
+                                    <Text size="10px" c="dimmed" truncate>{f.columnName}</Text>
+                                    <Text size="9px" c="violet" style={{ opacity: 0.6 }}>{f.type}</Text>
+                                 </Group>
+                               ))}
+                            </Stack>
+                         </Accordion.Panel>
+                       </Accordion.Item>
+                     ))}
+                   </Accordion>
+                 </ScrollArea>
+               </Stack>
+            </Tabs.Panel>
 
-            <ScrollArea h={600}>
-              <Stack gap="xs">
-                {savedQueries ? savedQueries.map((item) => (
-                  <Paper key={item._id} p="xs" radius="xs" style={{ background: "rgba(147,51,234,0.03)", cursor: "pointer", border: "1px solid transparent" }}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(147,51,234,0.3)"}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
-                    onClick={() => setSql(item.sql)}
-                  >
-                    <Group justify="space-between" mb={4}>
-                      <Text size="xs" fw={700} c="white">{item.name}</Text>
-                      <IconStar size={10} color="#a855f7" />
-                    </Group>
-                    <Text size="10px" c="dimmed" truncate>{item.sql}</Text>
-                    <Text size="10px" c="dimmed" mt={4}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-                  </Paper>
-                )) : <Text size="xs" c="dimmed">No saved queries yet.</Text>}
+            <Tabs.Panel value="library">
+              <Stack gap="md">
+                <TextInput
+                  placeholder="Find saved query..."
+                  size="xs"
+                  styles={inputStyles}
+                  leftSection={<IconSearch size={12} />}
+                />
+
+                <ScrollArea h={600}>
+                  <Stack gap="xs">
+                    {savedQueries ? savedQueries.map((item) => (
+                      <Paper key={item._id} p="xs" radius="xs" style={{ background: "rgba(147,51,234,0.03)", cursor: "pointer", border: "1px solid transparent" }}
+                        onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(147,51,234,0.3)"}
+                        onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
+                        onClick={() => setSql(item.sql)}
+                      >
+                        <Group justify="space-between" mb={4}>
+                          <Text size="xs" fw={700} c="white">{item.name}</Text>
+                          <IconStar size={10} color="#a855f7" />
+                        </Group>
+                        <Text size="10px" c="dimmed" truncate>{item.sql}</Text>
+                        <Text size="10px" c="dimmed" mt={4}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+                      </Paper>
+                    )) : <Text size="xs" c="dimmed">No saved queries yet.</Text>}
+                  </Stack>
+                </ScrollArea>
               </Stack>
-            </ScrollArea>
-          </Stack>
+            </Tabs.Panel>
+          </Tabs>
         </Paper>
       </Grid.Col>
     </Grid>
