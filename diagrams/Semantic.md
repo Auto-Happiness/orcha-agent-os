@@ -10,28 +10,29 @@ Orcha operates two parallel intelligence layers that work together to answer que
 
 ```mermaid
 graph TD
-    subgraph "Your Database (MySQL / MSSQL / Postgres)"
-        DB[(Physical Database<br/>Tables & Columns)]
+    subgraph DB_GROUP["Your Database (MySQL / MSSQL / Postgres)"]
+        DB[("Physical Database<br/>Tables & Columns")]
     end
-
-    subgraph "Stage 1 — Schema Introspection (One-Time Setup)"
-        DB --> SCAN[Database Scanner<br/>introspection.ts]
-        SCAN -->|Tables, Columns, FKs| BULK[Semantic Models<br/>Convex DB]
-        BULK -->|Text: 'Table: orders. Columns: id, total...'| EMBED[Embedding Engine<br/>embeddings.ts]
-        EMBED -->|OpenAI / Gemini / Ollama| VEC[(Convex Vector Store<br/>embedding_768 / 1024 / 1536)]
+ 
+    subgraph STAGE1["Stage 1 — Schema Introspection (One-Time Setup)"]
+        DB --> SCAN["Database Scanner<br/>introspection.ts"]
+        SCAN -->|"Tables, Columns, FKs"| BULK["Semantic Models<br/>Convex DB"]
+        BULK -->|"Text: 'Table: orders. Columns: id, total...'"| EMBED["Embedding Engine<br/>embeddings.ts"]
+        EMBED -->|"OpenAI / Gemini / Ollama"| VEC[("Convex Vector Store<br/>embedding_768 / 1024 / 1536")]
     end
-
-    subgraph "Stage 2 — Chat & RAG (Per Request)"
-        USER([User Question]) --> EMBED2[Embed Question<br/>Same Provider]
-        EMBED2 -->|float[]| VSEARCH[Vector Search<br/>semanticModels.searchRelatedModels]
+ 
+    subgraph STAGE2["Stage 2 — Chat & RAG (Per Request)"]
+        USER(["User Question"]) --> EMBED2["Embed Question<br/>Same Provider"]
+        EMBED2 -->|"float[]"| VSEARCH["Vector Search<br/>semanticModels.searchRelatedModels"]
         VEC --> VSEARCH
-        VSEARCH -->|Top N Relevant Tables| PROMPT[System Prompt Builder<br/>chat/route.ts]
+        VSEARCH -->|"Top N Relevant Tables"| PROMPT["System Prompt Builder<br/>chat/route.ts"]
         BULK --> PROMPT
-        PROMPT -->|Schema + Relationships| LLM[LLM Agent<br/>GPT / Gemini / Claude]
-        LLM -->|execute_sql tool| DB
+        PROMPT -->|"Schema + Relationships"| LLM["LLM Agent<br/>GPT / Gemini / Claude"]
+        LLM -->|"execute_sql tool"| DB
         DB --> LLM
         LLM --> USER
     end
+ 
 ```
 
 ---
