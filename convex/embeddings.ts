@@ -148,6 +148,13 @@ export const indexConfigSchema = action({
       throw new Error(`No API key available for provider ${provider}`);
     }
 
+    // ── NEW: Record this provider as the canonical Memory Provider for this config ──
+    console.log(`[Embeddings] Locking memoryProvider to ${provider} for config ${args.configId}`);
+    await ctx.runMutation(internal.databaseConfigs.internalUpdateMemoryProvider, {
+      configId: args.configId,
+      provider: provider as any,
+    });
+
     console.log(`[Embeddings] Proceeding to index ${models.length} tables using ${provider}...`);
 
     let successCount = 0;

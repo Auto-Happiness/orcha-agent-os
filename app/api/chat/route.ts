@@ -198,15 +198,21 @@ export async function POST(req: NextRequest) {
       try {
         const lastMessage = (messages[messages.length - 1] as any)?.content || "";
         
-        // Auto-resolve embedding provider based on modelId prefix
-        let embedProvider: "openai" | "gemini" | "local" = "gemini";
-        if (selectedModelStr.startsWith("openai")) embedProvider = "openai";
-        else if (selectedModelStr.startsWith("ollama")) embedProvider = "local";
-        
-        // Fallback for providers without embeddings (Claude/Grok)
-        if (selectedModelStr.startsWith("claude") || selectedModelStr.startsWith("grok")) {
-           const hasOpenAI = aiKeys.some(k => k.provider === "openai");
-           embedProvider = hasOpenAI ? "openai" : "gemini";
+        // Use the locked memory provider from database config if available, 
+        // otherwise fallback to auto-detection (for migration or first-time setups)
+        let embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
+
+        if (!config.memoryProvider) {
+          // Auto-resolve based on chat model if no memoryProvider locked yet
+          if (selectedModelStr.startsWith("openai")) {
+            embedProvider = "openai";
+          } else if (selectedModelStr.startsWith("ollama")) {
+            embedProvider = "local";
+          } else if (selectedModelStr.startsWith("claude") || selectedModelStr.startsWith("grok")) {
+            // Fallback for providers without embeddings (Claude/Grok)
+            const hasOpenAI = aiKeys.some(k => k.provider === "openai");
+            embedProvider = hasOpenAI ? "openai" : "gemini";
+          }
         }
 
         const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {

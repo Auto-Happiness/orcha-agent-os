@@ -77,6 +77,7 @@ export default defineSchema({
     modelConfig: v.optional(v.string()), // Encrypted LLM JSON
     businessContext: v.optional(v.string()), // Added for AI semantic memory
     status: v.optional(v.union(v.literal("draft"), v.literal("ready"))),
+    memoryProvider: v.optional(v.union(v.literal("openai"), v.literal("gemini"), v.literal("local"))),
     updatedBy: v.id("users"),
     updatedAt: v.number(),
   }).index("by_org", ["organizationId"])
