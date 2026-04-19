@@ -16,7 +16,7 @@ import { useState } from "react";
 import { notifications } from "@mantine/notifications";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { useParams } from "next/navigation";
-import { useMutation, useQuery, useAction } from "convex/react";
+import { useMutation, useQuery, useAction, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useOrganization, useUser } from "@clerk/nextjs";
 
@@ -40,13 +40,9 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   // Queries/Mutations
   const { user } = useUser();
   const { organization } = useOrganization();
+  const { isAuthenticated } = useConvexAuth();
   const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
   const currentUser = useQuery(api.users.getCurrentUser);
-  const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
-  const syncOrg = useMutation(api.webhooks.syncOrganization);
-  const syncUser = useMutation(api.users.storeUser);
-  const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
-  const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
 
   const testConnection = async () => {
     setTesting(true);
@@ -83,118 +79,6 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
     }
   };
 
-  const handleSave = async () => {
-    if (activeOrg === undefined || currentUser === undefined) {
-      notifications.show({
-        title: "Loading Identity",
-        message: "Please wait a moment while your session resolves.",
-        color: "orange",
-      });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      let finalOrgId: any = activeOrg?._id;
-      let finalUserId: any = currentUser?._id;
-
-      // Lazy sync for local development (if webhooks didn't fire)
-      if (!finalOrgId) {
-        if (!organization) throw new Error("Clerk organization not found in session.");
-        finalOrgId = await syncOrg({
-          slug: organization.slug || (saas as string),
-          name: organization.name,
-          clerkOrgId: organization.id,
-          type: "organization.created"
-        });
-      }
-
-      if (!finalUserId) {
-        if (!user) throw new Error("Clerk user not found in session.");
-        finalUserId = await syncUser({
-          email: user.primaryEmailAddress?.emailAddress,
-          name: user.fullName || undefined,
-          avatarUrl: user.imageUrl,
-        });
-      }
-
-      // 1. Persist the credentials in Convex
-      const configId = await saveConfig({
-        configId: (data.configId || undefined) as any,
-        organizationId: finalOrgId as any,
-        type: provider as any,
-        encryptedUri: JSON.stringify(data.dbConfig),
-        updatedBy: finalUserId as any,
-      });
-
-      // 2. Trigger the "Wren AI" Semantic Scan (Phase 1 Creation)
-      const notificationId = "scanning-schema";
-      notifications.show({
-        id: notificationId,
-        title: "Scanning Schema",
-        message: "Building your initial semantic models...",
-        color: "blue",
-        loading: true,
-        autoClose: false,
-      });
-
-      const scanResponse = await fetch("/api/db/scan", {
-        method: "POST",
-        body: JSON.stringify({
-          configId,
-          organizationId: finalOrgId as any,
-          type: provider,
-          config: data.dbConfig,
-        }),
-        headers: { "Content-Type": "application/json" },
-      });
-
-      const scanResult = await scanResponse.json();
-
-      if (scanResult.success) {
-        // Save configId for next steps
-        updateData({ configId });
-
-        // Zero-Config: Auto-run AI suggestions and enrichment
-        // This ensures the Diagram is populated immediately
-        await suggestRelationships({ 
-          organizationId: finalOrgId as any, 
-          configId: configId as any 
-        });
-        
-        await generateAiEnrichment({ 
-          configId: configId as any,
-          businessContext: data.businessContext || "Classic models database for a scale model business."
-        });
-
-        notifications.update({
-          id: notificationId,
-          title: "Setup Complete",
-          message: `${scanResult.message} AI models have been enriched.`,
-          color: "violet",
-          icon: <IconShieldCheck size={16} />,
-          loading: false,
-          autoClose: 3000,
-        });
-        
-        // Move to next step in wizard
-        setStep(1);
-      } else {
-        throw new Error(scanResult.message);
-      }
-    } catch (err: any) {
-      notifications.update({
-        id: "scanning-schema",
-        title: "Save Failed",
-        message: err.message || "An error occurred while saving your configuration.",
-        color: "red",
-        loading: false,
-        autoClose: 5000,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   // Dynamic Form Mapping
   const renderForm = () => {
@@ -290,15 +174,6 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
           leftSection={<IconRefresh size={16} />}
         >
           Test Connection
-        </Button>
-        <Button
-          color="violet"
-          px="xl"
-          loading={saving}
-          onClick={handleSave}
-          disabled={!data.dbConfig.host || !data.dbConfig.database}
-        >
-          Save Database
         </Button>
       </Group>
     </Stack>

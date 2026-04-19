@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { checkMembership } from "./authUtils";
 
@@ -113,5 +113,42 @@ export const removeKey = mutation({
       await ctx.db.delete(existing._id);
     }
     return { success: true };
+  },
+});
+
+/**
+ * internalGetByProvider (bypasses auth for system actions)
+ */
+export const internalGetByProvider = internalQuery({
+  args: { 
+    organizationId: v.id("organizations"),
+    provider: v.union(
+      v.literal("gemini"),
+      v.literal("openai"),
+      v.literal("claude"),
+      v.literal("local"),
+      v.literal("grok")
+    ),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("aiKeys")
+      .withIndex("by_org_provider", (q: any) => 
+        q.eq("organizationId", args.organizationId).eq("provider", args.provider)
+      )
+      .unique();
+  },
+});
+
+/**
+ * internalListByOrganization (bypasses auth)
+ */
+export const internalListByOrganization = internalQuery({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("aiKeys")
+      .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
+      .collect();
   },
 });

@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
           for (const [name, tool] of Object.entries(gmailTools)) {
             mcpTools[name] = {
               description: tool.description,
-              inputSchema: jsonSchema(tool.parameters),
+              inputSchema: jsonSchema(tool.parameters as any),
               execute: tool.execute,
             };
           }
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
           for (const [name, tool] of Object.entries(calTools)) {
             mcpTools[name] = {
               description: tool.description,
-              inputSchema: jsonSchema(tool.parameters),
+              inputSchema: jsonSchema(tool.parameters as any),
               execute: tool.execute,
             };
           }
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
           for (const [name, tool] of Object.entries(sheetsTools)) {
             mcpTools[name] = {
               description: tool.description,
-              inputSchema: jsonSchema(tool.parameters),
+              inputSchema: jsonSchema(tool.parameters as any),
               execute: tool.execute,
             };
           }
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
           for (const [name, tool] of Object.entries(driveTools)) {
             mcpTools[name] = {
               description: tool.description,
-              inputSchema: jsonSchema(tool.parameters),
+              inputSchema: jsonSchema(tool.parameters as any),
               execute: tool.execute,
             };
           }
@@ -175,11 +175,11 @@ export async function POST(req: NextRequest) {
         if (!url) continue;
 
         const tools = await McpClient.listTools(url, decryptedKey, regConfig?.authHeader);
-        for (const tool of tools) {
+        for (const tool of (tools as any[])) {
           const namespacedName = `${key.integration}_${tool.name}`;
           mcpTools[namespacedName] = {
             description: `[${key.integration}] ${tool.description || ""}`,
-            inputSchema: jsonSchema(tool.inputSchema),
+            inputSchema: jsonSchema(tool.inputSchema as any),
             execute: async (args: any) => {
               console.log(`[Chat] Calling MCP tool: ${namespacedName}`);
               return await McpClient.callTool(url, tool.name, args, decryptedKey, regConfig?.authHeader);
@@ -191,8 +191,58 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Build system prompt
-    const schemaDescription = semanticModels.map((model: any) => {
+    // 5. RAG: Vector Search for relevant tables (Scaling for 1,000+ tables)
+    let filteredModels = semanticModels;
+    if (semanticModels.length > 10) {
+      console.log(`[Chat] Large schema detected (${semanticModels.length} tables). Performing RAG...`);
+      try {
+        const lastMessage = (messages[messages.length - 1] as any)?.content || "";
+        
+        // Use the locked memory provider from database config if available, 
+        // otherwise fallback to auto-detection (for migration or first-time setups)
+        let embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
+
+        if (!config.memoryProvider) {
+          // Auto-resolve based on chat model if no memoryProvider locked yet
+          if (selectedModelStr.startsWith("openai")) {
+            embedProvider = "openai";
+          } else if (selectedModelStr.startsWith("ollama")) {
+            embedProvider = "local";
+          } else if (selectedModelStr.startsWith("claude") || selectedModelStr.startsWith("grok")) {
+            // Fallback for providers without embeddings (Claude/Grok)
+            const hasOpenAI = aiKeys.some(k => k.provider === "openai");
+            embedProvider = hasOpenAI ? "openai" : "gemini";
+          }
+        }
+
+        const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
+          organizationId: organizationId,
+          text: lastMessage,
+          provider: embedProvider,
+        });
+
+        // Search in the correct vector index
+        const indexName = dimensions === 1536 ? "by_embedding_1536" : 
+                         dimensions === 1024 ? "by_embedding_1024" : "by_embedding_768";
+        
+        const searchResults = await convex.action(api.semanticModels.searchRelatedModels, {
+          configId: config._id,
+          embedding,
+          indexName,
+        });
+
+        if (searchResults.length > 0) {
+          const matchedIds = new Set(searchResults.map(r => r._id));
+          filteredModels = semanticModels.filter((m: any) => matchedIds.has(m._id));
+          console.log(`[Chat] RAG narrowed ${semanticModels.length} tables down to ${filteredModels.length}`);
+        }
+      } catch (err) {
+        console.error("[Chat] RAG search failed, falling back to full schema:", err);
+      }
+    }
+
+    // 6. Build system prompt
+    const schemaDescription = filteredModels.map((model: any) => {
       const fields = model.fields.map((f: any) => {
         let d = `- ${f.displayName} (${f.columnName}): ${f.type}`;
         if (f.expression) d += ` [CALCULATED: ${f.expression}]`;
@@ -243,9 +293,9 @@ ${!showResults ? "- The user has disabled result tables. After executing the que
       execute_sql: {
         description: `Executes a read-only SQL query. Returns up to ${MAX_ROWS} rows.`,
         inputSchema: jsonSchema({
-          type: "object",
+          type: "object" as const,
           properties: {
-            sql: { type: "string", description: "The SQL query to execute." },
+            sql: { type: "string" as const, description: "The SQL query to execute." },
           },
           required: ["sql"],
         }),

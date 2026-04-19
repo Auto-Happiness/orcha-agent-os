@@ -54,7 +54,8 @@ import {
   IconBookmark,
   IconSearch,
   IconStar,
-  IconSql
+  IconSql,
+  IconBrain
 } from "@tabler/icons-react";
 import { inputStyles } from "@/lib/styles";
 import { notifications } from "@mantine/notifications";
@@ -64,6 +65,7 @@ import { DatabaseConnectionForm } from "@/components/Configure/DatabaseConnectio
 import { QueryLab } from "@/components/Configure/QueryLab";
 import { DeploymentProfile } from "@/components/Configure/DeploymentProfile";
 import { DashboardHeader } from "@/components/Configure/DashboardHeader";
+import { MemoryStatus } from "@/components/Configure/MemoryStatus";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { useUser } from "@clerk/nextjs";
 
@@ -202,6 +204,7 @@ export default function EditConfigurationPage() {
              <Tabs.Tab value="general" leftSection={<IconFileDescription size={16} />}>Deployment Profile</Tabs.Tab>
              <Tabs.Tab value="modeler" leftSection={<IconHierarchy2 size={16} />}>Semantic Modeler</Tabs.Tab>
              <Tabs.Tab value="lab" leftSection={<IconTerminal2 size={16} />}>Query Lab</Tabs.Tab>
+             <Tabs.Tab value="memory" leftSection={<IconBrain size={16} />}>Semantic Memory</Tabs.Tab>
              <Tabs.Tab value="health" leftSection={<IconAdjustmentsHorizontal size={16} />}>Connectivity & Pulse</Tabs.Tab>
            </Tabs.List>
 
@@ -235,7 +238,14 @@ export default function EditConfigurationPage() {
                 savedQueries={savedQueries || []}
                 wizardData={wizardData}
               />
-           </Tabs.Panel>
+            </Tabs.Panel>
+
+            {/* ── Tab: Memory ────────────────────────────────────────────── */}
+            <Tabs.Panel value="memory">
+               {currentConfig && organization && (
+                 <MemoryStatus currentConfig={currentConfig} activeOrgId={organization._id} />
+               )}
+            </Tabs.Panel>
 
            {/* ── Tab: Connectivity ──────────────────────────────────────────── */}
            <Tabs.Panel value="health">

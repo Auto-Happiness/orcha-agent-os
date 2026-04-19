@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { DatabaseScanner } from "@/lib/db/introspection";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { auth } from "@clerk/nextjs/server";
+import { KeyManager } from "@/lib/key-manager";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -16,6 +18,11 @@ export async function POST(req: NextRequest) {
     if (!configId || !organizationId || !type || !config) {
       return NextResponse.json({ success: false, message: "Missing required parameters." }, { status: 400 });
     }
+
+    // Attach Clerk token so Convex auth-gated queries work from server
+    const clerkAuth = await auth();
+    const token = await clerkAuth.getToken({ template: "convex" });
+    if (token) convex.setAuth(token);
 
     let scanResult;
 
@@ -48,6 +55,33 @@ export async function POST(req: NextRequest) {
         foreignKeys,
       });
       relCount = relResult.count;
+    }
+
+    // 4. Trigger vector indexing — decrypt the key here (Convex can't use node:crypto)
+    try {
+      const allKeys = await convex.query(api.aiKeys.listByOrganization, { organizationId });
+      const preferredKey = allKeys.find((k: any) => k.provider === "openai" || k.provider === "gemini");
+      
+      if (preferredKey) {
+        // Decrypt the key BEFORE sending to Convex
+        const plaintextKey = KeyManager.decrypt(preferredKey.keyValue, organizationId);
+        console.log(`[Scan] Triggering embedding indexing with provider: ${preferredKey.provider}`);
+        
+        convex.action(api.embeddings.indexConfigSchema, {
+          organizationId,
+          configId,
+          provider: preferredKey.provider as "openai" | "gemini" | "local",
+          apiKey: plaintextKey,
+        }).then(result => {
+          console.log(`[Scan] Indexing complete:`, result);
+        }).catch(err => {
+          console.error(`[Scan] Indexing failed:`, err);
+        });
+      } else {
+        console.warn(`[Scan] No OpenAI/Gemini key found for org ${organizationId}. Skipping indexing.`);
+      }
+    } catch(e: any) {
+      console.error(`[Scan] Failed to start indexing:`, e.message);
     }
 
     return NextResponse.json({ 

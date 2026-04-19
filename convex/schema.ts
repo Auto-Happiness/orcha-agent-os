@@ -77,6 +77,7 @@ export default defineSchema({
     modelConfig: v.optional(v.string()), // Encrypted LLM JSON
     businessContext: v.optional(v.string()), // Added for AI semantic memory
     status: v.optional(v.union(v.literal("draft"), v.literal("ready"))),
+    memoryProvider: v.optional(v.union(v.literal("openai"), v.literal("gemini"), v.literal("local"))),
     updatedBy: v.id("users"),
     updatedAt: v.number(),
   }).index("by_org", ["organizationId"])
@@ -139,11 +140,30 @@ export default defineSchema({
       isPrimary: v.optional(v.boolean()),
       isHidden: v.optional(v.boolean()),
     })),
+    // Multi-dimensional embedding support for different providers
+    embedding_768: v.optional(v.array(v.float64())),  // Gemini, Ollama (nomic)
+    embedding_1024: v.optional(v.array(v.float64())), // Ollama (mxbai)
+    embedding_1536: v.optional(v.array(v.float64())), // OpenAI
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_org", ["organizationId"])
-    .index("by_config", ["configId"]),
+    .index("by_config", ["configId"])
+    .vectorIndex("by_embedding_768", {
+      vectorField: "embedding_768",
+      dimensions: 768,
+      filterFields: ["organizationId", "configId"],
+    })
+    .vectorIndex("by_embedding_1024", {
+      vectorField: "embedding_1024",
+      dimensions: 1024,
+      filterFields: ["organizationId", "configId"],
+    })
+    .vectorIndex("by_embedding_1536", {
+      vectorField: "embedding_1536",
+      dimensions: 1536,
+      filterFields: ["organizationId", "configId"],
+    }),
 
   // ─── Wren AI: Semantic Relationships (JOINs) ───────────
   semanticRelationships: defineTable({

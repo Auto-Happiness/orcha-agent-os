@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
@@ -121,6 +121,7 @@ export const finalizeConfiguration = mutation({
     modelProvider: v.optional(v.string()),
     modelConfig: v.optional(v.string()),
     businessContext: v.optional(v.string()),
+    memoryProvider: v.optional(v.union(v.literal("openai"), v.literal("gemini"), v.literal("local"))),
   },
   handler: async (ctx, args) => {
     const { configId, ...updates } = args;
@@ -155,5 +156,23 @@ export const remove = mutation({
     }
     await ctx.db.delete(args.configId);
     return { success: true };
+  },
+});
+
+/**
+ * internalUpdateMemoryProvider
+ * 
+ * Sets the stable memory provider for this configuration.
+ */
+export const internalUpdateMemoryProvider = internalMutation({
+  args: {
+    configId: v.id("databaseConfigs"),
+    provider: v.union(v.literal("openai"), v.literal("gemini"), v.literal("local")),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.configId, {
+      memoryProvider: args.provider,
+      updatedAt: Date.now(),
+    });
   },
 });
