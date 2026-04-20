@@ -45,19 +45,13 @@ import { MantineUiProvider } from "@/lib/mantine-provider";
 function OrchaLogo({ collapsed }: { collapsed: boolean }) {
   return (
     <Group gap="xs" wrap="nowrap">
-      <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
-        <circle cx="18" cy="18" r="17" stroke="url(#sl)" strokeWidth="2" />
-        <circle cx="18" cy="18" r="10" stroke="url(#sl)" strokeWidth="1.5" opacity="0.45" />
-        <path d="M18 8 L22 14 L18 12 L14 14 Z" fill="url(#sl)" />
-        <path d="M18 28 L14 22 L18 24 L22 22 Z" fill="url(#sl)" opacity="0.65" />
-        <circle cx="18" cy="18" r="3" fill="url(#sl)" />
-        <defs>
-          <linearGradient id="sl" x1="1" y1="1" x2="35" y2="35" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#9333ea" />
-            <stop offset="1" stopColor="#c084fc" />
-          </linearGradient>
-        </defs>
-      </svg>
+      <Box style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img 
+          src="/graphics/orca ai 2.png" 
+          alt="Orcha Logo" 
+          style={{ width: "100%", height: "100%", objectFit: "contain" }} 
+        />
+      </Box>
       {!collapsed && (
         <Box>
           <Text fw={700} size="sm" c="white" lh={1}>Orcha</Text>

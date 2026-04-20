@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/graphics/orca%20ai%202.png" width="128" alt="Orcha AI Logo" />
+</p>
+
 # Orcha AI / Orcha Agent OS 🌌
 
 **The Semantic Operating System for Multi-Tenant AI Agents**
