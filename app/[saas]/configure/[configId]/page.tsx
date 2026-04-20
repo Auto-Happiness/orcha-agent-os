@@ -99,23 +99,41 @@ export default function EditConfigurationPage() {
   const currentConfig = allConfigs?.find(c => c._id === configId);
   const savedQueries = useQuery(api.savedQueries.listByConfig, currentConfig ? { configId: currentConfig._id } : "skip");
 
+  // ── Diagnostics & Stability ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleError = (event: PromiseRejectionEvent) => {
+      // Basic check for serious issues
+      if (event.reason?.message?.includes('Clerk') || event.reason?.message?.includes('Convex')) {
+        console.error("Critical Rejection:", event.reason);
+      }
+    };
+
+    window.addEventListener("unhandledrejection", handleError);
+    return () => window.removeEventListener("unhandledrejection", handleError);
+  }, []);
+
   useEffect(() => {
     if (currentConfig) {
-      setName(currentConfig.name);
-      setDescription(currentConfig.description || "");
-      setBusinessContext(currentConfig.businessContext || "");
-      setTags(currentConfig.tags || []);
+      // Safe Name/Description/Tags Update
+      setName(String(currentConfig.name || ""));
+      setDescription(String(currentConfig.description || ""));
+      setBusinessContext(String(currentConfig.businessContext || ""));
+      setTags(Array.isArray(currentConfig.tags) ? currentConfig.tags : []);
       
       try {
-        const dbConfig = JSON.parse(currentConfig.encryptedUri);
-        updateData({ 
-          dbProvider: currentConfig.type,
-          dbConfig,
-          businessContext: currentConfig.businessContext || "",
-          configId: currentConfig._id
-        });
+        if (currentConfig.encryptedUri) {
+          const dbConfig = JSON.parse(currentConfig.encryptedUri);
+          console.log("[Diagnostics] Syncing dbConfig to store:", dbConfig);
+          
+          updateData({ 
+            dbProvider: currentConfig.type || "mysql",
+            dbConfig,
+            businessContext: currentConfig.businessContext || "",
+            configId: currentConfig._id
+          });
+        }
       } catch (e) {
-        console.error("Sync Error:", e);
+        console.error("Configuration Sync Warning:", e);
       }
     }
   }, [currentConfig, updateData]);
@@ -279,14 +297,7 @@ export default function EditConfigurationPage() {
       <Modal 
         opened={deleteModalOpen} 
         onClose={() => { setDeleteModalOpen(false); setDeleteConfirmName(""); }} 
-        title={
-          <Group gap="xs">
-            <ThemeIcon color="red" variant="light" size="sm">
-              <IconAlertTriangle size={16} />
-            </ThemeIcon>
-            <Text fw={700}>Permanently Delete Environment?</Text>
-          </Group>
-        } 
+        title="Permanently Delete Environment?"
         centered 
         size="md"
         radius="lg"

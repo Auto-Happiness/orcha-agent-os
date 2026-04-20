@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Grid,
   Stack,
@@ -35,6 +35,20 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { inputStyles } from "@/lib/styles";
+import dynamic from "next/dynamic";
+
+// Use dynamic to ensure client-side rendering for the editor component
+const SqlEditor = dynamic(() => import("./SqlEditor").then(m => m.SqlEditor), { 
+  ssr: false,
+  loading: () => (
+    <Box h={300} bg="rgba(255,255,255,0.02)" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+      <Stack align="center" gap="xs">
+        <Loader size="sm" color="violet" />
+        <Text size="xs" c="dimmed">Loading Editor...</Text>
+      </Stack>
+    </Box>
+  )
+});
 
 interface QueryLabProps {
   currentConfig: any;
@@ -94,9 +108,10 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         throw new Error(result.message);
       }
     } catch (err: any) {
+      const message = typeof err.message === 'string' ? err.message : JSON.stringify(err);
       notifications.show({
         title: "Query Failed",
-        message: err.message,
+        message: message || "An unexpected error occurred.",
         color: "red"
       });
     } finally {
@@ -140,7 +155,8 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         color: "violet"
       });
     } catch (err: any) {
-      notifications.show({ title: "Delete Failed", message: err.message, color: "red" });
+      const message = typeof err.message === 'string' ? err.message : JSON.stringify(err);
+      notifications.show({ title: "Delete Failed", message, color: "red" });
     }
   };
 
@@ -168,23 +184,12 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               </Group>
             </Group>
             <Box p={0}>
-              <Textarea
-                placeholder="SELECT * FROM my_table..."
-                minRows={12}
-                variant="unstyled"
-                p="md"
-                value={sql}
-                onChange={(e) => setSql(e.target.value)}
-                styles={{
-                  input: {
-                    fontFamily: "monospace",
-                    fontSize: "13px",
-                    color: "#c084fc",
-                    background: "transparent",
-                    resize: "vertical",
-                    minHeight: "150px"
-                  }
-                }}
+              <SqlEditor 
+                value={sql || ""} 
+                onChange={(v) => setSql(v || "")}
+                language={currentConfig?.type || "mysql"}
+                semanticModels={semanticModels || []}
+                minHeight={300}
               />
             </Box>
           </Paper>
@@ -222,7 +227,10 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                       <Table.Tr key={i}>
                         {queryResults.columns.map(col => (
                           <Table.Td key={col} style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px", borderColor: "rgba(255,255,255,0.02)" }}>
-                            {row[col]?.toString()}
+                            {typeof row[col] === 'object' && row[col] !== null 
+                              ? JSON.stringify(row[col]) 
+                              : row[col]?.toString() ?? <Text span c="dimmed" size="10px">NULL</Text>
+                            }
                           </Table.Td>
                         ))}
                       </Table.Tr>
