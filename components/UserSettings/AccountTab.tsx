@@ -50,15 +50,6 @@ export function AccountTab() {
         </Stack>
       </Paper>
 
-      <Paper withBorder p="2rem" radius="lg" style={{ background: "rgba(147,51,234,0.03)", borderColor: "rgba(147,51,234,0.2)" }}>
-        <Group justify="space-between">
-          <Stack gap={4}>
-            <Text fw={700} c="white">Experimental Features</Text>
-            <Text size="xs" c="dimmed">Get early access to voice-to-SQL and autonomous agent swarms.</Text>
-          </Stack>
-          <Switch color="violet" defaultChecked />
-        </Group>
-      </Paper>
     </Stack>
   );
 }

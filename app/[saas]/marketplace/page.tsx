@@ -250,6 +250,7 @@ export default function MarketplacePage() {
 
   return (
     <Box p="xl" style={{ minHeight: "calc(100vh - 56px)" }}>
+      <title>Market Place</title>
       <Container size="xl">
         <Stack gap="xl" mb={40}>
           <Box>
