@@ -63,6 +63,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const removeQueryMutation = useMutation(api.savedQueries.remove);
 
   const [sql, setSql] = useState("");
+  const [selectedSql, setSelectedSql] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>("schema");
@@ -74,6 +75,9 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   };
 
   const handleRunQuery = async () => {
+    const finalSql = (selectedSql && selectedSql.trim().length > 0) ? selectedSql : sql;
+    if (!finalSql.trim()) return;
+
     setIsExecuting(true);
     setQueryResults(null);
     const startTime = performance.now();
@@ -84,7 +88,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         body: JSON.stringify({
           type: currentConfig.type,
           config: wizardData.dbConfig,
-          sql: sql
+          sql: finalSql
         })
       });
 
@@ -160,6 +164,34 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
     }
   };
 
+  const handleExportCsv = () => {
+    if (!queryResults || queryResults.rows.length === 0) return;
+    
+    // Create CSV rows
+    const headers = queryResults.columns.join(",");
+    const rows = queryResults.rows.map(row => 
+      queryResults.columns.map(col => {
+        const val = row[col];
+        if (val === null || val === undefined) return "";
+        const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        // Escape quotes and wrap in quotes
+        const escaped = str.replace(/"/g, '""');
+        return `"${escaped}"`;
+      }).join(",")
+    );
+    
+    const csvContent = [headers, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `query_results_${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <Grid styles={{ inner: { gap: "var(--mantine-spacing-xs)" } }}>
       <Grid.Col span={9}>
@@ -189,6 +221,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                 onChange={(v) => setSql(v || "")}
                 language={currentConfig?.type || "mysql"}
                 semanticModels={semanticModels || []}
+                onSelectionChange={setSelectedSql}
                 minHeight={300}
               />
             </Box>
@@ -202,11 +235,22 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               </Group>
               <Group gap="xs">
                 {queryResults && (
-                  <Text size="11px" c="dimmed" fw={500}>
-                    {queryResults.rows.length} rows returned
-                    <span style={{ margin: "0 8px", opacity: 0.3 }}>•</span>
-                    {queryResults.executionTime}ms
-                  </Text>
+                  <Group gap="md">
+                    <Text size="11px" c="dimmed" fw={500}>
+                      {queryResults.rows.length} rows returned
+                      <span style={{ margin: "0 8px", opacity: 0.3 }}>•</span>
+                      {queryResults.executionTime}ms
+                    </Text>
+                    <Button 
+                      variant="light" 
+                      color="violet" 
+                      size="compact-xs" 
+                      leftSection={<IconTableExport size={12} />}
+                      onClick={handleExportCsv}
+                    >
+                      Export CSV
+                    </Button>
+                  </Group>
                 )}
               </Group>
             </Group>
@@ -214,11 +258,11 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               <Center h={300}><Stack align="center"><Loader size="sm" color="violet" /><Text size="xs" c="dimmed">Executing query...</Text></Stack></Center>
             ) : queryResults ? (
               <ScrollArea h={400}>
-                <Table variant="simple" verticalSpacing="xs">
-                  <Table.Thead>
-                    <Table.Tr>
+                <Table variant="simple" verticalSpacing="xs" stickyHeader stickyHeaderOffset={0}>
+                  <Table.Thead style={{ zIndex: 1 }}>
+                    <Table.Tr style={{ background: "#0c0a1a" }}>
                       {queryResults.columns.map(col => (
-                        <Table.Th key={col} style={{ color: "white", fontSize: "11px", borderColor: "rgba(255,255,255,0.05)" }}>{col}</Table.Th>
+                        <Table.Th key={col} style={{ color: "white", fontSize: "11px", borderColor: "rgba(255,255,255,0.05)", background: "#0c0a1a" }}>{col}</Table.Th>
                       ))}
                     </Table.Tr>
                   </Table.Thead>

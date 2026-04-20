@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import CodeMirror, { Extension } from "@uiw/react-codemirror";
+import CodeMirror, { Extension, ViewUpdate } from "@uiw/react-codemirror";
 import { sql, MySQL, PostgreSQL, MSSQL } from "@codemirror/lang-sql";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { autocompletion, CompletionContext } from "@codemirror/autocomplete";
@@ -12,6 +12,7 @@ interface SqlEditorProps {
   language?: "mysql" | "postgres" | "mssql" | string;
   semanticModels?: any[];
   minHeight?: string | number;
+  onSelectionChange?: (text: string) => void;
 }
 
 export function SqlEditor({ 
@@ -19,7 +20,8 @@ export function SqlEditor({
   onChange, 
   language = "mysql", 
   semanticModels = [],
-  minHeight = 300
+  minHeight = 300,
+  onSelectionChange
 }: SqlEditorProps) {
 
   // 1. Determine Dialect
@@ -98,6 +100,15 @@ export function SqlEditor({
         theme={oneDark}
         extensions={extensions}
         onChange={(val) => onChange(val)}
+        onUpdate={(update: ViewUpdate) => {
+          if (onSelectionChange && (update.selectionSet || update.docChanged)) {
+            const selection = update.state.sliceDoc(
+              update.state.selection.main.from,
+              update.state.selection.main.to
+            );
+            onSelectionChange(selection);
+          }
+        }}
         style={{ fontSize: '13px' }}
         basicSetup={{
           lineNumbers: true,
