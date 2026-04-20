@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Grid,
   Stack,
@@ -35,6 +35,20 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { inputStyles } from "@/lib/styles";
+import dynamic from "next/dynamic";
+
+// Use dynamic to ensure client-side rendering for the editor component
+const SqlEditor = dynamic(() => import("./SqlEditor").then(m => m.SqlEditor), { 
+  ssr: false,
+  loading: () => (
+    <Box h={300} bg="rgba(255,255,255,0.02)" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+      <Stack align="center" gap="xs">
+        <Loader size="sm" color="violet" />
+        <Text size="xs" c="dimmed">Loading Editor...</Text>
+      </Stack>
+    </Box>
+  )
+});
 
 interface QueryLabProps {
   currentConfig: any;
@@ -49,6 +63,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const removeQueryMutation = useMutation(api.savedQueries.remove);
 
   const [sql, setSql] = useState("");
+  const [selectedSql, setSelectedSql] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>("schema");
@@ -60,6 +75,9 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   };
 
   const handleRunQuery = async () => {
+    const finalSql = (selectedSql && selectedSql.trim().length > 0) ? selectedSql : sql;
+    if (!finalSql.trim()) return;
+
     setIsExecuting(true);
     setQueryResults(null);
     const startTime = performance.now();
@@ -70,7 +88,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         body: JSON.stringify({
           type: currentConfig.type,
           config: wizardData.dbConfig,
-          sql: sql
+          sql: finalSql
         })
       });
 
@@ -94,9 +112,10 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         throw new Error(result.message);
       }
     } catch (err: any) {
+      const message = typeof err.message === 'string' ? err.message : JSON.stringify(err);
       notifications.show({
         title: "Query Failed",
-        message: err.message,
+        message: message || "An unexpected error occurred.",
         color: "red"
       });
     } finally {
@@ -140,8 +159,37 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         color: "violet"
       });
     } catch (err: any) {
-      notifications.show({ title: "Delete Failed", message: err.message, color: "red" });
+      const message = typeof err.message === 'string' ? err.message : JSON.stringify(err);
+      notifications.show({ title: "Delete Failed", message, color: "red" });
     }
+  };
+
+  const handleExportCsv = () => {
+    if (!queryResults || queryResults.rows.length === 0) return;
+    
+    // Create CSV rows
+    const headers = queryResults.columns.join(",");
+    const rows = queryResults.rows.map(row => 
+      queryResults.columns.map(col => {
+        const val = row[col];
+        if (val === null || val === undefined) return "";
+        const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        // Escape quotes and wrap in quotes
+        const escaped = str.replace(/"/g, '""');
+        return `"${escaped}"`;
+      }).join(",")
+    );
+    
+    const csvContent = [headers, ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `query_results_${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -168,23 +216,13 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               </Group>
             </Group>
             <Box p={0}>
-              <Textarea
-                placeholder="SELECT * FROM my_table..."
-                minRows={12}
-                variant="unstyled"
-                p="md"
-                value={sql}
-                onChange={(e) => setSql(e.target.value)}
-                styles={{
-                  input: {
-                    fontFamily: "monospace",
-                    fontSize: "13px",
-                    color: "#c084fc",
-                    background: "transparent",
-                    resize: "vertical",
-                    minHeight: "150px"
-                  }
-                }}
+              <SqlEditor 
+                value={sql || ""} 
+                onChange={(v) => setSql(v || "")}
+                language={currentConfig?.type || "mysql"}
+                semanticModels={semanticModels || []}
+                onSelectionChange={setSelectedSql}
+                minHeight={300}
               />
             </Box>
           </Paper>
@@ -197,11 +235,22 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               </Group>
               <Group gap="xs">
                 {queryResults && (
-                  <Text size="11px" c="dimmed" fw={500}>
-                    {queryResults.rows.length} rows returned
-                    <span style={{ margin: "0 8px", opacity: 0.3 }}>•</span>
-                    {queryResults.executionTime}ms
-                  </Text>
+                  <Group gap="md">
+                    <Text size="11px" c="dimmed" fw={500}>
+                      {queryResults.rows.length} rows returned
+                      <span style={{ margin: "0 8px", opacity: 0.3 }}>•</span>
+                      {queryResults.executionTime}ms
+                    </Text>
+                    <Button 
+                      variant="light" 
+                      color="violet" 
+                      size="compact-xs" 
+                      leftSection={<IconTableExport size={12} />}
+                      onClick={handleExportCsv}
+                    >
+                      Export CSV
+                    </Button>
+                  </Group>
                 )}
               </Group>
             </Group>
@@ -209,11 +258,11 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               <Center h={300}><Stack align="center"><Loader size="sm" color="violet" /><Text size="xs" c="dimmed">Executing query...</Text></Stack></Center>
             ) : queryResults ? (
               <ScrollArea h={400}>
-                <Table variant="simple" verticalSpacing="xs">
-                  <Table.Thead>
-                    <Table.Tr>
+                <Table variant="simple" verticalSpacing="xs" stickyHeader stickyHeaderOffset={0}>
+                  <Table.Thead style={{ zIndex: 1 }}>
+                    <Table.Tr style={{ background: "#0c0a1a" }}>
                       {queryResults.columns.map(col => (
-                        <Table.Th key={col} style={{ color: "white", fontSize: "11px", borderColor: "rgba(255,255,255,0.05)" }}>{col}</Table.Th>
+                        <Table.Th key={col} style={{ color: "white", fontSize: "11px", borderColor: "rgba(255,255,255,0.05)", background: "#0c0a1a" }}>{col}</Table.Th>
                       ))}
                     </Table.Tr>
                   </Table.Thead>
@@ -222,7 +271,10 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                       <Table.Tr key={i}>
                         {queryResults.columns.map(col => (
                           <Table.Td key={col} style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px", borderColor: "rgba(255,255,255,0.02)" }}>
-                            {row[col]?.toString()}
+                            {typeof row[col] === 'object' && row[col] !== null 
+                              ? JSON.stringify(row[col]) 
+                              : row[col]?.toString() ?? <Text span c="dimmed" size="10px">NULL</Text>
+                            }
                           </Table.Td>
                         ))}
                       </Table.Tr>
