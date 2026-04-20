@@ -13,145 +13,171 @@ import { convertToModelMessages } from "ai";
 export class ChatWorker {
   private redis: IORedis;
   private queue: Queue;
-  private worker: Worker;
-  private convex: ConvexHttpClient;
+  private worker?: Worker;
 
-  constructor() {
+  constructor(isWorker: boolean = false) {
     const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
     this.redis = new IORedis(redisUrl, { maxRetriesPerRequest: null });
     this.queue = new Queue("chat-queue", { connection: this.redis });
-    this.convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-    this.worker = new Worker(
-      "chat-queue",
-      async (job) => {
-        console.log(`\n📦 [ChatWorker] RECEIVED NEW JOB: ${job.id}`);
-        const { context, messageId, clerkToken } = job.data;
+    if (isWorker) {
+      console.log(`🚀 [ChatWorker] Consumer initialized. Listening for jobs...`);
+      
+      this.worker = new Worker(
+        "chat-queue",
+        async (job) => {
+          console.log(`\n📦 [ChatWorker] RECEIVED NEW JOB: ${job.id}`);
+          const { context, messageId, clerkToken } = job.data;
+          
+          // 1. Fresh Convex client per job for multi-user isolation
+          const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+          if (clerkToken) convex.setAuth(clerkToken);
 
-        console.log(`👤 [ChatWorker] Org: ${context.orgIdStr} | User: ${context.userId}`);
-        const lastMsg = context.messages?.[context.messages.length - 1];
-        console.log(`💬 [ChatWorker] Input: "${String(lastMsg?.content || "").substring(0, 60)}..."`);
-
-        // Helper: flush collected state to Convex
-        const pushUpdate = async (content: string, parts?: any[]) => {
-          if (!messageId) return;
-          try {
-            const payload: any = { messageId, content };
-            if (parts) payload.parts = parts;
-            await this.convex.mutation(api.chatMessages.workerUpdate, payload);
-          } catch (e: any) {
-            console.error("[ChatWorker] Convex update failed:", e.message);
+          if (!process.env.ENCRYPTION_KEY) {
+            console.error("[ChatWorker] FATAL: ENCRYPTION_KEY is missing in worker. Tools WILL fail.");
           }
-        };
 
-        try {
-          // Auth the Convex client so it can read org data from gated queries
-          if (clerkToken) this.convex.setAuth(clerkToken);
+          console.log(`👤 [ChatWorker] Org: ${context.orgIdStr} | User: ${context.userId}`);
 
-          console.log("[ChatWorker] Building agent...");
-          const agent = await createChatAgent({
-            ...context,
-            convex: this.convex,
-          });
-
-          console.log("[ChatWorker] Agent ready. Streaming response...");
-          const result = await agent.stream({
-            messages: await convertToModelMessages(context.messages),
-          });
-
-          let fullContent = "";
-          const collectedParts: any[] = [];
-          // Track pending tool calls to pair with their results
-          const pendingToolCalls = new Map<string, any>();
-
-          const reader = result.fullStream.getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            if (value.type === "text-delta") {
-              fullContent += value.text;
-              // Throttle: push text update every 40 chars
-              if (fullContent.length % 40 === 0) {
-                await pushUpdate(fullContent);
-              }
+          const pushUpdate = async (content: string, parts?: any[]) => {
+            if (!messageId) return;
+            try {
+              const payload: any = { messageId, content };
+              if (parts) payload.parts = parts;
+              await convex.mutation(api.chatMessages.workerUpdate, payload);
+            } catch (e: any) {
+              console.error("[ChatWorker] Convex update failed:", e.message);
             }
+          };
 
-            // Capture tool calls (the SQL being run)
-            else if (value.type === "tool-call") {
-              const args = typeof (value as any).args === 'string' ? JSON.parse((value as any).args) : (value.input ?? (value as any).args);
-              const part = {
-                type: "tool-invocation",
-                toolInvocation: {
-                  state: "call",
-                  toolCallId: value.toolCallId,
-                  toolName: value.toolName,
-                  args: args,
-                  input: args,
-                  result: null,
+          try {
+            console.log("[ChatWorker] Building agent...");
+            const agent = await createChatAgent({
+              ...context,
+              convex,
+            });
+
+            // 3. Native History Conversion
+            // We must map our legacy database 'tool-invocation' parts (nested) 
+            // into the flat ToolUIPart format that Vercel AI SDK 6.x expects.
+            const safeContextMessages = (context.messages || []).map((m: any) => {
+              const parts = Array.isArray(m.parts) ? m.parts : [];
+              
+              const standardParts = parts.map((p: any) => {
+                // Handle standard text parts
+                if (p.type === 'text') return p;
+
+                // Map our legacy nested tool format to the flat AI SDK 6.x format
+                if (p.type === 'tool-invocation' && p.toolInvocation) {
+                  const ti = p.toolInvocation;
+                  return {
+                    type: `tool-${ti.toolName}`,
+                    toolCallId: ti.toolCallId,
+                    state: ti.state === 'result' ? 'output-available' : ti.state,
+                    input: ti.args,
+                    output: ti.result || ti.output,
+                    toolName: ti.toolName,
+                  };
                 }
+
+                // Handle other standard parts if they exist
+                if (p.type === 'file' || p.type === 'reasoning') return p;
+
+                return null;
+              }).filter(Boolean);
+
+              return {
+                ...m,
+                parts: standardParts.length > 0 ? standardParts : [{ type: 'text', text: m.content || "" }]
               };
-              pendingToolCalls.set(value.toolCallId, part);
-              collectedParts.push(part);
-            }
+            });
+            const modelMessages = await convertToModelMessages(safeContextMessages);
 
-            // Capture tool results (the SQL data rows)
-            else if (value.type === "tool-result") {
-              const pending = pendingToolCalls.get(value.toolCallId);
-              if (pending) {
-                // Truncate data arrays to 20 rows max (matching sync mode)
-                let r = (value as any).result ?? (value as any).output;
-                if (r?.data && Array.isArray(r.data)) {
-                  r = { ...r, data: r.data.slice(0, 20) };
+            console.log(`[ChatWorker] Turn ${context.messages.length} | Normalized history: ${modelMessages.length} ModelMessage(s)`);
+
+            const result = await agent.stream({
+              messages: modelMessages,
+            });
+
+            let fullContent = "";
+            const collectedParts: any[] = [];
+            const pendingToolCalls = new Map<string, any>();
+
+            const reader = result.fullStream.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              if (value.type === "text-delta") {
+                fullContent += value.text;
+                if (fullContent.length % 20 === 0) {
+                  await pushUpdate(fullContent, [...collectedParts, { type: "text", text: fullContent || " " }]);
                 }
-                pending.toolInvocation.state = "result";
-                pending.toolInvocation.result = r;
-              } else {
-                const args = typeof (value as any).args === 'string' ? JSON.parse((value as any).args) : (value as any).args;
-                collectedParts.push({
+              } else if (value.type === "tool-call") {
+                const args = typeof (value as any).args === 'string' ? JSON.parse((value as any).args) : (value.input ?? (value as any).args);
+                const part = {
                   type: "tool-invocation",
                   toolInvocation: {
-                    state: "result",
+                    state: "call",
                     toolCallId: value.toolCallId,
                     toolName: value.toolName,
                     args: args,
-                    input: args,
-                    result: (value as any).result ?? (value as any).output,
+                    result: null,
                   }
-                });
+                };
+                pendingToolCalls.set(value.toolCallId, part);
+                collectedParts.push(part);
+              } else if (value.type === "tool-result") {
+                const pending = pendingToolCalls.get(value.toolCallId);
+                if (pending) {
+                  let r = (value as any).result ?? (value as any).output;
+                  if (r?.data && Array.isArray(r.data)) {
+                    r = { ...r, data: r.data.slice(0, 20) };
+                  }
+                  pending.toolInvocation.state = "result";
+                  pending.toolInvocation.result = r;
+                  pending.toolInvocation.output = r; // Sync with both naming conventions
+                }
+                await pushUpdate(fullContent, [...collectedParts, { type: "text", text: fullContent || " " }]);
               }
             }
+
+            const finalParts: any[] = [...collectedParts, { type: "text", text: fullContent || " " }];
+            await pushUpdate(fullContent || "(Response finished)", finalParts);
+
+            console.log(`✅ [ChatWorker] JOB COMPLETED: ${job.id}`);
+            return { success: true };
+          } catch (error: any) {
+            console.error(`❌ [ChatWorker] JOB FAILED (${job.id}):`, error?.stack || error?.message || error);
+            await pushUpdate(`⚠️ Agent error: ${error?.message || "Unknown error"}`);
+            throw error;
           }
+        },
+        { connection: this.redis, concurrency: 50 }
+      );
 
-          // Build the final parts array matching the sync mode format
-          const finalParts: any[] = [
-            ...collectedParts,
-            { type: "text", text: fullContent },
-          ];
-
-          // Final flush with all parts
-          await pushUpdate(fullContent || "(No response generated)", finalParts);
-
-          console.log(`✅ [ChatWorker] JOB COMPLETED: ${job.id} (${fullContent.length} chars, ${collectedParts.length} tool parts)`);
-          return { success: true };
-        } catch (error: any) {
-          console.error(`❌ [ChatWorker] JOB FAILED (${job.id}):`, error?.message || error);
-          await pushUpdate(`⚠️ Agent error: ${error?.message || "Unknown error"}`);
-          throw error;
-        }
-      },
-      {
-        connection: this.redis,
-        concurrency: 50,
-      }
-    );
-
-    this.worker.on("failed", (job, err) => {
-      console.error(`[ChatWorker] Worker failed job ${job?.id}:`, err.message);
-    });
+      this.worker.on("failed", (job, err) => {
+        console.error(`[ChatWorker] Worker failed job ${job?.id}:`, err.message);
+      });
+    }
   }
 
   async addJob(data: any) {
-    return await this.queue.add("chat-job", data);
+    return await this.queue.add("chat-job", data, {
+      removeOnComplete: {
+        count: 100, // Keep only the last 100 completed jobs
+        age: 24 * 3600, // Or keep for 24 hours
+      },
+      removeOnFail: {
+        count: 500, // Keep more failures for debugging
+      },
+    });
+  }
+
+  async close() {
+    if (this.worker) await this.worker.close();
+    await this.queue.close();
+    await this.redis.quit();
   }
 }
+

@@ -66,6 +66,9 @@ export async function POST(req: NextRequest) {
         clerkToken: token,
       });
 
+      // Close the connection (Producer only needs it briefly)
+      await worker.close();
+
       return NextResponse.json({ 
         success: true, 
         mode: "async", 

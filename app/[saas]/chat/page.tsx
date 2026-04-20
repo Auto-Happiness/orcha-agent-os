@@ -178,13 +178,21 @@ export default function ChatPage() {
       return;
     }
 
-    const restored = persistedMessages.map((m) => ({
-      id: m._id,
-      role: m.role as "user" | "assistant",
-      parts: m.parts ?? [{ type: "text", text: m.content }],
-      content: m.content,
-      createdAt: new Date(m.createdAt),
-    }));
+    const restored = persistedMessages.map((m) => {
+      const parts = m.parts ?? [{ type: "text", text: m.content }];
+      const toolInvocations = parts
+        .filter((p: any) => p.type === "tool-invocation" && p.toolInvocation)
+        .map((p: any) => p.toolInvocation);
+
+      return {
+        id: m._id,
+        role: m.role as "user" | "assistant",
+        parts,
+        content: m.content,
+        toolInvocations: toolInvocations.length > 0 ? toolInvocations : undefined,
+        createdAt: new Date(m.createdAt),
+      };
+    });
     setMessages(restored as any);
   }, [activeSessionId, persistedMessages, setMessages, isStreaming]);
 
