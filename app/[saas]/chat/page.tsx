@@ -266,6 +266,7 @@ export default function ChatPage() {
 
   return (
     <Box h="calc(100vh - 56px)" style={{ display: "flex", overflow: "hidden" }}>
+      <title>Chat</title>
       {activeOrg?._id && isSignedIn && (
         <ChatSessionSidebar
           organizationId={activeOrg._id}

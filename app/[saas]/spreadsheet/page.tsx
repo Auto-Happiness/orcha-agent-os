@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Box, Stack, Text, Group, Button, ActionIcon, Tooltip, Paper, Title, Loader, Center } from "@mantine/core";
 import { IconPlus, IconTableFilled, IconTrash, IconPencil, IconArrowRight } from "@tabler/icons-react";
@@ -46,6 +46,7 @@ export default function SpreadsheetListPage() {
 
   return (
     <Box p="xl">
+      <title>Reports</title>
       <Stack gap="xl">
         <Group justify="space-between" align="flex-end">
           <Box>

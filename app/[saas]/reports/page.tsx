@@ -8,6 +8,7 @@ export default function ReportsPage() {
   const router = useRouter();
 
   useEffect(() => {
+    document.title = "Reports";
     router.replace(`/${saas}/spreadsheet`);
   }, [saas, router]);
 

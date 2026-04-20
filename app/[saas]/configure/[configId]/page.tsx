@@ -234,6 +234,7 @@ export default function EditConfigurationPage() {
 
   return (
     <Box p="4rem" style={{ maxWidth: "1600px" }}>
+      <title>{currentConfig?.name || "Configure Environment"}</title>
       <Stack gap="xl">
         <Group justify="space-between">
           <Button

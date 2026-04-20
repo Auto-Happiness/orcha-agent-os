@@ -14,6 +14,7 @@ import {
   RingProgress,
   Title,
 } from "@mantine/core";
+import { useEffect } from "react";
 import {
   IconRobot,
   IconPlugConnected,
@@ -135,6 +136,7 @@ export default function DashboardPage() {
 
   return (
     <Box p="xl" style={{ color: "white" }}>
+      <title>{params?.saas ? `Dashboard - ${params.saas}` : "Dashboard"}</title>
       {/* Page header */}
       <Stack gap={4} mb="xl">
         <Title order={2} c="white" fw={700}>

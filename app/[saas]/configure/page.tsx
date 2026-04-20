@@ -17,12 +17,15 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SavedConfigsList } from "@/components/Configure/SavedConfigsList";
+import { useEffect } from "react";
 
 export default function ConfigurePage() {
   const { saas } = useParams();
   const organization = useQuery(api.organizations.getSafeBySlug, { 
     slug: saas as string 
   });
+
+  // Handle Initial Loading State
 
   // Handle Initial Loading State
   if (organization === undefined) {
@@ -58,6 +61,7 @@ export default function ConfigurePage() {
 
   return (
     <Box p="4rem" style={{ maxWidth: "1600px" }}>
+      <title>{saas ? `Configurations - ${saas}` : "Configurations"}</title>
       <Stack gap="4rem">
         <Box mb="xl">
           <Title order={1} c="white" size="2rem" mb="xs" style={{ letterSpacing: "-0.02em" }}>
