@@ -35,3 +35,10 @@ export const updateLastExecuted = mutation({
     await ctx.db.patch(args.queryId, { lastExecutedAt: Date.now() });
   },
 });
+
+export const remove = mutation({
+  args: { queryId: v.id("savedQueries") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.queryId);
+  },
+});

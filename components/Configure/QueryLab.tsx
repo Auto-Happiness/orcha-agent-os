@@ -28,7 +28,8 @@ import {
   IconStar,
   IconTable,
   IconColumns,
-  IconEdit
+  IconEdit,
+  IconTrash
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery } from "convex/react";
@@ -45,6 +46,7 @@ interface QueryLabProps {
 
 export function QueryLab({ currentConfig, organization, currentUser, savedQueries, wizardData }: QueryLabProps) {
   const saveQueryMutation = useMutation(api.savedQueries.save);
+  const removeQueryMutation = useMutation(api.savedQueries.remove);
 
   const [sql, setSql] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
@@ -123,6 +125,22 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
       });
     } catch (err: any) {
       notifications.show({ title: "Save Failed", message: err.message, color: "red" });
+    }
+  };
+
+  const handleDeleteQuery = async (e: React.MouseEvent, queryId: any) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this saved query?")) return;
+    
+    try {
+      await removeQueryMutation({ queryId });
+      notifications.show({
+        title: "Query Deleted",
+        message: "The saved query has been removed from your library.",
+        color: "violet"
+      });
+    } catch (err: any) {
+      notifications.show({ title: "Delete Failed", message: err.message, color: "red" });
     }
   };
 
@@ -313,7 +331,17 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                       >
                         <Group justify="space-between" mb={4}>
                           <Text size="xs" fw={700} c="white">{item.name}</Text>
-                          <IconStar size={10} color="#a855f7" />
+                          <Group gap={4}>
+                            <IconStar size={10} color="#a855f7" />
+                            <ActionIcon 
+                              size="xs" 
+                              variant="subtle" 
+                              color="red" 
+                              onClick={(e) => handleDeleteQuery(e, item._id)}
+                            >
+                              <IconTrash size={10} />
+                            </ActionIcon>
+                          </Group>
                         </Group>
                         <Text size="10px" c="dimmed" truncate>{item.sql}</Text>
                         <Text size="10px" c="dimmed" mt={4}>{new Date(item.createdAt).toLocaleDateString()}</Text>
