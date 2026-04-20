@@ -25,7 +25,8 @@ import {
   Table,
   ActionIcon as MantineActionIcon,
   Tooltip,
-  Loader
+  Loader,
+  ThemeIcon
 } from "@mantine/core";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -55,7 +56,9 @@ import {
   IconSearch,
   IconStar,
   IconSql,
-  IconBrain
+  IconBrain,
+  IconAlertTriangle,
+  IconTrashX
 } from "@tabler/icons-react";
 import { inputStyles } from "@/lib/styles";
 import { notifications } from "@mantine/notifications";
@@ -273,13 +276,70 @@ export default function EditConfigurationPage() {
         </Tabs>
       </Stack>
 
-      <Modal opened={deleteModalOpen} onClose={() => { setDeleteModalOpen(false); setDeleteConfirmName(""); }} title="Permanently Delete Environment?" centered styles={{ content: { background: "#13102a" }, title: { color: "white" } }}>
-        <Stack gap="lg">
-          <Text size="sm" c="dimmed">Type <b>{currentConfig.name}</b> to confirm deletion.</Text>
-          <TextInput placeholder={currentConfig.name} styles={inputStyles} value={deleteConfirmName} onChange={(e) => setDeleteConfirmName(e.target.value)} autoFocus />
-          <Group justify="flex-end">
-            <Button variant="subtle" color="dimmed" onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
-            <Button color="red" loading={isDeleting} disabled={deleteConfirmName !== currentConfig.name} onClick={handleDelete}>Delete Permanently</Button>
+      <Modal 
+        opened={deleteModalOpen} 
+        onClose={() => { setDeleteModalOpen(false); setDeleteConfirmName(""); }} 
+        title={
+          <Group gap="xs">
+            <ThemeIcon color="red" variant="light" size="sm">
+              <IconAlertTriangle size={16} />
+            </ThemeIcon>
+            <Text fw={700}>Permanently Delete Environment?</Text>
+          </Group>
+        } 
+        centered 
+        size="md"
+        radius="lg"
+        overlayProps={{
+          color: "#05010d",
+          opacity: 0.85,
+          blur: 10,
+        }}
+        styles={{ 
+          content: { background: "#0c0814", border: "1px solid rgba(255,0,0,0.2)", padding: "1rem" }, 
+          header: { background: "#0c0814", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "1rem" },
+          title: { color: "white" } 
+        }}
+      >
+        <Stack gap="xl">
+          <Box p="md" style={{ background: "rgba(255,0,0,0.05)", borderRadius: "8px", border: "1px solid rgba(255,0,0,0.1)" }}>
+             <Stack gap="xs">
+                <Text size="sm" c="red.4" fw={700}>This action cannot be undone.</Text>
+                <Text size="xs" c="dimmed" lh={1.6}>
+                   Deleting the <b>{currentConfig.name}</b> environment will permanently remove all semantic models, 
+                   saved queries, and configuration metadata. Connected applications using these definition IDs will stop functioning immediately.
+                </Text>
+             </Stack>
+          </Box>
+
+          <Stack gap={8}>
+            <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase", letterSpacing: rem(1) }}>
+              Confirm Environment Name
+            </Text>
+            <TextInput 
+              placeholder={currentConfig.name} 
+              styles={inputStyles} 
+              value={deleteConfirmName} 
+              onChange={(e) => setDeleteConfirmName(e.target.value)} 
+              autoFocus 
+            />
+          </Stack>
+
+          <Group justify="flex-end" gap="md">
+            <Button variant="subtle" color="gray" onClick={() => setDeleteModalOpen(false)}>
+              Keep Environment
+            </Button>
+            <Button 
+              color="red" 
+              variant="filled"
+              loading={isDeleting} 
+              disabled={deleteConfirmName !== currentConfig.name} 
+              onClick={handleDelete}
+              leftSection={<IconTrashX size={16} />}
+              style={{ boxShadow: deleteConfirmName === currentConfig.name ? "0 0 20px rgba(239, 68, 68, 0.3)" : "none" }}
+            >
+              Delete Permanently
+            </Button>
           </Group>
         </Stack>
       </Modal>

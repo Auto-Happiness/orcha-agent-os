@@ -52,3 +52,11 @@ export const ROW_HEADER_WIDTH = 46;
 export const COL_HEADER_HEIGHT = 24;
 export const DEFAULT_ROWS = 100;
 export const DEFAULT_COLS = 26;
+
+export type CellValue = string | number | boolean | null;
+export type SpreadsheetRow = Record<string, CellValue>;
+export type ColDef = {
+  key: string;
+  name: string;
+  width: number;
+};

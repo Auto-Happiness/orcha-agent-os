@@ -72,7 +72,7 @@ export function MemoryStatus({ currentConfig, activeOrgId }: MemoryStatusProps) 
         <Text size="xs" c="dimmed">Current configuration for the RAG indexing and vector retrieval engine.</Text>
       </Box>
 
-      <Grid gutter="xl">
+      <Grid gap="xl">
         <Grid.Col span={8}>
           <Paper withBorder p="2.5rem" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
             <Stack gap="xl">
