@@ -40,14 +40,14 @@ export default function RedirectPage() {
 
     // Prefer active org
     if (organization?.slug) {
-      router.replace(`/${organization.slug}/dashboard`);
+      router.replace(`/${organization.slug}/chat`);
       return;
     }
 
     // Fallback to first membership
     const firstSlug = userMemberships?.data?.[0]?.organization?.slug;
     if (firstSlug) {
-      router.replace(`/${firstSlug}/dashboard`);
+      router.replace(`/${firstSlug}/chat`);
       return;
     }
 
