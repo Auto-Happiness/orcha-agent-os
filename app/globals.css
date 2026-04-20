@@ -23,6 +23,11 @@
   color: white !important;
 }
 
+/* Spotlight Overrides */
+.mantine-Spotlight-action[data-hovered] {
+  background-color: rgba(147, 51, 234, 0.08) !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

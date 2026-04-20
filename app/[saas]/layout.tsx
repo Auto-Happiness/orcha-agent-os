@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useMemo } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -39,6 +39,9 @@ import {
   IconChartBar,
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
+import { Spotlight, spotlight } from "@mantine/spotlight";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 /* ─── Brand logo ─────────────────────────────────────────────────────────── */
 
@@ -140,10 +143,42 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
 
   const params = useParams<{ saas: string }>();
   const pathname = usePathname();
+  const router = useRouter();
   const { user } = useUser();
   const { organization } = useOrganization();
 
   const slug = params?.saas ?? "";
+
+  // ─── Search implementation ──────────────────────────────────────────
+  const orgDoc = useQuery(api.organizations.getSafeBySlug, slug ? { slug } : "skip");
+  const dbConfigs = useQuery(
+    api.databaseConfigs.listByOrganization, 
+    orgDoc?._id ? { organizationId: orgDoc._id } : "skip"
+  );
+
+  const spotlightActions = useMemo(() => {
+    return (dbConfigs || []).map((config) => ({
+      id: config._id,
+      label: config.name,
+      description: `${config.type.charAt(0).toUpperCase() + config.type.slice(1)} Environment`,
+      onClick: () => router.push(`/${slug}/configure/${config._id}`),
+      leftSection: (
+        <Box 
+          style={{ 
+            width: 28, 
+            height: 28, 
+            borderRadius: 6, 
+            background: "rgba(147,51,234,0.1)", 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center" 
+          }}
+        >
+          <IconAdjustments size={16} color="#a855f7" />
+        </Box>
+      ),
+    }));
+  }, [dbConfigs, router, slug]);
 
   function isActive(href: string) {
     return pathname === `/${slug}/${href}` || pathname.startsWith(`/${slug}/${href}/`);
@@ -196,17 +231,20 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                 gap={6}
                 px="sm"
                 py={5}
+                onClick={spotlight.open}
                 style={{
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.08)",
                   borderRadius: "8px",
                   cursor: "pointer",
                   minWidth: 220,
+                  transition: "all 0.2s ease"
                 }}
+                className="hover:bg-white/10"
                 visibleFrom="sm"
               >
                 <IconSearch size={14} color="rgba(255,255,255,0.3)" />
-                <Text size="xs" c="dimmed" style={{ flex: 1 }}>Search agents, pipelines…</Text>
+                <Text size="xs" c="dimmed" style={{ flex: 1 }}>Search configurations…</Text>
                 <Kbd size="xs" style={{ background: "rgba(255,255,255,0.06)", border: "none", color: "rgba(255,255,255,0.3)" }}>⌘K</Kbd>
               </Group>
             </Group>
@@ -404,6 +442,33 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
         <AppShell.Main>
           {children}
         </AppShell.Main>
+
+        {/* ── Search Spotlight ────────────────────────────────────────── */}
+        <Spotlight
+          actions={spotlightActions}
+          nothingFound="No configurations found"
+          highlightQuery
+          searchProps={{
+            leftSection: <IconSearch size={18} stroke={1.5} />,
+            placeholder: "Search your configurations...",
+          }}
+          limit={7}
+          styles={{
+            root: { zIndex: 1000 },
+            content: { 
+              background: "#130f22", 
+              border: "1px solid rgba(147,51,234,0.18)",
+              borderRadius: "12px",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+            },
+            action: {
+              background: "transparent",
+              color: "white",
+              padding: "10px",
+              borderRadius: "8px",
+            }
+          }}
+        />
       </AppShell>
     </MantineUiProvider>
   );
