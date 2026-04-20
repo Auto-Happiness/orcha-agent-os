@@ -6,21 +6,14 @@ import { SignIn, SignUp } from "@clerk/nextjs";
 /* ─── Orcha Logo ─────────────────────────────────────────────────────────── */
 
 function OrchaLogo({ size = 36 }: { size?: number }) {
-  const id = `lg-${size}`;
   return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="18" cy="18" r="17" stroke={`url(#${id})`} strokeWidth="2" />
-      <circle cx="18" cy="18" r="10" stroke={`url(#${id})`} strokeWidth="1.5" opacity="0.45" />
-      <path d="M18 8 L22 14 L18 12 L14 14 Z" fill={`url(#${id})`} />
-      <path d="M18 28 L14 22 L18 24 L22 22 Z" fill={`url(#${id})`} opacity="0.65" />
-      <circle cx="18" cy="18" r="3" fill={`url(#${id})`} />
-      <defs>
-        <linearGradient id={id} x1="1" y1="1" x2="35" y2="35" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#9333ea" />
-          <stop offset="1" stopColor="#c084fc" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <div style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <img 
+        src="/graphics/orca ai 2.png" 
+        alt="Orcha Logo" 
+        style={{ width: "100%", height: "100%", objectFit: "contain" }} 
+      />
+    </div>
   );
 }
 
@@ -87,8 +80,8 @@ function HeroPane() {
         ))}
       </svg>
 
-      <div className="relative z-10 flex flex-col justify-between h-full p-10">
-        <div className="flex items-center gap-3">
+      <div className="relative z-10 flex flex-col h-full p-10">
+        <div className="flex items-center gap-3 shrink-0">
           <OrchaLogo size={38} />
           <div>
             <p className="text-white font-semibold text-base leading-none tracking-wide">Orcha</p>
@@ -96,33 +89,21 @@ function HeroPane() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex-1 flex flex-col justify-center gap-4 max-w-[540px]">
           <span className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: "#a855f7" }}>
             Next-generation AI orchestration
           </span>
-          <h1 className="text-4xl xl:text-[2.75rem] font-bold leading-[1.15] text-white">
-            We Orcha-strate<br />
+          <h1 className="text-4xl xl:text-[2.75rem] font-bold leading-[1.12] text-white">
+            The Agentic<br />
             <span style={{ background: "linear-gradient(90deg, #9333ea, #c084fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              your systems.
+              Operating System.
             </span>
           </h1>
-          <p className="text-sm leading-relaxed max-w-[300px]" style={{ color: "rgba(255,255,255,0.48)" }}>
-            Build AI workflows visually with LangChain and LangGraph. No code required — deploy in one click.
+          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.48)" }}>
+            A next-generation platform designed to bridge the gap between raw data warehouses and intelligent AI agents.
           </p>
         </div>
 
-        <div className="flex gap-8">
-          {[
-            { label: "AI Workflows", value: "10K+" },
-            { label: "Organizations", value: "500+" },
-            { label: "Uptime", value: "99.9%" },
-          ].map((s) => (
-            <div key={s.label}>
-              <p className="text-white font-bold text-xl">{s.value}</p>
-              <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.38)" }}>{s.label}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 h-28 pointer-events-none"

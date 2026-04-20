@@ -21,6 +21,12 @@ export const metadata: Metadata = {
   title: "Orcha Agent OS",
   description:
     "Orcha Agent OS: Autonomous agents, orchestrated. Connect your data, define your agents, and let Orcha handle the rest — in natural language.",
+  icons: {
+    icon: [
+      { url: "/graphics/favicon.ico" },
+      { url: "/graphics/orca ai 2.png", type: "image/png" }
+    ],
+  },
 };
 
 export default function RootLayout({
