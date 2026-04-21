@@ -134,50 +134,40 @@ export default function SpreadsheetEditorPage() {
     }
   }, [doc, loaded]);
 
-  const updateSheet = useCallback((updater: (s: Sheet) => Sheet) => {
-    setSheets(prev => {
-      setPast(p => [...p.slice(-49), prev]);
-      setFuture([]); // Clear redo stack on new action
-      return prev.map((s, i) => i === activeSheetIdx ? updater(s) : s);
-    });
+  const updateSheet = useCallback((updater: (s: Sheet) => Sheet, recordHistory = true) => {
+    if (recordHistory) {
+      setSheets(prev => {
+        setPast(p => [...p.slice(-49), prev]);
+        setFuture([]);
+        return prev.map((s, i) => i === activeSheetIdx ? updater(s) : s);
+      });
+    } else {
+      setSheets(prev => prev.map((s, i) => i === activeSheetIdx ? updater(s) : s));
+    }
     setSaveStatus("unsaved");
   }, [activeSheetIdx]);
 
   const handleUndo = useCallback(() => {
-    setPast(prevPast => {
-      if (prevPast.length === 0) return prevPast;
-      const prevSheets = prevPast[prevPast.length - 1];
-      const newPast = prevPast.slice(0, -1);
-      
-      setSheets(currentSheets => {
-        setFuture(f => [currentSheets, ...f.slice(0, 49)]);
-        return prevSheets;
-      });
-      
-      return newPast;
-    });
+    if (past.length === 0) return;
+    const prevSheets = past[past.length - 1];
+    setFuture(f => [sheets, ...f.slice(0, 49)]);
+    setPast(p => p.slice(0, -1));
+    setSheets(prevSheets);
     setSaveStatus("unsaved");
-  }, []);
+  }, [past, sheets]);
 
   const handleRedo = useCallback(() => {
-    setFuture(prevFuture => {
-      if (prevFuture.length === 0) return prevFuture;
-      const nextSheets = prevFuture[0];
-      const newFuture = prevFuture.slice(1);
-      
-      setSheets(currentSheets => {
-        setPast(p => [...p.slice(-49), currentSheets]);
-        return nextSheets;
-      });
-      
-      return newFuture;
-    });
+    if (future.length === 0) return;
+    const nextSheets = future[0];
+    setPast(p => [...p.slice(-49), sheets]);
+    setFuture(f => f.slice(1));
+    setSheets(nextSheets);
     setSaveStatus("unsaved");
-  }, []);
+  }, [future, sheets]);
 
   // Debounced auto-save
   const triggerSave = useCallback((currentSheets: Sheet[], name: string) => {
-    if (!spreadsheetId) return;
+    if (!spreadsheetId || !doc) return; // Guard against non-existent doc
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaveStatus("unsaved");
     saveTimerRef.current = setTimeout(async () => {
@@ -189,18 +179,30 @@ export default function SpreadsheetEditorPage() {
           sheets: currentSheets.map(sheetToSparse),
         });
         setSaveStatus("saved");
-      } catch (e) {
+      } catch (e: any) {
+        // If the spreadsheet was deleted while the timer was pending, ignore the 404
+        if (e.message?.includes("Spreadsheet not found")) {
+          console.warn("[Spreadsheet] Document was deleted, cancelling save.");
+          return;
+        }
         console.error("[Spreadsheet] Save failed:", e);
         setSaveStatus("unsaved");
       }
     }, 5000);
-  }, [spreadsheetId, saveDoc]);
+  }, [spreadsheetId, saveDoc, doc]);
 
   // Trigger save whenever sheets change
   useEffect(() => {
     if (!loaded) return;
     triggerSave(sheets, filename);
   }, [sheets, filename, loaded, triggerSave]);
+
+  // Cleanup pending saves on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   const commitEdit = useCallback(() => {
     const cell = editingCellRef.current;
@@ -378,6 +380,34 @@ export default function SpreadsheetEditorPage() {
     setCellMenu(null);
   }, [selection, updateSheet]);
 
+  const handleMoveCells = useCallback((source: Selection, tRow: number, tCol: number) => {
+    updateSheet(s => {
+      const { row: [r1, r2], col: [c1, c2] } = source;
+      const numRows = r2 - r1 + 1;
+      const numCols = c2 - c1 + 1;
+      const newData = s.data.map(row => [...row]);
+      const captured: (Cell | null)[][] = [];
+      for (let r = 0; r < numRows; r++) {
+        captured[r] = [];
+        for (let c = 0; c < numCols; c++) {
+          captured[r][c] = newData[r1 + r][c1 + c];
+          newData[r1 + r][c1 + c] = null;
+        }
+      }
+      for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+          const destR = tRow + r;
+          const destC = tCol + c;
+          if (destR < newData.length && destC < (newData[0]?.length ?? 0)) {
+            newData[destR][destC] = captured[r][c];
+          }
+        }
+      }
+      setSelection({ row: [tRow, tRow + numRows - 1], col: [tCol, tCol + numCols - 1], rowFocus: tRow, colFocus: tCol });
+      return { ...s, data: newData };
+    });
+  }, [updateSheet]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (editingCell) { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } return; }
@@ -411,8 +441,8 @@ export default function SpreadsheetEditorPage() {
   }, [editingCell, selection, sheet, handleSelectCell, handleStartEdit, commitEdit, cancelEdit, updateSheet, handleUndo, handleRedo, handleCopy, handleCut, handlePaste]);
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => { setScrollLeft(e.currentTarget.scrollLeft); setScrollTop(e.currentTarget.scrollTop); }, []);
-  const handleResizeCol = useCallback((col: number, width: number) => { updateSheet(s => ({ ...s, config: { ...s.config, columnlen: { ...s.config.columnlen, [col]: width } } })); }, [updateSheet]);
-  const handleResizeRow = useCallback((row: number, height: number) => { updateSheet(s => ({ ...s, config: { ...s.config, rowlen: { ...s.config.rowlen, [row]: height } } })); }, [updateSheet]);
+  const handleResizeCol = useCallback((col: number, width: number) => { updateSheet(s => ({ ...s, config: { ...s.config, columnlen: { ...s.config.columnlen, [col]: width } } }), false); }, [updateSheet]);
+  const handleResizeRow = useCallback((row: number, height: number) => { updateSheet(s => ({ ...s, config: { ...s.config, rowlen: { ...s.config.rowlen, [row]: height } } }), false); }, [updateSheet]);
 
   const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -498,7 +528,7 @@ export default function SpreadsheetEditorPage() {
         <div ref={scrollRef} onScroll={onScroll} style={{ width: "100%", height: "100%", overflow: "auto", position: "relative" }}>
           <div style={{ width: totalW, height: totalH, position: "absolute", top: 0, left: 0, pointerEvents: "none" }} />
           <div style={{ position: "sticky", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
-            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} onCellContextMenu={(row, col, x, y) => setCellMenu({ row, col, x, y })} scrollLeft={scrollLeft} scrollTop={scrollTop} />
+            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} onCellContextMenu={(row, col, x, y) => setCellMenu({ row, col, x, y })} onMoveCells={handleMoveCells} scrollLeft={scrollLeft} scrollTop={scrollTop} />
             {editingCell && editOverlay && (
               <input ref={editInputRef} value={editValue} onChange={e => { setEditValue(e.target.value); editValueRef.current = e.target.value; }} onKeyDown={e => { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } }} autoFocus style={{ position: "absolute", left: editOverlay.left, top: editOverlay.top, width: editOverlay.width, height: editOverlay.height, background: "#1e1a36", border: "2px solid #a855f7", outline: "none", color: "white", fontSize: 12, padding: "0 6px", fontFamily: "inherit", zIndex: 10, boxSizing: "border-box" }} />
             )}
