@@ -1,0 +1,45 @@
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# Install dependencies including database drivers
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+RUN corepack enable pnpm && pnpm i --frozen-lockfile
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 orcha
+
+# Copy everything for the worker as it needs to run tsx
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Ensure DB drivers are installed if they were passed as peer deps
+RUN npm install mysql2 pg mssql
+
+USER orcha
+
+# ─── Environment Configuration ──────────────────────────────────────────
+ENV NEXT_PUBLIC_CONVEX_URL=""
+ENV REDIS_URL="redis://redis:6379"
+ENV ENCRYPTION_KEY=""
+ENV CLERK_SECRET_KEY=""
+ENV CLERK_WEBHOOK_SECRET=""
+ENV CLERK_ISSUER_DOMAIN=""
+ENV CONVEX_INTERNAL_SECRET=""
+ENV ASYNC="on"
+ENV NODE_ENV=production
+
+# AI Provider Keys
+ENV OPENAI_API_KEY=""
+ENV GOOGLE_GENERATIVE_AI_API_KEY=""
+ENV ANTHROPIC_API_KEY=""
+
+# Google OAuth for MCP tools
+ENV GOOGLE_CLIENT_ID=""
+ENV GOOGLE_CLIENT_SECRET=""
+
+CMD ["npx", "tsx", "lib/bridge/worker-runner.ts"]
