@@ -107,6 +107,7 @@ export default function SpreadsheetEditorPage() {
   const [queryModalOpen, setQueryModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const [loaded, setLoaded] = useState(false);
+  const [headerMenu, setHeaderMenu] = useState<{ type: "row" | "col", index: number, x: number, y: number } | null>(null);
 
   // History for Undo/Redo
   const [past, setPast] = useState<Sheet[][]>([]);
@@ -248,6 +249,66 @@ export default function SpreadsheetEditorPage() {
   }, [selection, updateSheet]);
   handleFormatRef.current = handleFormat;
 
+  const handleStructuralAction = (action: "insertAbove" | "insertBelow" | "delete" | "insertLeft" | "insertRight" | "deleteCol") => {
+    if (!headerMenu) return;
+    const { type, index } = headerMenu;
+    setHeaderMenu(null);
+
+    updateSheet(s => {
+      const newData = s.data.map(r => [...r]);
+      const config = { ...s.config, rowlen: { ...s.config.rowlen }, columnlen: { ...s.config.columnlen } };
+
+      if (type === "row") {
+        if (action === "insertAbove" || action === "insertBelow") {
+          const insertIdx = action === "insertAbove" ? index : index + 1;
+          newData.splice(insertIdx, 0, Array(s.data[0]?.length ?? 0).fill(null));
+          // Shift row heights
+          const newRowLen: Record<number, number> = {};
+          Object.entries(config.rowlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik >= insertIdx) newRowLen[ik + 1] = v;
+            else newRowLen[ik] = v;
+          });
+          config.rowlen = newRowLen;
+        } else if (action === "delete") {
+          if (newData.length <= 1) return s;
+          newData.splice(index, 1);
+          const newRowLen: Record<number, number> = {};
+          Object.entries(config.rowlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik > index) newRowLen[ik - 1] = v;
+            else if (ik < index) newRowLen[ik] = v;
+          });
+          config.rowlen = newRowLen;
+        }
+      } else {
+        // Column actions
+        if (action === "insertLeft" || action === "insertRight") {
+          const insertIdx = action === "insertLeft" ? index : index + 1;
+          newData.forEach(row => row.splice(insertIdx, 0, null));
+          const newColLen: Record<number, number> = {};
+          Object.entries(config.columnlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik >= insertIdx) newColLen[ik + 1] = v;
+            else newColLen[ik] = v;
+          });
+          config.columnlen = newColLen;
+        } else if (action === "deleteCol") {
+          if (newData[0]?.length <= 1) return s;
+          newData.forEach(row => row.splice(index, 1));
+          const newColLen: Record<number, number> = {};
+          Object.entries(config.columnlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik > index) newColLen[ik - 1] = v;
+            else if (ik < index) newColLen[ik] = v;
+          });
+          config.columnlen = newColLen;
+        }
+      }
+      return { ...s, data: newData, config };
+    });
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (editingCell) { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } return; }
@@ -371,13 +432,36 @@ export default function SpreadsheetEditorPage() {
         <div ref={scrollRef} onScroll={onScroll} style={{ width: "100%", height: "100%", overflow: "auto", position: "relative" }}>
           <div style={{ width: totalW, height: totalH, position: "absolute", top: 0, left: 0, pointerEvents: "none" }} />
           <div style={{ position: "sticky", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
-            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} scrollLeft={scrollLeft} scrollTop={scrollTop} />
+            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} scrollLeft={scrollLeft} scrollTop={scrollTop} />
             {editingCell && editOverlay && (
               <input ref={editInputRef} value={editValue} onChange={e => { setEditValue(e.target.value); editValueRef.current = e.target.value; }} onKeyDown={e => { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } }} autoFocus style={{ position: "absolute", left: editOverlay.left, top: editOverlay.top, width: editOverlay.width, height: editOverlay.height, background: "#1e1a36", border: "2px solid #a855f7", outline: "none", color: "white", fontSize: 12, padding: "0 6px", fontFamily: "inherit", zIndex: 10, boxSizing: "border-box" }} />
             )}
             <FloatingImages images={sheet.images ?? []} onUpdate={(id, patch) => updateSheet(s => ({ ...s, images: (s.images ?? []).map(img => img.id === id ? { ...img, ...patch } : img) }))} onRemove={(id) => updateSheet(s => ({ ...s, images: (s.images ?? []).filter(img => img.id !== id) }))} />
           </div>
         </div>
+
+        {headerMenu && (
+          <>
+            <Box onClick={() => setHeaderMenu(null)} onContextMenu={(e) => { e.preventDefault(); setHeaderMenu(null); }} style={{ position: "fixed", inset: 0, zIndex: 9999 }} />
+            <Box style={{ position: "fixed", left: headerMenu.x, top: headerMenu.y, zIndex: 10000, background: "#130f22", border: "1px solid rgba(147,51,234,0.25)", borderRadius: 8, padding: "4px", minWidth: 160, boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
+              {headerMenu.type === "row" ? (
+                <>
+                  <Box onClick={() => handleStructuralAction("insertAbove")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Above</Box>
+                  <Box onClick={() => handleStructuralAction("insertBelow")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Below</Box>
+                  <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+                  <Box onClick={() => handleStructuralAction("delete")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Delete Row</Box>
+                </>
+              ) : (
+                <>
+                  <Box onClick={() => handleStructuralAction("insertLeft")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Left</Box>
+                  <Box onClick={() => handleStructuralAction("insertRight")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Right</Box>
+                  <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+                  <Box onClick={() => handleStructuralAction("deleteCol")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Delete Column</Box>
+                </>
+              )}
+            </Box>
+          </>
+        )}
       </Box>
 
       <SheetTabs sheets={sheets} activeIdx={activeSheetIdx} onSelect={setActiveSheetIdx} onAdd={handleAddSheet} onRename={(i, name) => setSheets(prev => prev.map((s, idx) => idx === i ? { ...s, name } : s))} onRemove={(i) => { if (sheets.length === 1) return; setSheets(prev => prev.filter((_, idx) => idx !== i)); setActiveSheetIdx(prev => Math.min(prev, sheets.length - 2)); }} />

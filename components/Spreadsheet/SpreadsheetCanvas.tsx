@@ -17,6 +17,7 @@ interface Props {
   onStartEdit: (row: number, col: number) => void;
   onResizeCol: (col: number, width: number) => void;
   onResizeRow: (row: number, height: number) => void;
+  onHeaderContextMenu: (type: "row" | "col", index: number, x: number, y: number) => void;
   scrollLeft: number;
   scrollTop: number;
 }
@@ -40,7 +41,7 @@ const COLORS = {
 };
 
 const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCanvas(
-  { sheet, selection, editingCell, onSelectCell, onStartEdit, onResizeCol, onResizeRow, scrollLeft, scrollTop },
+  { sheet, selection, editingCell, onSelectCell, onStartEdit, onResizeCol, onResizeRow, onHeaderContextMenu, scrollLeft, scrollTop },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -337,6 +338,28 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
     if (cell) onStartEdit(cell.row, cell.col);
   }, [getCell, onStartEdit]);
 
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (y <= COL_HEADER_HEIGHT && x > ROW_HEADER_WIDTH) {
+      // Column Header
+      const colOffsets = buildOffsets(sheet.data[0]?.length ?? 0, c => getColWidth(sheet.config, c));
+      const col = hitTest(colOffsets, x - ROW_HEADER_WIDTH + scrollLeft);
+      onHeaderContextMenu("col", col, e.clientX, e.clientY);
+      e.preventDefault();
+    } else if (x <= ROW_HEADER_WIDTH && y > COL_HEADER_HEIGHT) {
+      // Row Header
+      const rowOffsets = buildOffsets(sheet.data.length, r => getRowHeight(sheet.config, r));
+      const row = hitTest(rowOffsets, y - COL_HEADER_HEIGHT + scrollTop);
+      onHeaderContextMenu("row", row, e.clientX, e.clientY);
+      e.preventDefault();
+    }
+  }, [sheet, scrollLeft, scrollTop, onHeaderContextMenu]);
+
   return (
     <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden" }}>
       <canvas
@@ -345,6 +368,7 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onDoubleClick={onDblClick}
+        onContextMenu={onContextMenu}
         style={{ display: "block", cursor: "cell" }}
       />
     </div>
