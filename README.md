@@ -6,7 +6,7 @@
 
 **The Semantic Operating System for Multi-Tenant AI Agents**
 
-Orcha Agent OS is a next-generation platform designed to bridge the gap between raw data warehouses and intelligent AI agents. Inspired by the semantic modeling approach of Wren AI, Orcha provides a robust, multi-tenant infrastructure to transform your database into a context-aware knowledge base, accessible via the **Model Context Protocol (MCP)**.
+Orcha Agent OS is a next-generation platform designed to bridge the gap between raw data warehouses and intelligent AI agents. Inspired by the semantic modeling, Orcha provides a robust, multi-tenant infrastructure to transform your database into a context-aware knowledge base, accessible via the **Model Context Protocol (MCP)**.
 
 ---
 

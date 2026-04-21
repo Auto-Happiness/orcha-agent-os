@@ -13,7 +13,6 @@ interface WizardData {
   description: string;
   image: string | null;
   tags: string[];
-  // Wren AI Modeling Data
   selectedTables: string[];
   isScanning: boolean;
   modelDefinition: any;
@@ -63,8 +62,8 @@ export const useCreationWizard = create<CreationWizardStore>()(
       step: 0,
       data: initialData,
       setStep: (step) => set({ step }),
-      updateData: (updates) => set((state) => ({ 
-        data: { ...state.data, ...updates } 
+      updateData: (updates) => set((state) => ({
+        data: { ...state.data, ...updates }
       })),
       reset: () => set({ step: 0, data: initialData }),
     }),

@@ -123,7 +123,6 @@ export default defineSchema({
     .index("by_config", ["configId"])
     .index("by_name", ["name"]),
 
-  // ─── Wren AI: Semantic Layer Models ─────────────────────
   semanticModels: defineTable({
     organizationId: v.id("organizations"),
     configId: v.id("databaseConfigs"),
@@ -165,7 +164,6 @@ export default defineSchema({
       filterFields: ["organizationId", "configId"],
     }),
 
-  // ─── Wren AI: Semantic Relationships (JOINs) ───────────
   semanticRelationships: defineTable({
     organizationId: v.id("organizations"),
     configId: v.id("databaseConfigs"),

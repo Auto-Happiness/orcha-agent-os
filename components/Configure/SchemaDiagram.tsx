@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useMemo } from "react";
-import ReactFlow, { 
-  Handle, 
-  Position, 
-  Background, 
+import ReactFlow, {
+  Handle,
+  Position,
+  Background,
   Controls,
   Node,
   Edge,
@@ -18,18 +18,16 @@ import "reactflow/dist/style.css";
 import { Box, Text, Group, Stack, Badge, rem, Divider } from "@mantine/core";
 import { IconDatabase, IconFingerprint, IconRelationOneToOne } from "@tabler/icons-react";
 
-// --- Wren AI Style Constants ---
 const PRIMARY_PURPLE = "#a855f7";
 const BACKGROUND_DARK = "#0c0c0e";
 const NODE_BG = "#1a1b1e";
 const HEADER_BG = "#2c2e33";
 
-// --- Custom DB Table Node (Wren AI Look) ---
 const TableNode = ({ data }: { data: any }) => {
   return (
-    <Box 
-      style={{ 
-        width: 280, 
+    <Box
+      style={{
+        width: 280,
         backgroundColor: NODE_BG,
         borderRadius: "8px",
         border: `1px solid rgba(255,255,255,0.08)`,
@@ -39,10 +37,10 @@ const TableNode = ({ data }: { data: any }) => {
       }}
     >
       {/* Header */}
-      <Box 
-        p="xs" 
-        style={{ 
-          backgroundColor: HEADER_BG, 
+      <Box
+        p="xs"
+        style={{
+          backgroundColor: HEADER_BG,
           borderBottom: "1px solid rgba(255,255,255,0.08)",
           cursor: "grab"
         }}
@@ -61,18 +59,18 @@ const TableNode = ({ data }: { data: any }) => {
 
       {/* Body */}
       <Stack gap={0} p={4}>
-         <Box px="xs" py={4}>
-            <Text size="9px" fw={700} c="dimmed" style={{ textTransform: "uppercase" }}>Columns</Text>
-         </Box>
-        
+        <Box px="xs" py={4}>
+          <Text size="9px" fw={700} c="dimmed" style={{ textTransform: "uppercase" }}>Columns</Text>
+        </Box>
+
         {data.fields?.map((field: any) => (
-          <Box 
-            key={field.columnName} 
+          <Box
+            key={field.columnName}
             px="xs"
             py={4}
-            style={{ 
-              position: 'relative', 
-              display: 'flex', 
+            style={{
+              position: 'relative',
+              display: 'flex',
               alignItems: 'center',
               borderRadius: "4px",
               transition: "background 150ms ease"
@@ -80,20 +78,20 @@ const TableNode = ({ data }: { data: any }) => {
             className="column-row"
           >
             {/* Connection Handles (Left & Right) */}
-            <Handle 
-              type="target" 
-              position={Position.Left} 
-              id={`target-${field.columnName}`} 
-              style={{ 
-                left: -4, 
-                background: PRIMARY_PURPLE, 
-                width: 8, 
-                height: 8, 
+            <Handle
+              type="target"
+              position={Position.Left}
+              id={`target-${field.columnName}`}
+              style={{
+                left: -4,
+                background: PRIMARY_PURPLE,
+                width: 8,
+                height: 8,
                 border: "2px solid #0c0c0e",
                 zIndex: 10
-              }} 
+              }}
             />
-            
+
             <Group justify="space-between" style={{ flex: 1 }} wrap="nowrap">
               <Group gap={6} wrap="nowrap">
                 {field.isPrimary ? (
@@ -106,18 +104,18 @@ const TableNode = ({ data }: { data: any }) => {
               <Text size="9px" c="dimmed" style={{ fontFamily: "monospace" }}>{field.type === 'dimension' ? 'DIM' : 'MEA'}</Text>
             </Group>
 
-            <Handle 
-              type="source" 
-              position={Position.Right} 
-              id={`source-${field.columnName}`} 
-              style={{ 
-                right: -4, 
-                background: PRIMARY_PURPLE, 
-                width: 8, 
-                height: 8, 
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={`source-${field.columnName}`}
+              style={{
+                right: -4,
+                background: PRIMARY_PURPLE,
+                width: 8,
+                height: 8,
                 border: "2px solid #0c0c0e",
                 zIndex: 10
-              }} 
+              }}
             />
           </Box>
         ))}
@@ -149,16 +147,16 @@ const RelationshipEdge = ({
 
   return (
     <>
-      <BaseEdge 
-        path={edgePath} 
-        markerEnd={markerEnd} 
-        style={{ 
-          ...style, 
-          stroke: PRIMARY_PURPLE, 
-          strokeWidth: 2, 
+      <BaseEdge
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={{
+          ...style,
+          stroke: PRIMARY_PURPLE,
+          strokeWidth: 2,
           strokeOpacity: 0.5,
           filter: "drop-shadow(0 0 4px rgba(168, 85, 247, 0.4))"
-        }} 
+        }}
       />
     </>
   );
@@ -209,11 +207,11 @@ export function SchemaDiagram({ models, relationships }: SchemaDiagramProps) {
   }, [relationships]);
 
   return (
-    <Box h="700px" style={{ 
-      border: "1px solid rgba(255,255,255,0.05)", 
-      borderRadius: rem(12), 
-      overflow: "hidden", 
-      background: BACKGROUND_DARK 
+    <Box h="700px" style={{
+      border: "1px solid rgba(255,255,255,0.05)",
+      borderRadius: rem(12),
+      overflow: "hidden",
+      background: BACKGROUND_DARK
     }}>
       <ReactFlow
         nodes={nodes}
@@ -222,16 +220,16 @@ export function SchemaDiagram({ models, relationships }: SchemaDiagramProps) {
         edgeTypes={edgeTypes}
         fitView
       >
-        <Background 
-          gap={24} 
+        <Background
+          gap={24}
           color="rgba(168, 85, 247, 0.05)" // Subtle purple grid
-          variant={BackgroundVariant.Lines} 
+          variant={BackgroundVariant.Lines}
         />
-        <Controls 
-          style={{ 
-            background: NODE_BG, 
+        <Controls
+          style={{
+            background: NODE_BG,
             border: "1px solid rgba(255,255,255,0.08)"
-          }} 
+          }}
         />
       </ReactFlow>
     </Box>

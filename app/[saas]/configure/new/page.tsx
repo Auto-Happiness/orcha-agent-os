@@ -7,23 +7,23 @@ import { notifications } from "@mantine/notifications";
 import { useUser, useOrganization } from "@clerk/nextjs";
 import { IconShieldCheck } from "@tabler/icons-react";
 
-import { 
-  Container, 
-  Stack, 
-  Text, 
-  Box, 
-  Button, 
-  Group, 
+import {
+  Container,
+  Stack,
+  Text,
+  Box,
+  Button,
+  Group,
   Title,
   Divider,
   Stepper,
   rem,
 } from "@mantine/core";
-import { 
-  IconChevronLeft, 
-  IconDatabase, 
-  IconRobot, 
-  IconArrowRight, 
+import {
+  IconChevronLeft,
+  IconDatabase,
+  IconRobot,
+  IconArrowRight,
   IconCheck,
   IconFingerprint,
   IconSettingsCheck,
@@ -64,7 +64,7 @@ export default function NewConfigurationPage() {
   const { isAuthenticated } = useConvexAuth();
   const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
   const aiKeys = useQuery(api.aiKeys.listByOrganization, (isAuthenticated && activeOrg?._id) ? { organizationId: activeOrg._id } : "skip");
-  
+
   const hasKey = data.memoryProvider ? (data.memoryProvider === "local" || (aiKeys?.some(k => k.provider === data.memoryProvider))) : false;
   const isFinalStep = step === 4;
 
@@ -152,7 +152,7 @@ export default function NewConfigurationPage() {
         updatedBy: finalUserId as any,
       });
 
-      // 2. Trigger the "Wren AI" Semantic Scan
+      // 2. Trigger the Semantic Scan
       const notificationId = "scanning-schema";
       notifications.show({
         id: notificationId,
@@ -181,12 +181,12 @@ export default function NewConfigurationPage() {
         updateData({ configId });
 
         // Zero-Config: Auto-run AI suggestions and enrichment
-        await suggestRelationships({ 
-          organizationId: finalOrgId as any, 
-          configId: configId as any 
+        await suggestRelationships({
+          organizationId: finalOrgId as any,
+          configId: configId as any
         });
-        
-        await generateAiEnrichment({ 
+
+        await generateAiEnrichment({
           configId: configId as any,
           businessContext: data.businessContext || "Database source configuration for Orcha Agent OS."
         });
@@ -194,7 +194,7 @@ export default function NewConfigurationPage() {
         // ── Vector Indexing For Massive Scale ──
         // Note: memoryProvider is selected in a later step, so we use a safe fallback first
         // and re-run if they change it. But for initialization, we trigger with their current/default choice.
-        const preferredProvider = data.memoryProvider || (aiKeys?.find(k => k.provider === "gemini" || k.provider === "openai")?.provider 
+        const preferredProvider = data.memoryProvider || (aiKeys?.find(k => k.provider === "gemini" || k.provider === "openai")?.provider
           || (aiKeys?.some(k => k.provider === "local") ? "local" : "gemini"));
 
         indexConfigSchema({
@@ -212,7 +212,7 @@ export default function NewConfigurationPage() {
           loading: false,
           autoClose: 3000,
         });
-        
+
         handleNext(); // Move to catalog
       } else {
         throw new Error(scanResult.message);
@@ -237,10 +237,10 @@ export default function NewConfigurationPage() {
       <Stack gap="3rem">
         {/* Navigation Back */}
         <Group>
-          <Button 
+          <Button
             onClick={handleBack}
-            variant="subtle" 
-            color="dimmed" 
+            variant="subtle"
+            color="dimmed"
             leftSection={<IconChevronLeft size={16} />}
             px={0}
           >
@@ -257,10 +257,10 @@ export default function NewConfigurationPage() {
 
         <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} />
 
-        <Stepper 
-          active={step} 
-          onStepClick={onStepClick} 
-          color="violet" 
+        <Stepper
+          active={step}
+          onStepClick={onStepClick}
+          color="violet"
           iconSize={42}
           allowNextStepsSelect={false}
           styles={{
@@ -270,32 +270,32 @@ export default function NewConfigurationPage() {
           }}
         >
           {/* Step 1: Connectivity (Data Source) */}
-          <Stepper.Step 
-            label="Connectivity" 
+          <Stepper.Step
+            label="Connectivity"
             description="Secure Source Link"
             icon={<IconDatabase size={20} />}
           >
             <Stack gap="xl" py="2rem">
-               <Box>
-                  <Title order={3} size="h3" c="white" mb={4}>Primary Data Storage</Title>
-                  <Text size="xs" c="dimmed">Set up the secure tunnel to your data lake or operational database.</Text>
-               </Box>
+              <Box>
+                <Title order={3} size="h3" c="white" mb={4}>Primary Data Storage</Title>
+                <Text size="xs" c="dimmed">Set up the secure tunnel to your data lake or operational database.</Text>
+              </Box>
 
-               <DatabaseConfig />
+              <DatabaseConfig />
 
-               <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
-              
-               <Group justify="flex-end">
-                  <Button color="violet" size="md" onClick={handleInitializeConnection} loading={initializing} rightSection={<IconArrowRight size={16} />}>
-                    Connect and Scan Schema
-                  </Button>
-               </Group>
+              <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
+
+              <Group justify="flex-end">
+                <Button color="violet" size="md" onClick={handleInitializeConnection} loading={initializing} rightSection={<IconArrowRight size={16} />}>
+                  Connect and Scan Schema
+                </Button>
+              </Group>
             </Stack>
           </Stepper.Step>
 
           {/* Step 2: Catalog Scanning */}
-          <Stepper.Step 
-            label="Catalog" 
+          <Stepper.Step
+            label="Catalog"
             description="Scan and Select Tables"
             icon={<IconFingerprint size={20} />}
           >
@@ -304,26 +304,26 @@ export default function NewConfigurationPage() {
                 <Title order={3} size="h3" c="white" mb={4}>Metadata Extraction</Title>
                 <Text size="xs" c="dimmed">Discover tables and columns available in your data source. Selective scanning ensures focus and precision.</Text>
               </Box>
-              
+
               <Box pt="md">
                 {data.configId ? (
-                   <CatalogScan configId={data.configId} />
+                  <CatalogScan configId={data.configId} />
                 ) : (
-                   <Stack align="center" gap="sm" py="3rem">
-                     <IconDatabase size={48} color="rgba(147,51,234,0.4)" />
-                     <Text c="dimmed">Please connect a data source in the previous step first.</Text>
-                   </Stack>
+                  <Stack align="center" gap="sm" py="3rem">
+                    <IconDatabase size={48} color="rgba(147,51,234,0.4)" />
+                    <Text c="dimmed">Please connect a data source in the previous step first.</Text>
+                  </Stack>
                 )}
               </Box>
 
               <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
-              
+
               <Group justify="space-between">
                 <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Source Link</Button>
-                <Button 
-                  color="violet" 
-                  size="md" 
-                  onClick={handleNext} 
+                <Button
+                  color="violet"
+                  size="md"
+                  onClick={handleNext}
                   disabled={!data.configId || (data.selectedTables?.length || 0) === 0}
                   rightSection={<IconArrowRight size={16} />}
                 >
@@ -334,12 +334,12 @@ export default function NewConfigurationPage() {
           </Stepper.Step>
 
           {/* Step 3: Semantic Bridge (Modeling) */}
-          <Stepper.Step 
-            label="Semantic Bridge" 
+          <Stepper.Step
+            label="Semantic Bridge"
             description="Define Business Logic"
             icon={<IconSettingsCheck size={20} />}
           >
-             <Stack gap="xl" py="2rem">
+            <Stack gap="xl" py="2rem">
               <Box>
                 <Title order={3} size="h3" c="white" mb={4}>Semantic Layer (MDL)</Title>
                 <Text size="xs" c="dimmed">Map raw database columns to business concepts (Dimensions and Measures). Define the relationships that drive intelligent SQL generation.</Text>
@@ -347,53 +347,53 @@ export default function NewConfigurationPage() {
 
               <Box pt="md">
                 {data.configId ? (
-                   <SemanticBridge configId={data.configId} />
+                  <SemanticBridge configId={data.configId} />
                 ) : (
-                   <Stack align="center" gap="sm" py="3rem">
-                     <IconDatabase size={48} color="rgba(147,51,234,0.4)" />
-                     <Text c="dimmed">Please select tables in the previous step first.</Text>
-                   </Stack>
+                  <Stack align="center" gap="sm" py="3rem">
+                    <IconDatabase size={48} color="rgba(147,51,234,0.4)" />
+                    <Text c="dimmed">Please select tables in the previous step first.</Text>
+                  </Stack>
                 )}
               </Box>
 
               <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
-              
-               <Group justify="space-between">
+
+              <Group justify="space-between">
                 <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Metadata Discovery</Button>
                 <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
-                   Configure Semantic Memory
+                  Configure Semantic Memory
                 </Button>
               </Group>
             </Stack>
           </Stepper.Step>
-          
+
           {/* Step 4: Memory Configuration */}
-          <Stepper.Step 
-            label="Memory" 
+          <Stepper.Step
+            label="Memory"
             description="Indexing & RAG Engine"
             icon={<IconBrain size={20} />}
           >
-             <Stack gap="xl" py="2rem">
-                <MemoryConfig />
-                <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
-                <Group justify="space-between">
-                    <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Modeling</Button>
-                    <Button 
-                        color="violet" 
-                        size="md" 
-                        onClick={handleNext} 
-                        disabled={!hasKey}
-                        rightSection={<IconArrowRight size={16} />}
-                    >
-                        Finalize Deployment Profile
-                    </Button>
-                </Group>
-             </Stack>
+            <Stack gap="xl" py="2rem">
+              <MemoryConfig />
+              <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
+              <Group justify="space-between">
+                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Modeling</Button>
+                <Button
+                  color="violet"
+                  size="md"
+                  onClick={handleNext}
+                  disabled={!hasKey}
+                  rightSection={<IconArrowRight size={16} />}
+                >
+                  Finalize Deployment Profile
+                </Button>
+              </Group>
+            </Stack>
           </Stepper.Step>
 
           {/* Step 4: Final Profile Metadata */}
-          <Stepper.Step 
-            label="Finalize" 
+          <Stepper.Step
+            label="Finalize"
             description="Environment Branding"
             icon={<IconCheck size={20} />}
           >
@@ -409,46 +409,46 @@ export default function NewConfigurationPage() {
 
               <Group justify="space-between">
                 <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Memory</Button>
-                <Button 
-                  color="violet" 
-                  size="lg" 
-                  px={50} 
+                <Button
+                  color="violet"
+                  size="lg"
+                  px={50}
                   disabled={!data.name || !data.configId || !hasKey}
                   onClick={async () => {
                     if (!data.configId) return;
-                    
+
                     try {
                       const identiconUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${data.name || 'orcha'}&backgroundColor=13102a`;
-                      
+
                       await finalizeConfiguration({
                         configId: data.configId as any,
                         name: data.name,
                         description: data.description,
                         image: data.image || identiconUrl,
                         tags: data.tags,
-                        modelProvider: data.modelProvider || "google", 
+                        modelProvider: data.modelProvider || "google",
                         modelConfig: JSON.stringify(data.modelConfig || {}),
                         businessContext: data.businessContext,
                         memoryProvider: data.memoryProvider || "gemini",
                       });
 
                       notifications.show({
-                         title: "Environment Ready",
-                         message: `${data.name} has been successfully initialized.`,
-                         color: "violet",
-                         icon: <IconCheck size={16} />
+                        title: "Environment Ready",
+                        message: `${data.name} has been successfully initialized.`,
+                        color: "violet",
+                        icon: <IconCheck size={16} />
                       });
 
                       reset();
                       router.push(`/${saas}/configure`);
                     } catch (err: any) {
-                       notifications.show({
-                         title: "Initialization Failed",
-                         message: err.message || "An error occurred while finalizing your environment.",
-                         color: "red"
-                       });
+                      notifications.show({
+                        title: "Initialization Failed",
+                        message: err.message || "An error occurred while finalizing your environment.",
+                        color: "red"
+                      });
                     }
-                  }} 
+                  }}
                   leftSection={<IconCheck size={18} />}
                 >
                   Initialize Environment
