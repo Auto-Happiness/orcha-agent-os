@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useState } from "react";
 import {
   Sheet, Selection, Cell,
   DEFAULT_ROW_HEIGHT, DEFAULT_COL_WIDTH,
@@ -14,9 +14,15 @@ interface Props {
   selection: Selection | null;
   editingCell: { row: number; col: number } | null;
   onSelectCell: (row: number, col: number, extend?: boolean) => void;
+  onSelectFullColumn: (col: number) => void;
+  onSelectFullRow: (row: number) => void;
+  onSelectAll: () => void;
   onStartEdit: (row: number, col: number) => void;
   onResizeCol: (col: number, width: number) => void;
   onResizeRow: (row: number, height: number) => void;
+  onHeaderContextMenu: (type: "row" | "col", index: number, x: number, y: number) => void;
+  onCellContextMenu: (row: number, col: number, x: number, y: number) => void;
+  onMoveCells: (source: Selection, targetRow: number, targetCol: number) => void;
   scrollLeft: number;
   scrollTop: number;
 }
@@ -40,15 +46,22 @@ const COLORS = {
 };
 
 const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCanvas(
-  { sheet, selection, editingCell, onSelectCell, onStartEdit, onResizeCol, onResizeRow, scrollLeft, scrollTop },
+  { sheet, selection, editingCell, onSelectCell,
+  onSelectFullColumn,
+  onSelectFullRow,
+  onSelectAll,
+  onStartEdit,
+ onResizeCol, onResizeRow, onHeaderContextMenu, onCellContextMenu, onMoveCells, scrollLeft, scrollTop },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
 
-  // Resize handle state
+  // Resize & Drag state
   const resizing = useRef<{ type: "col" | "row"; index: number; startPx: number; startSize: number } | null>(null);
+  const dragging = useRef<boolean>(false);
+  const [dragTarget, setDragTarget] = useState<{ row: number; col: number } | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -121,11 +134,29 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
         // Cell value
         if (!isEditing && cell) {
           let displayVal: string;
-          if (cell.f) {
-            const result = evalFormula(cell.f, data);
-            displayVal = String(result);
+          const raw = cell.f ? evalFormula(cell.f, data) : cell.v;
+
+          if (cell.format) {
+            const format = cell.format;
+            try {
+              if (format === "percent") {
+                displayVal = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 2 }).format(Number(raw));
+              } else if (format === "currency") {
+                displayVal = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(Number(raw));
+              } else if (format === "decimal2") {
+                displayVal = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(raw));
+              } else if (format === "date-short") {
+                displayVal = new Intl.DateTimeFormat(undefined, { dateStyle: "short" }).format(new Date(raw as string));
+              } else if (format === "date-long") {
+                displayVal = new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(new Date(raw as string));
+              } else {
+                displayVal = cell.m ?? String(raw ?? "");
+              }
+            } catch (e) {
+              displayVal = cell.m ?? String(raw ?? "");
+            }
           } else {
-            displayVal = cell.m ?? String(cell.v ?? "");
+            displayVal = cell.m ?? String(raw ?? "");
           }
 
           if (displayVal) {
@@ -195,6 +226,21 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
       ctx.strokeRect(sx + 1, sy + 1, sw - 2, sh - 2);
     }
 
+    // Drag ghost
+    if (dragTarget && selection) {
+      const numRows = selection.row[1] - selection.row[0] + 1;
+      const numCols = selection.col[1] - selection.col[0] + 1;
+      const gx = toX(dragTarget.col);
+      const gy = toY(dragTarget.row);
+      const gw = colOffsets[Math.min(cols, dragTarget.col + numCols)] - colOffsets[dragTarget.col];
+      const gh = rowOffsets[Math.min(rows, dragTarget.row + numRows)] - rowOffsets[dragTarget.row];
+      ctx.strokeStyle = COLORS.selectionBorder;
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(gx + 1, gy + 1, gw - 2, gh - 2);
+      ctx.setLineDash([]);
+    }
+
     ctx.restore();
 
     // ── Column headers ──────────────────────────────────────────────────────
@@ -258,7 +304,7 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
     ctx.lineWidth = 0.5;
     ctx.strokeRect(0.5, 0.5, ROW_HEADER_WIDTH - 1, COL_HEADER_HEIGHT - 1);
 
-  }, [sheet, selection, editingCell, scrollLeft, scrollTop, dpr]);
+  }, [sheet, selection, editingCell, scrollLeft, scrollTop, dpr, dragTarget]);
 
   useEffect(() => { draw(); }, [draw]);
 
@@ -303,7 +349,33 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
     return null;
   }, [sheet, scrollLeft]);
 
+  const isOnSelectionBorder = useCallback((clientX: number, clientY: number) => {
+    if (!selection || !canvasRef.current) return false;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const { config, data } = sheet;
+    const rowOffsets = buildOffsets(data.length, r => getRowHeight(config, r));
+    const colOffsets = buildOffsets(data[0]?.length ?? 0, c => getColWidth(config, c));
+    const sx = ROW_HEADER_WIDTH + colOffsets[selection.col[0]] - scrollLeft;
+    const sy = COL_HEADER_HEIGHT + rowOffsets[selection.row[0]] - scrollTop;
+    const sw = colOffsets[selection.col[1] + 1] - colOffsets[selection.col[0]];
+    const sh = rowOffsets[selection.row[1] + 1] - rowOffsets[selection.row[0]];
+    const margin = 5;
+    const onTop = y >= sy - margin && y <= sy + margin && x >= sx && x <= sx + sw;
+    const onBottom = y >= sy + sh - margin && y <= sy + sh + margin && x >= sx && x <= sx + sw;
+    const onLeft = x >= sx - margin && x <= sx + margin && y >= sy && y <= sy + sh;
+    const onRight = x >= sx + sw - margin && x <= sx + sw + margin && y >= sy && y <= sy + sh;
+    return onTop || onBottom || onLeft || onRight;
+  }, [selection, sheet, scrollLeft, scrollTop]);
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
     const colHandle = getColResizeHandle(e.clientX, e.clientY);
     if (colHandle !== null) {
       resizing.current = {
@@ -313,9 +385,36 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
       };
       return;
     }
+
+    // Corner Select All
+    if (x < ROW_HEADER_WIDTH && y < COL_HEADER_HEIGHT) {
+      onSelectAll();
+      return;
+    }
+
+    // Header Select Column
+    if (y < COL_HEADER_HEIGHT && x > ROW_HEADER_WIDTH) {
+      const colOffsets = buildOffsets(sheet.data[0]?.length ?? 0, c => getColWidth(sheet.config, c));
+      const col = hitTest(colOffsets, x - ROW_HEADER_WIDTH + scrollLeft);
+      onSelectFullColumn(col);
+      return;
+    }
+
+    // Header Select Row
+    if (x < ROW_HEADER_WIDTH && y > COL_HEADER_HEIGHT) {
+      const rowOffsets = buildOffsets(sheet.data.length, r => getRowHeight(sheet.config, r));
+      const row = hitTest(rowOffsets, y - COL_HEADER_HEIGHT + scrollTop);
+      onSelectFullRow(row);
+      return;
+    }
+
+    if (isOnSelectionBorder(e.clientX, e.clientY)) {
+      dragging.current = true;
+      return;
+    }
     const cell = getCell(e.clientX, e.clientY);
     if (cell) onSelectCell(cell.row, cell.col, e.shiftKey);
-  }, [getCell, getColResizeHandle, onSelectCell, sheet.config]);
+  }, [getCell, getColResizeHandle, onSelectCell, onSelectFullColumn, onSelectFullRow, onSelectAll, sheet.config, sheet.data, scrollLeft, scrollTop, isOnSelectionBorder]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (resizing.current) {
@@ -324,18 +423,62 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
       if (resizing.current.type === "col") onResizeCol(resizing.current.index, newSize);
       return;
     }
+    if (dragging.current) {
+      const cell = getCell(e.clientX, e.clientY);
+      if (cell) {
+        setDragTarget(cell);
+      }
+      return;
+    }
     // Cursor
     const colHandle = getColResizeHandle(e.clientX, e.clientY);
+    const onBorder = isOnSelectionBorder(e.clientX, e.clientY);
     if (canvasRef.current) {
-      canvasRef.current.style.cursor = colHandle !== null ? "col-resize" : "cell";
+      canvasRef.current.style.cursor = colHandle !== null ? "col-resize" : onBorder ? "move" : "cell";
     }
-  }, [getColResizeHandle, onResizeCol]);
+  }, [getColResizeHandle, onResizeCol, getCell, isOnSelectionBorder]);
 
-  const onMouseUp = useCallback(() => { resizing.current = null; }, []);
+  const onMouseUp = useCallback(() => {
+    if (dragging.current && dragTarget && selection) {
+      onMoveCells(selection, dragTarget.row, dragTarget.col);
+    }
+    resizing.current = null;
+    dragging.current = false;
+    setDragTarget(null);
+  }, [dragTarget, selection, onMoveCells]);
   const onDblClick = useCallback((e: React.MouseEvent) => {
     const cell = getCell(e.clientX, e.clientY);
     if (cell) onStartEdit(cell.row, cell.col);
   }, [getCell, onStartEdit]);
+
+  const onContextMenu = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (y <= COL_HEADER_HEIGHT && x > ROW_HEADER_WIDTH) {
+      // Column Header
+      const colOffsets = buildOffsets(sheet.data[0]?.length ?? 0, c => getColWidth(sheet.config, c));
+      const col = hitTest(colOffsets, x - ROW_HEADER_WIDTH + scrollLeft);
+      onHeaderContextMenu("col", col, e.clientX, e.clientY);
+      e.preventDefault();
+    } else if (x <= ROW_HEADER_WIDTH && y > COL_HEADER_HEIGHT) {
+      // Row Header
+      const rowOffsets = buildOffsets(sheet.data.length, r => getRowHeight(sheet.config, r));
+      const row = hitTest(rowOffsets, y - COL_HEADER_HEIGHT + scrollTop);
+      onHeaderContextMenu("row", row, e.clientX, e.clientY);
+      e.preventDefault();
+    } else {
+      // Cell context menu
+      const cell = getCell(e.clientX, e.clientY);
+      if (cell) {
+        onCellContextMenu(cell.row, cell.col, e.clientX, e.clientY);
+        e.preventDefault();
+      }
+    }
+  }, [sheet, scrollLeft, scrollTop, onHeaderContextMenu, onCellContextMenu, getCell]);
 
   return (
     <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden" }}>
@@ -345,6 +488,7 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onDoubleClick={onDblClick}
+        onContextMenu={onContextMenu}
         style={{ display: "block", cursor: "cell" }}
       />
     </div>

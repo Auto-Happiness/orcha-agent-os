@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Box, Stack, Text, Group, Button, ActionIcon, Tooltip, Paper, Title, Loader, Center } from "@mantine/core";
-import { IconPlus, IconTableFilled, IconTrash, IconPencil, IconArrowRight } from "@tabler/icons-react";
+import { Box, Stack, Text, Group, Button, ActionIcon, Tooltip, Paper, Title, Loader, Center, Modal } from "@mantine/core";
+import { IconPlus, IconTableFilled, IconTrash, IconPencil, IconArrowRight, IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { notifications } from "@mantine/notifications";
 
 export default function SpreadsheetListPage() {
   const { saas } = useParams();
@@ -26,6 +27,7 @@ export default function SpreadsheetListPage() {
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleCreate = useCallback(async () => {
     if (!activeOrg?._id) return;
@@ -91,7 +93,7 @@ export default function SpreadsheetListPage() {
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Delete" withArrow>
-                      <ActionIcon size="sm" variant="subtle" color="red" onClick={() => removeSpreadsheet({ spreadsheetId: s._id as Id<"spreadsheets"> })}>
+                      <ActionIcon size="sm" variant="subtle" color="red" onClick={() => setDeletingId(s._id)}>
                         <IconTrash size={13} />
                       </ActionIcon>
                     </Tooltip>
@@ -126,6 +128,40 @@ export default function SpreadsheetListPage() {
           </div>
         )}
       </Stack>
+
+      <Modal
+        opened={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        title="Delete Report"
+        centered
+        size="sm"
+        overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+        styles={{
+          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 12 },
+          header: { background: "#130f22", color: "white" },
+          title: { fontWeight: 600 }
+        }}
+      >
+        <Stack gap="md">
+          <Text size="sm" c="rgba(255,255,255,0.7)">
+            Are you sure you want to delete this report? This action cannot be undone and will remove all associated data.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="subtle" color="gray" onClick={() => setDeletingId(null)} size="xs">
+              Cancel
+            </Button>
+            <Button color="red" onClick={async () => {
+              if (deletingId) {
+                await removeSpreadsheet({ spreadsheetId: deletingId as Id<"spreadsheets"> });
+                setDeletingId(null);
+                notifications.show({ title: "Report Deleted", message: "The report has been permanently removed.", color: "red" });
+              }
+            }} size="xs">
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Box>
   );
 }

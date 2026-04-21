@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Box, Group, ActionIcon, Tooltip, Text, Badge, Loader } from "@mantine/core";
-import { IconPlus, IconArrowLeft } from "@tabler/icons-react";
+import { IconPlus, IconArrowLeft, IconRowInsertTop, IconRowInsertBottom, IconColumnInsertLeft, IconColumnInsertRight, IconTrash, IconBaseline, IconCurrencyDollar, IconPercentage, IconNumber, IconCalendar, IconCopy, IconCut, IconClipboard } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
 import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -107,6 +107,12 @@ export default function SpreadsheetEditorPage() {
   const [queryModalOpen, setQueryModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const [loaded, setLoaded] = useState(false);
+  const [headerMenu, setHeaderMenu] = useState<{ type: "row" | "col", index: number, x: number, y: number } | null>(null);
+  const [cellMenu, setCellMenu] = useState<{ row: number, col: number, x: number, y: number } | null>(null);
+
+  // History for Undo/Redo
+  const [past, setPast] = useState<Sheet[][]>([]);
+  const [future, setFuture] = useState<Sheet[][]>([]);
 
   const canvasRef = useRef<CanvasHandle>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -128,14 +134,40 @@ export default function SpreadsheetEditorPage() {
     }
   }, [doc, loaded]);
 
-  const updateSheet = useCallback((updater: (s: Sheet) => Sheet) => {
-    setSheets(prev => prev.map((s, i) => i === activeSheetIdx ? updater(s) : s));
+  const updateSheet = useCallback((updater: (s: Sheet) => Sheet, recordHistory = true) => {
+    if (recordHistory) {
+      setSheets(prev => {
+        setPast(p => [...p.slice(-49), prev]);
+        setFuture([]);
+        return prev.map((s, i) => i === activeSheetIdx ? updater(s) : s);
+      });
+    } else {
+      setSheets(prev => prev.map((s, i) => i === activeSheetIdx ? updater(s) : s));
+    }
     setSaveStatus("unsaved");
   }, [activeSheetIdx]);
 
+  const handleUndo = useCallback(() => {
+    if (past.length === 0) return;
+    const prevSheets = past[past.length - 1];
+    setFuture(f => [sheets, ...f.slice(0, 49)]);
+    setPast(p => p.slice(0, -1));
+    setSheets(prevSheets);
+    setSaveStatus("unsaved");
+  }, [past, sheets]);
+
+  const handleRedo = useCallback(() => {
+    if (future.length === 0) return;
+    const nextSheets = future[0];
+    setPast(p => [...p.slice(-49), sheets]);
+    setFuture(f => f.slice(1));
+    setSheets(nextSheets);
+    setSaveStatus("unsaved");
+  }, [future, sheets]);
+
   // Debounced auto-save
   const triggerSave = useCallback((currentSheets: Sheet[], name: string) => {
-    if (!spreadsheetId) return;
+    if (!spreadsheetId || !doc) return; // Guard against non-existent doc
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaveStatus("unsaved");
     saveTimerRef.current = setTimeout(async () => {
@@ -147,18 +179,30 @@ export default function SpreadsheetEditorPage() {
           sheets: currentSheets.map(sheetToSparse),
         });
         setSaveStatus("saved");
-      } catch (e) {
+      } catch (e: any) {
+        // If the spreadsheet was deleted while the timer was pending, ignore the 404
+        if (e.message?.includes("Spreadsheet not found")) {
+          console.warn("[Spreadsheet] Document was deleted, cancelling save.");
+          return;
+        }
         console.error("[Spreadsheet] Save failed:", e);
         setSaveStatus("unsaved");
       }
     }, 5000);
-  }, [spreadsheetId, saveDoc]);
+  }, [spreadsheetId, saveDoc, doc]);
 
   // Trigger save whenever sheets change
   useEffect(() => {
     if (!loaded) return;
     triggerSave(sheets, filename);
   }, [sheets, filename, loaded, triggerSave]);
+
+  // Cleanup pending saves on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   const commitEdit = useCallback(() => {
     const cell = editingCellRef.current;
@@ -186,6 +230,25 @@ export default function SpreadsheetEditorPage() {
     });
   }, [commitEdit]);
 
+  const handleSelectFullColumn = useCallback((col: number) => {
+    if (editingCellRef.current) commitEdit();
+    const rows = sheet.data.length;
+    setSelection({ row: [0, rows - 1], col: [col, col], rowFocus: 0, colFocus: col });
+  }, [commitEdit, sheet.data.length]);
+
+  const handleSelectFullRow = useCallback((row: number) => {
+    if (editingCellRef.current) commitEdit();
+    const cols = sheet.data[0]?.length ?? 0;
+    setSelection({ row: [row, row], col: [0, cols - 1], rowFocus: row, colFocus: 0 });
+  }, [commitEdit, sheet.data]);
+
+  const handleSelectAll = useCallback(() => {
+    if (editingCellRef.current) commitEdit();
+    const rows = sheet.data.length;
+    const cols = sheet.data[0]?.length ?? 0;
+    setSelection({ row: [0, rows - 1], col: [0, cols - 1], rowFocus: 0, colFocus: 0 });
+  }, [commitEdit, sheet.data]);
+
   const handleStartEdit = useCallback((row: number, col: number) => {
     const cell = sheet.data[row]?.[col];
     const val = cell?.f ?? String(cell?.v ?? "");
@@ -208,6 +271,162 @@ export default function SpreadsheetEditorPage() {
   }, [selection, updateSheet]);
   handleFormatRef.current = handleFormat;
 
+  const executeStructuralAction = useCallback((type: "row" | "col", index: number, action: "insertAbove" | "insertBelow" | "delete" | "insertLeft" | "insertRight" | "deleteCol") => {
+    updateSheet(s => {
+      const newData = s.data.map(r => [...r]);
+      const config = { ...s.config, rowlen: { ...s.config.rowlen }, columnlen: { ...s.config.columnlen } };
+
+      if (type === "row") {
+        if (action === "insertAbove" || action === "insertBelow") {
+          const insertIdx = action === "insertAbove" ? index : index + 1;
+          newData.splice(insertIdx, 0, Array(s.data[0]?.length ?? 0).fill(null));
+          // Shift row heights
+          const newRowLen: Record<number, number> = {};
+          Object.entries(config.rowlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik >= insertIdx) newRowLen[ik + 1] = v;
+            else newRowLen[ik] = v;
+          });
+          config.rowlen = newRowLen;
+        } else if (action === "delete") {
+          if (newData.length <= 1) return s;
+          newData.splice(index, 1);
+          const newRowLen: Record<number, number> = {};
+          Object.entries(config.rowlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik > index) newRowLen[ik - 1] = v;
+            else if (ik < index) newRowLen[ik] = v;
+          });
+          config.rowlen = newRowLen;
+        }
+      } else {
+        // Column actions
+        if (action === "insertLeft" || action === "insertRight") {
+          const insertIdx = action === "insertLeft" ? index : index + 1;
+          newData.forEach(row => row.splice(insertIdx, 0, null));
+          const newColLen: Record<number, number> = {};
+          Object.entries(config.columnlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik >= insertIdx) newColLen[ik + 1] = v;
+            else newColLen[ik] = v;
+          });
+          config.columnlen = newColLen;
+        } else if (action === "deleteCol") {
+          if (newData[0]?.length <= 1) return s;
+          newData.forEach(row => row.splice(index, 1));
+          const newColLen: Record<number, number> = {};
+          Object.entries(config.columnlen).forEach(([k, v]) => {
+            const ik = parseInt(k);
+            if (ik > index) newColLen[ik - 1] = v;
+            else if (ik < index) newColLen[ik] = v;
+          });
+          config.columnlen = newColLen;
+        }
+      }
+      return { ...s, data: newData, config };
+    });
+  }, [updateSheet]);
+
+  const handleHeaderAction = (action: "insertAbove" | "insertBelow" | "delete" | "insertLeft" | "insertRight" | "deleteCol") => {
+    if (!headerMenu) return;
+    executeStructuralAction(headerMenu.type, headerMenu.index, action);
+    setHeaderMenu(null);
+  };
+
+  const applyCellFormat = (format: string | null) => {
+    if (!selection) return;
+    setCellMenu(null);
+    updateSheet(s => {
+      const newData = s.data.map(r => [...r]);
+      for (let r = selection.row[0]; r <= selection.row[1]; r++) {
+        for (let c = selection.col[0]; c <= selection.col[1]; c++) {
+          newData[r][c] = { ...(newData[r][c] ?? {}), format: format || undefined };
+        }
+      }
+      return { ...s, data: newData };
+    });
+  };
+
+  const handleCopy = useCallback(() => {
+    if (!selection) return;
+    const cells: string[][] = [];
+    for (let r = selection.row[0]; r <= selection.row[1]; r++) {
+      const rowVals: string[] = [];
+      for (let c = selection.col[0]; c <= selection.col[1]; c++) {
+        const cell = sheet.data[r]?.[c];
+        rowVals.push(cell?.f ?? String(cell?.v ?? ""));
+      }
+      cells.push(rowVals);
+    }
+    navigator.clipboard.writeText(cells.map(row => row.join("\t")).join("\n")).catch(() => {});
+    setCellMenu(null);
+  }, [selection, sheet]);
+
+  const handleCut = useCallback(() => {
+    handleCopy();
+    if (!selection) return;
+    updateSheet(s => {
+      const newData = s.data.map(row => [...row]);
+      for (let r = selection.row[0]; r <= selection.row[1]; r++)
+        for (let c = selection.col[0]; c <= selection.col[1]; c++)
+          newData[r][c] = null;
+      return { ...s, data: newData };
+    });
+  }, [handleCopy, selection, updateSheet]);
+
+  const handlePaste = useCallback(async () => {
+    if (!selection) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      const rows = text.split("\n").map(r => r.split("\t"));
+      updateSheet(s => {
+        const newData = s.data.map(r => [...r]);
+        rows.forEach((row, ri) => {
+          row.forEach((val, ci) => {
+            const r = selection.rowFocus + ri;
+            const c = selection.colFocus + ci;
+            if (r < newData.length && c < (newData[0]?.length ?? 0)) {
+              const isFormula = val.startsWith("=");
+              newData[r][c] = val === "" ? null : { v: isFormula ? undefined : (isNaN(Number(val)) ? val : Number(val)), f: isFormula ? val : undefined };
+            }
+          });
+        });
+        return { ...s, data: newData };
+      });
+    } catch (e) {
+      console.error("Paste failed", e);
+    }
+    setCellMenu(null);
+  }, [selection, updateSheet]);
+
+  const handleMoveCells = useCallback((source: Selection, tRow: number, tCol: number) => {
+    updateSheet(s => {
+      const { row: [r1, r2], col: [c1, c2] } = source;
+      const numRows = r2 - r1 + 1;
+      const numCols = c2 - c1 + 1;
+      const newData = s.data.map(row => [...row]);
+      const captured: (Cell | null)[][] = [];
+      for (let r = 0; r < numRows; r++) {
+        captured[r] = [];
+        for (let c = 0; c < numCols; c++) {
+          captured[r][c] = newData[r1 + r][c1 + c];
+          newData[r1 + r][c1 + c] = null;
+        }
+      }
+      for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+          const destR = tRow + r;
+          const destC = tCol + c;
+          if (destR < newData.length && destC < (newData[0]?.length ?? 0)) {
+            newData[destR][destC] = captured[r][c];
+          }
+        }
+      }
+      setSelection({ row: [tRow, tRow + numRows - 1], col: [tCol, tCol + numCols - 1], rowFocus: tRow, colFocus: tCol });
+      return { ...s, data: newData };
+    });
+  }, [updateSheet]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (editingCell) { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } return; }
@@ -222,24 +441,27 @@ export default function SpreadsheetEditorPage() {
       else if ((e.ctrlKey || e.metaKey) && e.key === "b") { const cur = sheet.data[r]?.[c]?.bl ?? 0; handleFormatRef.current("bl", cur ? 0 : 1); e.preventDefault(); }
       else if ((e.ctrlKey || e.metaKey) && e.key === "i") { const cur = sheet.data[r]?.[c]?.it ?? 0; handleFormatRef.current("it", cur ? 0 : 1); e.preventDefault(); }
       else if ((e.ctrlKey || e.metaKey) && e.key === "u") { const cur = sheet.data[r]?.[c]?.un ?? 0; handleFormatRef.current("un", cur ? 0 : 1); e.preventDefault(); }
-      else if ((e.ctrlKey || e.metaKey) && e.key === "x") {
-        const cellsToCut: string[][] = [];
-        for (let row = selection.row[0]; row <= selection.row[1]; row++) { const rowVals: string[] = []; for (let col = selection.col[0]; col <= selection.col[1]; col++) { const cell = sheet.data[row]?.[col]; rowVals.push(cell?.f ?? String(cell?.v ?? "")); } cellsToCut.push(rowVals); }
-        navigator.clipboard.writeText(cellsToCut.map(row => row.join("\t")).join("\n")).catch(() => {});
+      else if ((e.ctrlKey || e.metaKey) && e.key === "c") { handleCopy(); e.preventDefault(); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === "x") { handleCut(); e.preventDefault(); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === "v") { handlePaste(); e.preventDefault(); }
+      else if (e.key === "Delete" || e.key === "Backspace") {
         updateSheet(s => { const newData = s.data.map(row => [...row]); for (let row = selection.row[0]; row <= selection.row[1]; row++) for (let col = selection.col[0]; col <= selection.col[1]; col++) newData[row][col] = null; return { ...s, data: newData }; });
         e.preventDefault();
-      } else if (e.key === "Delete" || e.key === "Backspace") {
-        updateSheet(s => { const newData = s.data.map(row => [...row]); for (let row = selection.row[0]; row <= selection.row[1]; row++) for (let col = selection.col[0]; col <= selection.col[1]; col++) newData[row][col] = null; return { ...s, data: newData }; });
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        handleUndo();
+        e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
+        handleRedo();
         e.preventDefault();
       } else if (!e.ctrlKey && !e.metaKey && e.key.length === 1) { setEditValue(e.key); handleStartEdit(r, c); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editingCell, selection, sheet, handleSelectCell, handleStartEdit, commitEdit, cancelEdit, updateSheet]);
+  }, [editingCell, selection, sheet, handleSelectCell, handleStartEdit, commitEdit, cancelEdit, updateSheet, handleUndo, handleRedo, handleCopy, handleCut, handlePaste]);
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => { setScrollLeft(e.currentTarget.scrollLeft); setScrollTop(e.currentTarget.scrollTop); }, []);
-  const handleResizeCol = useCallback((col: number, width: number) => { updateSheet(s => ({ ...s, config: { ...s.config, columnlen: { ...s.config.columnlen, [col]: width } } })); }, [updateSheet]);
-  const handleResizeRow = useCallback((row: number, height: number) => { updateSheet(s => ({ ...s, config: { ...s.config, rowlen: { ...s.config.rowlen, [row]: height } } })); }, [updateSheet]);
+  const handleResizeCol = useCallback((col: number, width: number) => { updateSheet(s => ({ ...s, config: { ...s.config, columnlen: { ...s.config.columnlen, [col]: width } } }), false); }, [updateSheet]);
+  const handleResizeRow = useCallback((row: number, height: number) => { updateSheet(s => ({ ...s, config: { ...s.config, rowlen: { ...s.config.rowlen, [row]: height } } }), false); }, [updateSheet]);
 
   const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -251,7 +473,30 @@ export default function SpreadsheetEditorPage() {
 
   const handleExport = useCallback(() => {
     const wb = XLSX.utils.book_new();
-    sheets.forEach(s => { const aoa = s.data.map(row => row.map(cell => { if (!cell) return null; if (cell.f) return evalFormula(cell.f, s.data); return cell.v ?? null; })); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s.name); });
+    sheets.forEach(s => {
+      const aoa = s.data.map(row => row.map(cell => {
+        if (!cell) return null;
+        const val = cell.f ? evalFormula(cell.f, s.data) : cell.v;
+        if (val === null || val === undefined) return null;
+
+        // Excel number formatting mapping (z parameter in SheetJS)
+        let z: string | undefined;
+        let numericVal = typeof val === "string" ? Number(val.replace(/[^0-9.-]/g, "")) : Number(val);
+        const isNum = !isNaN(numericVal);
+        const exportVal = isNum ? numericVal : val;
+
+        if (cell.format === "currency") z = '$#,##0.00';
+        else if (cell.format === "percent") z = "0.00%";
+        else if (cell.format === "decimal2") z = "#,##0.00";
+        else if (cell.format === "date") z = "yyyy-mm-dd";
+
+        if (z && isNum) {
+          return { v: exportVal, t: "n", z };
+        }
+        return exportVal;
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s.name);
+    });
     XLSX.writeFile(wb, `${filename || "export"}.xlsx`);
   }, [sheets, filename]);
 
@@ -325,13 +570,100 @@ export default function SpreadsheetEditorPage() {
         <div ref={scrollRef} onScroll={onScroll} style={{ width: "100%", height: "100%", overflow: "auto", position: "relative" }}>
           <div style={{ width: totalW, height: totalH, position: "absolute", top: 0, left: 0, pointerEvents: "none" }} />
           <div style={{ position: "sticky", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
-            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} scrollLeft={scrollLeft} scrollTop={scrollTop} />
+            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onSelectFullColumn={handleSelectFullColumn} onSelectFullRow={handleSelectFullRow} onSelectAll={handleSelectAll} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} onCellContextMenu={(row, col, x, y) => setCellMenu({ row, col, x, y })} onMoveCells={handleMoveCells} scrollLeft={scrollLeft} scrollTop={scrollTop} />
             {editingCell && editOverlay && (
               <input ref={editInputRef} value={editValue} onChange={e => { setEditValue(e.target.value); editValueRef.current = e.target.value; }} onKeyDown={e => { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } }} autoFocus style={{ position: "absolute", left: editOverlay.left, top: editOverlay.top, width: editOverlay.width, height: editOverlay.height, background: "#1e1a36", border: "2px solid #a855f7", outline: "none", color: "white", fontSize: 12, padding: "0 6px", fontFamily: "inherit", zIndex: 10, boxSizing: "border-box" }} />
             )}
             <FloatingImages images={sheet.images ?? []} onUpdate={(id, patch) => updateSheet(s => ({ ...s, images: (s.images ?? []).map(img => img.id === id ? { ...img, ...patch } : img) }))} onRemove={(id) => updateSheet(s => ({ ...s, images: (s.images ?? []).filter(img => img.id !== id) }))} />
           </div>
         </div>
+
+        {headerMenu && (
+          <>
+            <Box onClick={() => setHeaderMenu(null)} onContextMenu={(e) => { e.preventDefault(); setHeaderMenu(null); }} style={{ position: "fixed", inset: 0, zIndex: 9999 }} />
+            <Box style={{ position: "fixed", left: headerMenu.x, top: headerMenu.y, zIndex: 10000, background: "#130f22", border: "1px solid rgba(147,51,234,0.25)", borderRadius: 8, padding: "4px", minWidth: 180, boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
+              {headerMenu.type === "row" ? (
+                <>
+                  <Box onClick={() => handleHeaderAction("insertAbove")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconRowInsertTop size={16} stroke={1.5} color="#a855f7" /> Insert 1 Above
+                  </Box>
+                  <Box onClick={() => handleHeaderAction("insertBelow")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconRowInsertBottom size={16} stroke={1.5} color="#a855f7" /> Insert 1 Below
+                  </Box>
+                  <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+                  <Box onClick={() => handleHeaderAction("delete")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconTrash size={16} stroke={1.5} /> Delete Row
+                  </Box>
+                </>
+              ) : (
+                <>
+                  <Box onClick={() => handleHeaderAction("insertLeft")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconColumnInsertLeft size={16} stroke={1.5} color="#a855f7" /> Insert 1 Left
+                  </Box>
+                  <Box onClick={() => handleHeaderAction("insertRight")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconColumnInsertRight size={16} stroke={1.5} color="#a855f7" /> Insert 1 Right
+                  </Box>
+                  <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+                  <Box onClick={() => handleHeaderAction("deleteCol")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconTrash size={16} stroke={1.5} /> Delete Column
+                  </Box>
+                </>
+              )}
+            </Box>
+          </>
+        )}
+
+        {cellMenu && (
+          <>
+            <Box onClick={() => setCellMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCellMenu(null); }} style={{ position: "fixed", inset: 0, zIndex: 9999 }} />
+            <Box style={{ position: "fixed", left: cellMenu.x, top: cellMenu.y, zIndex: 10000, background: "#130f22", border: "1px solid rgba(147,51,234,0.25)", borderRadius: 8, padding: "4px", minWidth: 200, boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
+              <Box onClick={handleCopy} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCopy size={16} stroke={1.5} color="#c084fc" /> Copy
+              </Box>
+              <Box onClick={handleCut} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCut size={16} stroke={1.5} color="#c084fc" /> Cut
+              </Box>
+              <Box onClick={handlePaste} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconClipboard size={16} stroke={1.5} color="#c084fc" /> Paste
+              </Box>
+              
+              <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+              <Box onClick={() => { executeStructuralAction("row", cellMenu.row, "insertAbove"); setCellMenu(null); }} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconRowInsertTop size={16} stroke={1.5} color="#a855f7" /> Insert 1 row above
+              </Box>
+              <Box onClick={() => { executeStructuralAction("row", cellMenu.row, "insertBelow"); setCellMenu(null); }} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconRowInsertBottom size={16} stroke={1.5} color="#a855f7" /> Insert 1 row below
+              </Box>
+              <Box onClick={() => { executeStructuralAction("row", cellMenu.row, "delete"); setCellMenu(null); }} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconTrash size={16} stroke={1.5} /> Delete row
+              </Box>
+              
+              <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+              <Text size="10px" fw={700} c="dimmed" p="4px 12px" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Number Format</Text>
+              <Box onClick={() => applyCellFormat(null)} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconBaseline size={16} stroke={1.5} /> Plain Text
+              </Box>
+              <Box onClick={() => applyCellFormat("currency")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCurrencyDollar size={16} stroke={1.5} color="#4ade80" /> Currency ($)
+              </Box>
+              <Box onClick={() => applyCellFormat("percent")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconPercentage size={16} stroke={1.5} color="#60a5fa" /> Percent (%)
+              </Box>
+              <Box onClick={() => applyCellFormat("decimal2")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconNumber size={16} stroke={1.5} color="#fbbf24" /> 2 Decimals (.00)
+              </Box>
+              
+              <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+              <Text size="10px" fw={700} c="dimmed" p="4px 12px" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Date Format</Text>
+              <Box onClick={() => applyCellFormat("date-short")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCalendar size={16} stroke={1.5} /> Short Date (MM/DD)
+              </Box>
+              <Box onClick={() => applyCellFormat("date-long")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCalendar size={16} stroke={1.5} color="#f472b6" /> Long Date (Month DD)
+              </Box>
+            </Box>
+          </>
+        )}
       </Box>
 
       <SheetTabs sheets={sheets} activeIdx={activeSheetIdx} onSelect={setActiveSheetIdx} onAdd={handleAddSheet} onRename={(i, name) => setSheets(prev => prev.map((s, idx) => idx === i ? { ...s, name } : s))} onRemove={(i) => { if (sheets.length === 1) return; setSheets(prev => prev.filter((_, idx) => idx !== i)); setActiveSheetIdx(prev => Math.min(prev, sheets.length - 2)); }} />

@@ -73,7 +73,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "chat", label: "Chat", icon: IconSparkles, badge: null },
       { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
-      { href: "spreadsheet", label: "Reports", icon: IconChartBar, badge: null },
+      { href: "spreadsheet", label: "Reports", icon: IconChartBar, badge: "Experimental", badgeColor: "orange" },
       { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badge: null },
     ],
   },
@@ -86,6 +86,7 @@ function SideNavItem({
   label,
   icon: Icon,
   badge,
+  badgeColor,
   active,
   collapsed,
 }: {
@@ -93,6 +94,7 @@ function SideNavItem({
   label: string;
   icon: React.ElementType;
   badge: string | null;
+  badgeColor?: string;
   active: boolean;
   collapsed: boolean;
 }) {
@@ -104,7 +106,7 @@ function SideNavItem({
       leftSection={<Icon size={18} stroke={1.6} />}
       rightSection={
         !collapsed && badge ? (
-          <Badge size="xs" variant="light" color="violet" radius="sm">{badge}</Badge>
+          <Badge size="xs" variant="light" color={badgeColor || "violet"} radius="sm">{badge}</Badge>
         ) : null
       }
       active={active}
@@ -415,6 +417,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                         label={item.label}
                         icon={item.icon}
                         badge={item.badge}
+                        badgeColor={(item as any).badgeColor}
                         active={isActive(item.href)}
                         collapsed={collapsed}
                       />
