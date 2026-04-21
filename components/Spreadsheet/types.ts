@@ -13,6 +13,7 @@ export type Cell = {
   ff?: string;  // font family
   ht?: 1 | 2 | 3; // horizontal align: 1=left 2=center 3=right
   vt?: 1 | 2 | 3; // vertical align: 1=top 2=middle 3=bottom
+  format?: string; // Number/Date format identifier
 };
 
 export type CellMatrix = (Cell | null)[][];

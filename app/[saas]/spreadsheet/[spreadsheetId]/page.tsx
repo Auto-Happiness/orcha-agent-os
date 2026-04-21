@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Box, Group, ActionIcon, Tooltip, Text, Badge, Loader } from "@mantine/core";
-import { IconPlus, IconArrowLeft } from "@tabler/icons-react";
+import { IconPlus, IconArrowLeft, IconRowInsertTop, IconRowInsertBottom, IconColumnInsertLeft, IconColumnInsertRight, IconTrash, IconBaseline, IconCurrencyDollar, IconPercentage, IconNumber, IconCalendar, IconCopy, IconCut, IconClipboard } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
 import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -108,6 +108,7 @@ export default function SpreadsheetEditorPage() {
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const [loaded, setLoaded] = useState(false);
   const [headerMenu, setHeaderMenu] = useState<{ type: "row" | "col", index: number, x: number, y: number } | null>(null);
+  const [cellMenu, setCellMenu] = useState<{ row: number, col: number, x: number, y: number } | null>(null);
 
   // History for Undo/Redo
   const [past, setPast] = useState<Sheet[][]>([]);
@@ -249,11 +250,7 @@ export default function SpreadsheetEditorPage() {
   }, [selection, updateSheet]);
   handleFormatRef.current = handleFormat;
 
-  const handleStructuralAction = (action: "insertAbove" | "insertBelow" | "delete" | "insertLeft" | "insertRight" | "deleteCol") => {
-    if (!headerMenu) return;
-    const { type, index } = headerMenu;
-    setHeaderMenu(null);
-
+  const executeStructuralAction = useCallback((type: "row" | "col", index: number, action: "insertAbove" | "insertBelow" | "delete" | "insertLeft" | "insertRight" | "deleteCol") => {
     updateSheet(s => {
       const newData = s.data.map(r => [...r]);
       const config = { ...s.config, rowlen: { ...s.config.rowlen }, columnlen: { ...s.config.columnlen } };
@@ -307,7 +304,79 @@ export default function SpreadsheetEditorPage() {
       }
       return { ...s, data: newData, config };
     });
+  }, [updateSheet]);
+
+  const handleHeaderAction = (action: "insertAbove" | "insertBelow" | "delete" | "insertLeft" | "insertRight" | "deleteCol") => {
+    if (!headerMenu) return;
+    executeStructuralAction(headerMenu.type, headerMenu.index, action);
+    setHeaderMenu(null);
   };
+
+  const applyCellFormat = (format: string | null) => {
+    if (!selection) return;
+    setCellMenu(null);
+    updateSheet(s => {
+      const newData = s.data.map(r => [...r]);
+      for (let r = selection.row[0]; r <= selection.row[1]; r++) {
+        for (let c = selection.col[0]; c <= selection.col[1]; c++) {
+          newData[r][c] = { ...(newData[r][c] ?? {}), format: format || undefined };
+        }
+      }
+      return { ...s, data: newData };
+    });
+  };
+
+  const handleCopy = useCallback(() => {
+    if (!selection) return;
+    const cells: string[][] = [];
+    for (let r = selection.row[0]; r <= selection.row[1]; r++) {
+      const rowVals: string[] = [];
+      for (let c = selection.col[0]; c <= selection.col[1]; c++) {
+        const cell = sheet.data[r]?.[c];
+        rowVals.push(cell?.f ?? String(cell?.v ?? ""));
+      }
+      cells.push(rowVals);
+    }
+    navigator.clipboard.writeText(cells.map(row => row.join("\t")).join("\n")).catch(() => {});
+    setCellMenu(null);
+  }, [selection, sheet]);
+
+  const handleCut = useCallback(() => {
+    handleCopy();
+    if (!selection) return;
+    updateSheet(s => {
+      const newData = s.data.map(row => [...row]);
+      for (let r = selection.row[0]; r <= selection.row[1]; r++)
+        for (let c = selection.col[0]; c <= selection.col[1]; c++)
+          newData[r][c] = null;
+      return { ...s, data: newData };
+    });
+  }, [handleCopy, selection, updateSheet]);
+
+  const handlePaste = useCallback(async () => {
+    if (!selection) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      const rows = text.split("\n").map(r => r.split("\t"));
+      updateSheet(s => {
+        const newData = s.data.map(r => [...r]);
+        rows.forEach((row, ri) => {
+          row.forEach((val, ci) => {
+            const r = selection.rowFocus + ri;
+            const c = selection.colFocus + ci;
+            if (r < newData.length && c < (newData[0]?.length ?? 0)) {
+              const isFormula = val.startsWith("=");
+              newData[r][c] = val === "" ? null : { v: isFormula ? undefined : (isNaN(Number(val)) ? val : Number(val)), f: isFormula ? val : undefined };
+            }
+          });
+        });
+        return { ...s, data: newData };
+      });
+    } catch (e) {
+      console.error("Paste failed", e);
+    }
+    setCellMenu(null);
+  }, [selection, updateSheet]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -323,13 +392,10 @@ export default function SpreadsheetEditorPage() {
       else if ((e.ctrlKey || e.metaKey) && e.key === "b") { const cur = sheet.data[r]?.[c]?.bl ?? 0; handleFormatRef.current("bl", cur ? 0 : 1); e.preventDefault(); }
       else if ((e.ctrlKey || e.metaKey) && e.key === "i") { const cur = sheet.data[r]?.[c]?.it ?? 0; handleFormatRef.current("it", cur ? 0 : 1); e.preventDefault(); }
       else if ((e.ctrlKey || e.metaKey) && e.key === "u") { const cur = sheet.data[r]?.[c]?.un ?? 0; handleFormatRef.current("un", cur ? 0 : 1); e.preventDefault(); }
-      else if ((e.ctrlKey || e.metaKey) && e.key === "x") {
-        const cellsToCut: string[][] = [];
-        for (let row = selection.row[0]; row <= selection.row[1]; row++) { const rowVals: string[] = []; for (let col = selection.col[0]; col <= selection.col[1]; col++) { const cell = sheet.data[row]?.[col]; rowVals.push(cell?.f ?? String(cell?.v ?? "")); } cellsToCut.push(rowVals); }
-        navigator.clipboard.writeText(cellsToCut.map(row => row.join("\t")).join("\n")).catch(() => {});
-        updateSheet(s => { const newData = s.data.map(row => [...row]); for (let row = selection.row[0]; row <= selection.row[1]; row++) for (let col = selection.col[0]; col <= selection.col[1]; col++) newData[row][col] = null; return { ...s, data: newData }; });
-        e.preventDefault();
-      } else if (e.key === "Delete" || e.key === "Backspace") {
+      else if ((e.ctrlKey || e.metaKey) && e.key === "c") { handleCopy(); e.preventDefault(); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === "x") { handleCut(); e.preventDefault(); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === "v") { handlePaste(); e.preventDefault(); }
+      else if (e.key === "Delete" || e.key === "Backspace") {
         updateSheet(s => { const newData = s.data.map(row => [...row]); for (let row = selection.row[0]; row <= selection.row[1]; row++) for (let col = selection.col[0]; col <= selection.col[1]; col++) newData[row][col] = null; return { ...s, data: newData }; });
         e.preventDefault();
       } else if ((e.ctrlKey || e.metaKey) && e.key === "z") {
@@ -342,7 +408,7 @@ export default function SpreadsheetEditorPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editingCell, selection, sheet, handleSelectCell, handleStartEdit, commitEdit, cancelEdit, updateSheet, handleUndo, handleRedo]);
+  }, [editingCell, selection, sheet, handleSelectCell, handleStartEdit, commitEdit, cancelEdit, updateSheet, handleUndo, handleRedo, handleCopy, handleCut, handlePaste]);
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => { setScrollLeft(e.currentTarget.scrollLeft); setScrollTop(e.currentTarget.scrollTop); }, []);
   const handleResizeCol = useCallback((col: number, width: number) => { updateSheet(s => ({ ...s, config: { ...s.config, columnlen: { ...s.config.columnlen, [col]: width } } })); }, [updateSheet]);
@@ -432,7 +498,7 @@ export default function SpreadsheetEditorPage() {
         <div ref={scrollRef} onScroll={onScroll} style={{ width: "100%", height: "100%", overflow: "auto", position: "relative" }}>
           <div style={{ width: totalW, height: totalH, position: "absolute", top: 0, left: 0, pointerEvents: "none" }} />
           <div style={{ position: "sticky", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
-            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} scrollLeft={scrollLeft} scrollTop={scrollTop} />
+            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} onCellContextMenu={(row, col, x, y) => setCellMenu({ row, col, x, y })} scrollLeft={scrollLeft} scrollTop={scrollTop} />
             {editingCell && editOverlay && (
               <input ref={editInputRef} value={editValue} onChange={e => { setEditValue(e.target.value); editValueRef.current = e.target.value; }} onKeyDown={e => { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } }} autoFocus style={{ position: "absolute", left: editOverlay.left, top: editOverlay.top, width: editOverlay.width, height: editOverlay.height, background: "#1e1a36", border: "2px solid #a855f7", outline: "none", color: "white", fontSize: 12, padding: "0 6px", fontFamily: "inherit", zIndex: 10, boxSizing: "border-box" }} />
             )}
@@ -443,22 +509,86 @@ export default function SpreadsheetEditorPage() {
         {headerMenu && (
           <>
             <Box onClick={() => setHeaderMenu(null)} onContextMenu={(e) => { e.preventDefault(); setHeaderMenu(null); }} style={{ position: "fixed", inset: 0, zIndex: 9999 }} />
-            <Box style={{ position: "fixed", left: headerMenu.x, top: headerMenu.y, zIndex: 10000, background: "#130f22", border: "1px solid rgba(147,51,234,0.25)", borderRadius: 8, padding: "4px", minWidth: 160, boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
+            <Box style={{ position: "fixed", left: headerMenu.x, top: headerMenu.y, zIndex: 10000, background: "#130f22", border: "1px solid rgba(147,51,234,0.25)", borderRadius: 8, padding: "4px", minWidth: 180, boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
               {headerMenu.type === "row" ? (
                 <>
-                  <Box onClick={() => handleStructuralAction("insertAbove")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Above</Box>
-                  <Box onClick={() => handleStructuralAction("insertBelow")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Below</Box>
+                  <Box onClick={() => handleHeaderAction("insertAbove")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconRowInsertTop size={16} stroke={1.5} color="#a855f7" /> Insert 1 Above
+                  </Box>
+                  <Box onClick={() => handleHeaderAction("insertBelow")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconRowInsertBottom size={16} stroke={1.5} color="#a855f7" /> Insert 1 Below
+                  </Box>
                   <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
-                  <Box onClick={() => handleStructuralAction("delete")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Delete Row</Box>
+                  <Box onClick={() => handleHeaderAction("delete")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconTrash size={16} stroke={1.5} /> Delete Row
+                  </Box>
                 </>
               ) : (
                 <>
-                  <Box onClick={() => handleStructuralAction("insertLeft")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Left</Box>
-                  <Box onClick={() => handleStructuralAction("insertRight")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Insert 1 Right</Box>
+                  <Box onClick={() => handleHeaderAction("insertLeft")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconColumnInsertLeft size={16} stroke={1.5} color="#a855f7" /> Insert 1 Left
+                  </Box>
+                  <Box onClick={() => handleHeaderAction("insertRight")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconColumnInsertRight size={16} stroke={1.5} color="#a855f7" /> Insert 1 Right
+                  </Box>
                   <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
-                  <Box onClick={() => handleStructuralAction("deleteCol")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>Delete Column</Box>
+                  <Box onClick={() => handleHeaderAction("deleteCol")} style={{ padding: "8px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <IconTrash size={16} stroke={1.5} /> Delete Column
+                  </Box>
                 </>
               )}
+            </Box>
+          </>
+        )}
+
+        {cellMenu && (
+          <>
+            <Box onClick={() => setCellMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCellMenu(null); }} style={{ position: "fixed", inset: 0, zIndex: 9999 }} />
+            <Box style={{ position: "fixed", left: cellMenu.x, top: cellMenu.y, zIndex: 10000, background: "#130f22", border: "1px solid rgba(147,51,234,0.25)", borderRadius: 8, padding: "4px", minWidth: 200, boxShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
+              <Box onClick={handleCopy} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCopy size={16} stroke={1.5} color="#c084fc" /> Copy
+              </Box>
+              <Box onClick={handleCut} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCut size={16} stroke={1.5} color="#c084fc" /> Cut
+              </Box>
+              <Box onClick={handlePaste} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconClipboard size={16} stroke={1.5} color="#c084fc" /> Paste
+              </Box>
+              
+              <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+              <Box onClick={() => { executeStructuralAction("row", cellMenu.row, "insertAbove"); setCellMenu(null); }} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconRowInsertTop size={16} stroke={1.5} color="#a855f7" /> Insert 1 row above
+              </Box>
+              <Box onClick={() => { executeStructuralAction("row", cellMenu.row, "insertBelow"); setCellMenu(null); }} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconRowInsertBottom size={16} stroke={1.5} color="#a855f7" /> Insert 1 row below
+              </Box>
+              <Box onClick={() => { executeStructuralAction("row", cellMenu.row, "delete"); setCellMenu(null); }} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(248,113,113,0.1)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconTrash size={16} stroke={1.5} /> Delete row
+              </Box>
+              
+              <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+              <Text size="10px" fw={700} c="dimmed" p="4px 12px" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Number Format</Text>
+              <Box onClick={() => applyCellFormat(null)} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconBaseline size={16} stroke={1.5} /> Plain Text
+              </Box>
+              <Box onClick={() => applyCellFormat("currency")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCurrencyDollar size={16} stroke={1.5} color="#4ade80" /> Currency ($)
+              </Box>
+              <Box onClick={() => applyCellFormat("percent")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconPercentage size={16} stroke={1.5} color="#60a5fa" /> Percent (%)
+              </Box>
+              <Box onClick={() => applyCellFormat("decimal2")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconNumber size={16} stroke={1.5} color="#fbbf24" /> 2 Decimals (.00)
+              </Box>
+              
+              <Box style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+              <Text size="10px" fw={700} c="dimmed" p="4px 12px" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Date Format</Text>
+              <Box onClick={() => applyCellFormat("date-short")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCalendar size={16} stroke={1.5} /> Short Date (MM/DD)
+              </Box>
+              <Box onClick={() => applyCellFormat("date-long")} style={{ padding: "7px 12px", borderRadius: 5, cursor: "pointer", fontSize: 13, color: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={e => (e.currentTarget.style.background = "rgba(147,51,234,0.15)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <IconCalendar size={16} stroke={1.5} color="#f472b6" /> Long Date (Month DD)
+              </Box>
             </Box>
           </>
         )}

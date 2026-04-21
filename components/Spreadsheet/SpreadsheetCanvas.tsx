@@ -18,6 +18,7 @@ interface Props {
   onResizeCol: (col: number, width: number) => void;
   onResizeRow: (row: number, height: number) => void;
   onHeaderContextMenu: (type: "row" | "col", index: number, x: number, y: number) => void;
+  onCellContextMenu: (row: number, col: number, x: number, y: number) => void;
   scrollLeft: number;
   scrollTop: number;
 }
@@ -41,7 +42,7 @@ const COLORS = {
 };
 
 const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCanvas(
-  { sheet, selection, editingCell, onSelectCell, onStartEdit, onResizeCol, onResizeRow, onHeaderContextMenu, scrollLeft, scrollTop },
+  { sheet, selection, editingCell, onSelectCell, onStartEdit, onResizeCol, onResizeRow, onHeaderContextMenu, onCellContextMenu, scrollLeft, scrollTop },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -122,11 +123,29 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
         // Cell value
         if (!isEditing && cell) {
           let displayVal: string;
-          if (cell.f) {
-            const result = evalFormula(cell.f, data);
-            displayVal = String(result);
+          const raw = cell.f ? evalFormula(cell.f, data) : cell.v;
+          
+          if (cell.format) {
+            const format = cell.format;
+            try {
+              if (format === "percent") {
+                displayVal = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 2 }).format(Number(raw));
+              } else if (format === "currency") {
+                displayVal = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(Number(raw));
+              } else if (format === "decimal2") {
+                displayVal = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(raw));
+              } else if (format === "date-short") {
+                displayVal = new Intl.DateTimeFormat(undefined, { dateStyle: "short" }).format(new Date(raw as string));
+              } else if (format === "date-long") {
+                displayVal = new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(new Date(raw as string));
+              } else {
+                displayVal = cell.m ?? String(raw ?? "");
+              }
+            } catch (e) {
+              displayVal = cell.m ?? String(raw ?? "");
+            }
           } else {
-            displayVal = cell.m ?? String(cell.v ?? "");
+            displayVal = cell.m ?? String(raw ?? "");
           }
 
           if (displayVal) {
@@ -357,8 +376,15 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
       const row = hitTest(rowOffsets, y - COL_HEADER_HEIGHT + scrollTop);
       onHeaderContextMenu("row", row, e.clientX, e.clientY);
       e.preventDefault();
+    } else {
+      // Cell context menu
+      const cell = getCell(e.clientX, e.clientY);
+      if (cell) {
+        onCellContextMenu(cell.row, cell.col, e.clientX, e.clientY);
+        e.preventDefault();
+      }
     }
-  }, [sheet, scrollLeft, scrollTop, onHeaderContextMenu]);
+  }, [sheet, scrollLeft, scrollTop, onHeaderContextMenu, onCellContextMenu, getCell]);
 
   return (
     <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden" }}>
