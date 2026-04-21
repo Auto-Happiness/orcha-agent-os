@@ -108,6 +108,10 @@ export default function SpreadsheetEditorPage() {
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const [loaded, setLoaded] = useState(false);
 
+  // History for Undo/Redo
+  const [past, setPast] = useState<Sheet[][]>([]);
+  const [future, setFuture] = useState<Sheet[][]>([]);
+
   const canvasRef = useRef<CanvasHandle>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -129,9 +133,45 @@ export default function SpreadsheetEditorPage() {
   }, [doc, loaded]);
 
   const updateSheet = useCallback((updater: (s: Sheet) => Sheet) => {
-    setSheets(prev => prev.map((s, i) => i === activeSheetIdx ? updater(s) : s));
+    setSheets(prev => {
+      setPast(p => [...p.slice(-49), prev]);
+      setFuture([]); // Clear redo stack on new action
+      return prev.map((s, i) => i === activeSheetIdx ? updater(s) : s);
+    });
     setSaveStatus("unsaved");
   }, [activeSheetIdx]);
+
+  const handleUndo = useCallback(() => {
+    setPast(prevPast => {
+      if (prevPast.length === 0) return prevPast;
+      const prevSheets = prevPast[prevPast.length - 1];
+      const newPast = prevPast.slice(0, -1);
+      
+      setSheets(currentSheets => {
+        setFuture(f => [currentSheets, ...f.slice(0, 49)]);
+        return prevSheets;
+      });
+      
+      return newPast;
+    });
+    setSaveStatus("unsaved");
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    setFuture(prevFuture => {
+      if (prevFuture.length === 0) return prevFuture;
+      const nextSheets = prevFuture[0];
+      const newFuture = prevFuture.slice(1);
+      
+      setSheets(currentSheets => {
+        setPast(p => [...p.slice(-49), currentSheets]);
+        return nextSheets;
+      });
+      
+      return newFuture;
+    });
+    setSaveStatus("unsaved");
+  }, []);
 
   // Debounced auto-save
   const triggerSave = useCallback((currentSheets: Sheet[], name: string) => {
@@ -231,11 +271,17 @@ export default function SpreadsheetEditorPage() {
       } else if (e.key === "Delete" || e.key === "Backspace") {
         updateSheet(s => { const newData = s.data.map(row => [...row]); for (let row = selection.row[0]; row <= selection.row[1]; row++) for (let col = selection.col[0]; col <= selection.col[1]; col++) newData[row][col] = null; return { ...s, data: newData }; });
         e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        handleUndo();
+        e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
+        handleRedo();
+        e.preventDefault();
       } else if (!e.ctrlKey && !e.metaKey && e.key.length === 1) { setEditValue(e.key); handleStartEdit(r, c); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editingCell, selection, sheet, handleSelectCell, handleStartEdit, commitEdit, cancelEdit, updateSheet]);
+  }, [editingCell, selection, sheet, handleSelectCell, handleStartEdit, commitEdit, cancelEdit, updateSheet, handleUndo, handleRedo]);
 
   const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => { setScrollLeft(e.currentTarget.scrollLeft); setScrollTop(e.currentTarget.scrollTop); }, []);
   const handleResizeCol = useCallback((col: number, width: number) => { updateSheet(s => ({ ...s, config: { ...s.config, columnlen: { ...s.config.columnlen, [col]: width } } })); }, [updateSheet]);
