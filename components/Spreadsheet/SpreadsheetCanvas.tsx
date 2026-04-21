@@ -14,6 +14,9 @@ interface Props {
   selection: Selection | null;
   editingCell: { row: number; col: number } | null;
   onSelectCell: (row: number, col: number, extend?: boolean) => void;
+  onSelectFullColumn: (col: number) => void;
+  onSelectFullRow: (row: number) => void;
+  onSelectAll: () => void;
   onStartEdit: (row: number, col: number) => void;
   onResizeCol: (col: number, width: number) => void;
   onResizeRow: (row: number, height: number) => void;
@@ -43,7 +46,12 @@ const COLORS = {
 };
 
 const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCanvas(
-  { sheet, selection, editingCell, onSelectCell, onStartEdit, onResizeCol, onResizeRow, onHeaderContextMenu, onCellContextMenu, onMoveCells, scrollLeft, scrollTop },
+  { sheet, selection, editingCell, onSelectCell,
+  onSelectFullColumn,
+  onSelectFullRow,
+  onSelectAll,
+  onStartEdit,
+ onResizeCol, onResizeRow, onHeaderContextMenu, onCellContextMenu, onMoveCells, scrollLeft, scrollTop },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -362,6 +370,12 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
   }, [selection, sheet, scrollLeft, scrollTop]);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
     const colHandle = getColResizeHandle(e.clientX, e.clientY);
     if (colHandle !== null) {
       resizing.current = {
@@ -371,13 +385,36 @@ const SpreadsheetCanvas = forwardRef<CanvasHandle, Props>(function SpreadsheetCa
       };
       return;
     }
+
+    // Corner Select All
+    if (x < ROW_HEADER_WIDTH && y < COL_HEADER_HEIGHT) {
+      onSelectAll();
+      return;
+    }
+
+    // Header Select Column
+    if (y < COL_HEADER_HEIGHT && x > ROW_HEADER_WIDTH) {
+      const colOffsets = buildOffsets(sheet.data[0]?.length ?? 0, c => getColWidth(sheet.config, c));
+      const col = hitTest(colOffsets, x - ROW_HEADER_WIDTH + scrollLeft);
+      onSelectFullColumn(col);
+      return;
+    }
+
+    // Header Select Row
+    if (x < ROW_HEADER_WIDTH && y > COL_HEADER_HEIGHT) {
+      const rowOffsets = buildOffsets(sheet.data.length, r => getRowHeight(sheet.config, r));
+      const row = hitTest(rowOffsets, y - COL_HEADER_HEIGHT + scrollTop);
+      onSelectFullRow(row);
+      return;
+    }
+
     if (isOnSelectionBorder(e.clientX, e.clientY)) {
       dragging.current = true;
       return;
     }
     const cell = getCell(e.clientX, e.clientY);
     if (cell) onSelectCell(cell.row, cell.col, e.shiftKey);
-  }, [getCell, getColResizeHandle, onSelectCell, sheet.config, isOnSelectionBorder]);
+  }, [getCell, getColResizeHandle, onSelectCell, onSelectFullColumn, onSelectFullRow, onSelectAll, sheet.config, sheet.data, scrollLeft, scrollTop, isOnSelectionBorder]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (resizing.current) {

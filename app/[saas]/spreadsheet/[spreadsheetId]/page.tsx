@@ -230,6 +230,25 @@ export default function SpreadsheetEditorPage() {
     });
   }, [commitEdit]);
 
+  const handleSelectFullColumn = useCallback((col: number) => {
+    if (editingCellRef.current) commitEdit();
+    const rows = sheet.data.length;
+    setSelection({ row: [0, rows - 1], col: [col, col], rowFocus: 0, colFocus: col });
+  }, [commitEdit, sheet.data.length]);
+
+  const handleSelectFullRow = useCallback((row: number) => {
+    if (editingCellRef.current) commitEdit();
+    const cols = sheet.data[0]?.length ?? 0;
+    setSelection({ row: [row, row], col: [0, cols - 1], rowFocus: row, colFocus: 0 });
+  }, [commitEdit, sheet.data]);
+
+  const handleSelectAll = useCallback(() => {
+    if (editingCellRef.current) commitEdit();
+    const rows = sheet.data.length;
+    const cols = sheet.data[0]?.length ?? 0;
+    setSelection({ row: [0, rows - 1], col: [0, cols - 1], rowFocus: 0, colFocus: 0 });
+  }, [commitEdit, sheet.data]);
+
   const handleStartEdit = useCallback((row: number, col: number) => {
     const cell = sheet.data[row]?.[col];
     const val = cell?.f ?? String(cell?.v ?? "");
@@ -454,7 +473,30 @@ export default function SpreadsheetEditorPage() {
 
   const handleExport = useCallback(() => {
     const wb = XLSX.utils.book_new();
-    sheets.forEach(s => { const aoa = s.data.map(row => row.map(cell => { if (!cell) return null; if (cell.f) return evalFormula(cell.f, s.data); return cell.v ?? null; })); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s.name); });
+    sheets.forEach(s => {
+      const aoa = s.data.map(row => row.map(cell => {
+        if (!cell) return null;
+        const val = cell.f ? evalFormula(cell.f, s.data) : cell.v;
+        if (val === null || val === undefined) return null;
+
+        // Excel number formatting mapping (z parameter in SheetJS)
+        let z: string | undefined;
+        let numericVal = typeof val === "string" ? Number(val.replace(/[^0-9.-]/g, "")) : Number(val);
+        const isNum = !isNaN(numericVal);
+        const exportVal = isNum ? numericVal : val;
+
+        if (cell.format === "currency") z = '$#,##0.00';
+        else if (cell.format === "percent") z = "0.00%";
+        else if (cell.format === "decimal2") z = "#,##0.00";
+        else if (cell.format === "date") z = "yyyy-mm-dd";
+
+        if (z && isNum) {
+          return { v: exportVal, t: "n", z };
+        }
+        return exportVal;
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s.name);
+    });
     XLSX.writeFile(wb, `${filename || "export"}.xlsx`);
   }, [sheets, filename]);
 
@@ -528,7 +570,7 @@ export default function SpreadsheetEditorPage() {
         <div ref={scrollRef} onScroll={onScroll} style={{ width: "100%", height: "100%", overflow: "auto", position: "relative" }}>
           <div style={{ width: totalW, height: totalH, position: "absolute", top: 0, left: 0, pointerEvents: "none" }} />
           <div style={{ position: "sticky", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden" }}>
-            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} onCellContextMenu={(row, col, x, y) => setCellMenu({ row, col, x, y })} onMoveCells={handleMoveCells} scrollLeft={scrollLeft} scrollTop={scrollTop} />
+            <SpreadsheetCanvas ref={canvasRef} sheet={sheet} selection={selection} editingCell={editingCell} onSelectCell={handleSelectCell} onSelectFullColumn={handleSelectFullColumn} onSelectFullRow={handleSelectFullRow} onSelectAll={handleSelectAll} onStartEdit={handleStartEdit} onResizeCol={handleResizeCol} onResizeRow={handleResizeRow} onHeaderContextMenu={(type, index, x, y) => setHeaderMenu({ type, index, x, y })} onCellContextMenu={(row, col, x, y) => setCellMenu({ row, col, x, y })} onMoveCells={handleMoveCells} scrollLeft={scrollLeft} scrollTop={scrollTop} />
             {editingCell && editOverlay && (
               <input ref={editInputRef} value={editValue} onChange={e => { setEditValue(e.target.value); editValueRef.current = e.target.value; }} onKeyDown={e => { if (e.key === "Enter") { commitEdit(); e.preventDefault(); } if (e.key === "Escape") { cancelEdit(); e.preventDefault(); } }} autoFocus style={{ position: "absolute", left: editOverlay.left, top: editOverlay.top, width: editOverlay.width, height: editOverlay.height, background: "#1e1a36", border: "2px solid #a855f7", outline: "none", color: "white", fontSize: 12, padding: "0 6px", fontFamily: "inherit", zIndex: 10, boxSizing: "border-box" }} />
             )}
