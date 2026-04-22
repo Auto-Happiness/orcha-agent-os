@@ -86,9 +86,36 @@ export default function CommandCenterPage() {
 
   const widgets = dashboardData?.widgets || [];
 
-  const handleLayoutChange = (newLayout: any) => {
-    console.log("Layout changed:", newLayout);
-    // In a real app, we would update the layout in the DB here
+  const handleLayoutChange = async (newLayout: any) => {
+    if (!organization || !currentDashboardId || !isEditMode) return;
+
+    try {
+      // Sync each layout change back to the DB
+      for (const item of newLayout) {
+        const widget = widgets.find(w => w._id === item.i);
+        if (widget) {
+          await saveWidgetMutation({
+            widgetId: widget._id,
+            dashboardId: currentDashboardId as any,
+            organizationId: organization._id,
+            type: widget.type,
+            title: widget.title,
+            queryId: widget.queryId,
+            mapping: widget.mapping,
+            layout: { 
+              x: item.x, 
+              y: item.y, 
+              w: item.w, 
+              h: item.h 
+            },
+            order: widget.order,
+            size: widget.size,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to save layout:", err);
+    }
   };
 
   const handleAddWidgetStart = (type: string) => {
@@ -96,7 +123,8 @@ export default function CommandCenterPage() {
       type,
       title: `New ${type.toUpperCase()}`,
       order: widgets.length,
-      size: "medium"
+      size: "medium",
+      layout: { x: (widgets.length * 3) % 12, y: Infinity, w: 4, h: 4 }
     };
     setSelectedWidget(template);
     setModalMode("create");
@@ -115,6 +143,7 @@ export default function CommandCenterPage() {
         title: widgetData.title,
         queryId: widgetData.queryId,
         mapping: widgetData.mapping,
+        layout: widgetData.layout,
         order: widgetData.order || widgets.length,
         size: widgetData.size || "medium",
       });

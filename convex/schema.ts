@@ -309,12 +309,20 @@ export default defineSchema({
     // Mapping: which query columns map to which chart axis
     mapping: v.optional(v.object({
       labelKey: v.string(), // e.g. "order_date" (X-Axis)
-      valueKey: v.string(), // e.g. "revenue" (Y-Axis)
+      valueKeys: v.array(v.string()), // e.g. ["revenue", "profit"] (Y-Axes)
       color: v.optional(v.string()),
+      palette: v.optional(v.array(v.string())),
+      seriesColors: v.optional(v.record(v.string(), v.string())), // e.g. {"revenue": "#00ff00"}
       aggregation: v.optional(v.string()),
     })),
     
-    // Layout: Simplified flow ordering (instead of free-form pixels)
+    // Layout: Full pixel-grid control (react-grid-layout)
+    layout: v.optional(v.object({
+      x: v.number(),
+      y: v.number(),
+      w: v.number(),
+      h: v.number(),
+    })),
     order: v.number(),
     size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
     

@@ -6,8 +6,12 @@ import {
   Layout, 
   useContainerWidth 
 } from "react-grid-layout";
-import { Box, Paper, Text, Group, ActionIcon, Menu, Stack } from "@mantine/core";
-import { IconDotsVertical, IconTrash, IconArrowsMaximize, IconSettings } from "@tabler/icons-react";
+import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center } from "@mantine/core";
+import { IconDotsVertical, IconTrash, IconArrowsMaximize, IconSettings, IconChartBar } from "@tabler/icons-react";
+import { useAction } from "convex/react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/convex/_generated/api";
+import { DynamicChart } from "./DynamicChart";
 
 // Add necessary CSS for libraries
 import "react-grid-layout/css/styles.css";
@@ -22,6 +26,68 @@ interface DashboardGridProps {
   saas: string;
 }
 
+function WidgetRenderer({ widget, organizationId }: { widget: any, organizationId: string }) {
+  const executeQuery = useAction(api.biActions.executeWidgetQuery);
+
+  const { data: result, isLoading, error } = useQuery({
+    queryKey: ['widgetData', widget._id, widget.queryId, widget.mapping],
+    queryFn: async () => {
+      if (!widget.queryId || !widget.mapping) return null;
+      return await executeQuery({
+        widgetId: widget._id,
+        organizationId: organizationId as any
+      });
+    },
+    enabled: !!widget.queryId && !!widget.mapping,
+    staleTime: 5 * 60 * 1000, // Keep data fresh for 5 minutes
+  });
+
+  const queryData = result?.success ? result.rows : [];
+  const queryError = error ? (error as Error).message : (result?.success === false ? result.message : null);
+
+  if (isLoading) {
+    return (
+      <Center h="100%">
+        <Loader size="sm" color="violet" />
+      </Center>
+    );
+  }
+
+  if (queryError) {
+    return (
+      <Center h="100%" p="md">
+        <Stack align="center" gap={4}>
+          <Text size="xs" c="red.4" ta="center">{queryError}</Text>
+          <Text size="10px" c="dimmed">Check query configuration</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  if (!widget.mapping || !widget.queryId) {
+    return (
+      <Center h="100%">
+        <Stack align="center" gap={4}>
+          <IconChartBar size={32} color="rgba(255,255,255,0.05)" />
+          <Text size="xs" c="dimmed">Not Configured</Text>
+          <Text size="10px" c="violet.4">Click to setup intelligence</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  return (
+    <DynamicChart
+      data={queryData}
+      type={widget.type}
+      labelKey={widget.mapping.labelKey}
+      valueKeys={widget.mapping.valueKeys}
+      seriesColors={widget.mapping.seriesColors}
+      height="100%"
+    />
+  );
+}
+
 export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWidget, saas }: DashboardGridProps) {
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const [selectedWidget, setSelectedWidget] = useState<any>(null);
@@ -29,7 +95,7 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
 
   // Generate layouts from widgets
   const layouts = useMemo(() => ({
-    lg: widgets.map(w => ({ i: w.id, ...w.layout })),
+    lg: widgets.map(w => ({ i: w._id, ...w.layout })),
   }), [widgets]);
 
   if (!mounted) {
@@ -61,7 +127,7 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
         onLayoutChange={(currentLayout: Layout) => onLayoutChange(currentLayout)}
       >
       {widgets.map((widget) => (
-        <div key={widget.id}>
+        <div key={widget._id}>
           <Paper
             radius="lg"
             p="md"
@@ -105,7 +171,7 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                     color="red" 
                     onClick={(e) => {
                       e.stopPropagation();
-                      onRemoveWidget(widget.id);
+                      onRemoveWidget(widget._id);
                     }}
                   >
                     Remove
@@ -115,11 +181,8 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
             </Group>
 
             {/* Content Area */}
-            <Box style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ textAlign: "center" }}>
-                <Text size="sm" c="dimmed">{widget.type.toUpperCase()} CHART</Text>
-                <Text size="xs" c="cyan.4" mt={4}>[ Live Data Placeholder ]</Text>
-              </div>
+            <Box style={{ flex: 1, position: "relative" }}>
+              <WidgetRenderer widget={widget} organizationId={widgets[0]?.organizationId} />
             </Box>
 
             {/* Edit Mode Overlay (Subtle) */}

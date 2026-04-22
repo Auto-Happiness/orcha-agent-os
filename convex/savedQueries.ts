@@ -12,6 +12,13 @@ export const listByConfig = query({
   },
 });
 
+export const getById = query({
+  args: { queryId: v.id("savedQueries") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.queryId);
+  },
+});
+
 export const save = mutation({
   args: {
     organizationId: v.id("organizations"),

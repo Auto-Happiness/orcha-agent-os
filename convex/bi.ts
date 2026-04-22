@@ -15,6 +15,13 @@ export const listDashboards = query({
   },
 });
 
+export const getWidgetById = query({
+  args: { widgetId: v.id("dashboardWidgets") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.widgetId);
+  },
+});
+
 /**
  * Get a specific dashboard and its widgets.
  */
@@ -77,9 +84,17 @@ export const saveWidget = mutation({
     queryId: v.optional(v.id("savedQueries")),
     mapping: v.optional(v.object({
       labelKey: v.string(),
-      valueKey: v.string(),
+      valueKeys: v.array(v.string()),
       color: v.optional(v.string()),
+      palette: v.optional(v.array(v.string())),
+      seriesColors: v.optional(v.record(v.string(), v.string())),
       aggregation: v.optional(v.string()),
+    })),
+    layout: v.optional(v.object({
+      x: v.number(),
+      y: v.number(),
+      w: v.number(),
+      h: v.number(),
     })),
     order: v.number(),
     size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
