@@ -283,4 +283,43 @@ export default defineSchema({
   })
     .index("by_org", ["organizationId"])
     .index("by_org_integration", ["organizationId", "integration"]),
+
+  // ─── BI: Command Center Dashboards ──────────────────────────────────────
+  dashboards: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    isDefault: v.optional(v.boolean()),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_org_name", ["organizationId", "name"]),
+
+  dashboardWidgets: defineTable({
+    dashboardId: v.id("dashboards"),
+    organizationId: v.id("organizations"),
+    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi")),
+    title: v.string(),
+    description: v.optional(v.string()),
+    
+    // Data Hook (The 'Chartio' logic)
+    queryId: v.optional(v.id("savedQueries")), // Reference to the SQL query
+    
+    // Mapping: which query columns map to which chart axis
+    mapping: v.optional(v.object({
+      labelKey: v.string(), // e.g. "order_date" (X-Axis)
+      valueKey: v.string(), // e.g. "revenue" (Y-Axis)
+      color: v.optional(v.string()),
+      aggregation: v.optional(v.string()),
+    })),
+    
+    // Layout: Simplified flow ordering (instead of free-form pixels)
+    order: v.number(),
+    size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
+    
+    createdAt: v.number(),
+  })
+    .index("by_dashboard", ["dashboardId"])
+    .index("by_org", ["organizationId"]),
 });

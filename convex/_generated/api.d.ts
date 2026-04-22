@@ -11,6 +11,7 @@
 import type * as aiKeys from "../aiKeys.js";
 import type * as auth from "../auth.js";
 import type * as authUtils from "../authUtils.js";
+import type * as bi from "../bi.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as chatSessions from "../chatSessions.js";
 import type * as databaseConfigs from "../databaseConfigs.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   aiKeys: typeof aiKeys;
   auth: typeof auth;
   authUtils: typeof authUtils;
+  bi: typeof bi;
   chatMessages: typeof chatMessages;
   chatSessions: typeof chatSessions;
   databaseConfigs: typeof databaseConfigs;

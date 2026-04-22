@@ -36,6 +36,13 @@ export const updateLastExecuted = mutation({
   },
 });
 
+export const rename = mutation({
+  args: { queryId: v.id("savedQueries"), name: v.string() },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.queryId, { name: args.name });
+  },
+});
+
 export const remove = mutation({
   args: { queryId: v.id("savedQueries") },
   handler: async (ctx, args) => {
