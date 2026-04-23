@@ -14,7 +14,9 @@ import {
   Badge,
   Divider,
   ActionIcon,
-  Tooltip
+  Tooltip,
+  Modal,
+  TextInput
 } from "@mantine/core";
 import { 
   IconPlus, 
@@ -27,9 +29,10 @@ import {
   IconChartBar,
   IconChartLine,
   IconChartPie,
-  IconNumbers
+  IconNumbers,
+  IconAlignLeft,
+  IconFileTypePdf
 } from "@tabler/icons-react";
-import { useDisclosure } from "@mantine/hooks";
 import { Menu } from "@mantine/core";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -42,33 +45,15 @@ const DashboardGrid = dynamic(
 
 import { WidgetIntelligencePanel } from "@/components/BI/WidgetIntelligencePanel";
 
-/* ─── Mock Views ─────────────────────────────────────────────────────────── */
-
-const DASHBOARD_VIEWS = [
-  { value: "main", label: "Executive Overview" },
-  { value: "sales", label: "Sales & Revenue" },
-];
-
-/* ─── Initial Widgets ────────────────────────────────────────────────────── */
-
-const INITIAL_WIDGETS = [
-  { id: "1", type: "kpi", title: "Monthly Revenue", layout: { x: 0, y: 0, w: 3, h: 2 } },
-  { id: "2", type: "kpi", title: "Active Users", layout: { x: 3, y: 0, w: 3, h: 2 } },
-  { id: "3", type: "line", title: "Growth Trend", layout: { x: 6, y: 0, w: 6, h: 4 } },
-  { id: "4", type: "bar", title: "Sales by Region", layout: { x: 0, y: 2, w: 6, h: 4 } },
-];
-
 export default function CommandCenterPage() {
   const { saas } = useParams();
   const organization = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
   const dashboards = useQuery(api.bi.listDashboards, organization ? { organizationId: organization._id } : "skip");
-  
-  const [currentView, setCurrentView] = useState("main");
 
-  // For now, we'll assume there's at least one dashboard or we create one
   const [currentDashboardId, setCurrentDashboardId] = useState<string | null>(null);
   const dashboardData = useQuery(api.bi.getDashboard, currentDashboardId ? { dashboardId: currentDashboardId as any } : "skip");
   
+  const createDashboardMutation = useMutation(api.bi.createDashboard);
   const saveWidgetMutation = useMutation(api.bi.saveWidget);
   const removeWidgetMutation = useMutation(api.bi.removeWidget);
 
@@ -76,15 +61,47 @@ export default function CommandCenterPage() {
   const [selectedWidget, setSelectedWidget] = useState<any>(null);
   const [intelligenceOpened, setIntelligenceOpened] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
+  const [createDashboardOpened, setCreateDashboardOpened] = useState(false);
+  const [newDashboardName, setNewDashboardName] = useState("");
+  const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
+  const [hasPromptedInitialDashboard, setHasPromptedInitialDashboard] = useState(false);
 
-  // Sync current dashboard
+  // Sync current dashboard selection
   useEffect(() => {
     if (dashboards && dashboards.length > 0 && !currentDashboardId) {
       setCurrentDashboardId(dashboards[0]._id);
     }
   }, [dashboards, currentDashboardId]);
 
+  // Prompt first dashboard creation for first-time organizations.
+  useEffect(() => {
+    if (!organization || dashboards === undefined || hasPromptedInitialDashboard) return;
+    if (dashboards.length === 0) {
+      setNewDashboardName("Executive Overview");
+      setCreateDashboardOpened(true);
+      setHasPromptedInitialDashboard(true);
+    }
+  }, [organization, dashboards, hasPromptedInitialDashboard]);
+
   const widgets = dashboardData?.widgets || [];
+
+  const handleCreateDashboard = async () => {
+    if (!organization || !newDashboardName.trim()) return;
+    setIsCreatingDashboard(true);
+    try {
+      const dashboardId = await createDashboardMutation({
+        organizationId: organization._id,
+        name: newDashboardName.trim(),
+      });
+      setCurrentDashboardId(dashboardId as any);
+      setCreateDashboardOpened(false);
+      setNewDashboardName("");
+    } catch (err) {
+      console.error("Failed to create dashboard:", err);
+    } finally {
+      setIsCreatingDashboard(false);
+    }
+  };
 
   const handleLayoutChange = async (newLayout: any) => {
     if (!organization || !currentDashboardId || !isEditMode) return;
@@ -119,9 +136,11 @@ export default function CommandCenterPage() {
   };
 
   const handleAddWidgetStart = (type: string) => {
+    const isText = type === "text";
     const template = {
       type,
-      title: `New ${type.toUpperCase()}`,
+      title: isText ? "Text Box" : `New ${type.toUpperCase()}`,
+      description: isText ? "Add your notes, context, or business guidance here." : undefined,
       order: widgets.length,
       size: "medium",
       // Use a finite y value to satisfy Convex number validation.
@@ -142,6 +161,7 @@ export default function CommandCenterPage() {
         organizationId: organization._id,
         type: widgetData.type,
         title: widgetData.title,
+        description: widgetData.description,
         queryId: widgetData.queryId,
         mapping: widgetData.mapping,
         layout: widgetData.layout,
@@ -162,6 +182,42 @@ export default function CommandCenterPage() {
     }
   };
 
+  const handleGeneratePdf = () => {
+    // Print only the dashboard canvas (not the entire app shell/navigation).
+    const style = document.createElement("style");
+    style.setAttribute("data-print-dashboard-only", "true");
+    style.innerHTML = `
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+        #dashboard-report-print,
+        #dashboard-report-print * {
+          visibility: visible !important;
+        }
+        #dashboard-report-print {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: white !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const cleanup = () => {
+      const injected = document.querySelector('style[data-print-dashboard-only="true"]');
+      if (injected?.parentNode) injected.parentNode.removeChild(injected);
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+  };
+
   return (
     <Box p="xl" bg="#07050f" style={{ minHeight: "100vh" }}>
       <Container size="xl">
@@ -178,10 +234,10 @@ export default function CommandCenterPage() {
 
           <Group>
             <Select
-              data={DASHBOARD_VIEWS}
-              value={currentView}
-              onChange={(v) => setCurrentView(v ?? "main")}
-              placeholder="Select View"
+              data={(dashboards || []).map((d: any) => ({ value: d._id, label: d.name }))}
+              value={currentDashboardId}
+              onChange={(v) => setCurrentDashboardId(v)}
+              placeholder="Select Dashboard"
               leftSection={<IconLayout2 size={16} color="#a855f7" />}
               styles={{
                 input: {
@@ -195,6 +251,17 @@ export default function CommandCenterPage() {
                 dropdown: { background: "#130f22", border: "1px solid rgba(147, 51, 234, 0.2)" },
               }}
             />
+            <Button
+              variant="light"
+              color="violet"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => {
+                setNewDashboardName("");
+                setCreateDashboardOpened(true);
+              }}
+            >
+              New Dashboard
+            </Button>
             
             <Divider orientation="vertical" />
             
@@ -222,25 +289,38 @@ export default function CommandCenterPage() {
                       </Button>
                     </Menu.Target>
                     <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(147,51,234,0.3)" }}>
-                      <Menu.Label>Visualization Type</Menu.Label>
+                      <Menu.Label>Components</Menu.Label>
                       <Menu.Item leftSection={<IconChartBar size={16} />} onClick={() => handleAddWidgetStart("bar")}>Bar Chart</Menu.Item>
                       <Menu.Item leftSection={<IconChartLine size={16} />} onClick={() => handleAddWidgetStart("line")}>Line Chart</Menu.Item>
                       <Menu.Item leftSection={<IconChartPie size={16} />} onClick={() => handleAddWidgetStart("pie")}>Pie Chart</Menu.Item>
                       <Menu.Item leftSection={<IconNumbers size={16} />} onClick={() => handleAddWidgetStart("kpi")}>KPI Metric</Menu.Item>
+                      <Menu.Item leftSection={<IconAlignLeft size={16} />} onClick={() => handleAddWidgetStart("text")}>Text Box</Menu.Item>
                     </Menu.Dropdown>
                   </Menu>
                 </>
               ) : (
-                <Tooltip label="Enter Designer Mode to rearrange or add widgets">
-                  <Button 
-                    variant="outline" 
-                    color="violet" 
-                    leftSection={<IconLockOpen size={16} />}
-                    onClick={() => setIsEditMode(true)}
-                  >
-                    Configure Dashboard
-                  </Button>
-                </Tooltip>
+                <>
+                  <Tooltip label="Enter Designer Mode to rearrange or add widgets">
+                    <Button 
+                      variant="outline" 
+                      color="violet" 
+                      leftSection={<IconLockOpen size={16} />}
+                      onClick={() => setIsEditMode(true)}
+                    >
+                      Configure Dashboard
+                    </Button>
+                  </Tooltip>
+                  <Tooltip label="Export current dashboard as a PDF report">
+                    <Button
+                      variant="light"
+                      color="grape"
+                      leftSection={<IconFileTypePdf size={16} />}
+                      onClick={handleGeneratePdf}
+                    >
+                      Generate PDF
+                    </Button>
+                  </Tooltip>
+                </>
               )}
             </Group>
             
@@ -251,7 +331,8 @@ export default function CommandCenterPage() {
         </Group>
 
         {/* Dynamic Grid Canvas */}
-        <Box 
+        <Box
+          id="dashboard-report-print"
           style={{ 
             minHeight: 600, 
             background: isEditMode ? "rgba(147, 51, 234, 0.02)" : "transparent",
@@ -266,6 +347,7 @@ export default function CommandCenterPage() {
             isEditMode={isEditMode}
             onLayoutChange={handleLayoutChange}
             onRemoveWidget={handleRemoveWidget}
+            onSaveWidget={handleSaveWidget}
             saas={saas as string}
           />
           
@@ -286,6 +368,32 @@ export default function CommandCenterPage() {
           onSave={handleSaveWidget}
           saas={saas as string}
         />
+
+        <Modal
+          opened={createDashboardOpened}
+          onClose={() => setCreateDashboardOpened(false)}
+          title="Create Dashboard"
+          centered
+        >
+          <TextInput
+            label="Dashboard Name"
+            placeholder="e.g. Executive Overview"
+            value={newDashboardName}
+            onChange={(e) => setNewDashboardName(e.currentTarget.value)}
+            autoFocus
+          />
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" onClick={() => setCreateDashboardOpened(false)}>Cancel</Button>
+            <Button
+              color="violet"
+              onClick={handleCreateDashboard}
+              loading={isCreatingDashboard}
+              disabled={!newDashboardName.trim()}
+            >
+              Create
+            </Button>
+          </Group>
+        </Modal>
       </Container>
     </Box>
   );

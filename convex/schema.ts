@@ -299,7 +299,7 @@ export default defineSchema({
   dashboardWidgets: defineTable({
     dashboardId: v.id("dashboards"),
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi")),
+    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
     title: v.string(),
     description: v.optional(v.string()),
     

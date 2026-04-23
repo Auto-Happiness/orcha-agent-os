@@ -16,6 +16,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from "recharts";
 import { Box, Text, Center, Loader, Stack, Group } from "@mantine/core";
 
@@ -194,12 +195,23 @@ export function DynamicChart({
               dataKey={primaryValueKey}
               nameKey={labelKey}
               stroke="none"
+              labelLine={false}
+              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
             >
               {formattedData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={defaultPalette[index % defaultPalette.length]} />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={getSeriesColor(String(entry[labelKey]), index)}
+                />
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip />} />
+            <Legend
+              verticalAlign="bottom"
+              align="center"
+              iconType="circle"
+              wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}
+            />
           </PieChart>
         );
 

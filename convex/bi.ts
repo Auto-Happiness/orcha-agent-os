@@ -55,7 +55,7 @@ export const createDashboard = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
 
     if (!user) throw new Error("User not found");
@@ -79,8 +79,9 @@ export const saveWidget = mutation({
     widgetId: v.optional(v.id("dashboardWidgets")),
     dashboardId: v.id("dashboards"),
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi")),
+    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
     title: v.string(),
+    description: v.optional(v.string()),
     queryId: v.optional(v.id("savedQueries")),
     mapping: v.optional(v.object({
       labelKey: v.string(),

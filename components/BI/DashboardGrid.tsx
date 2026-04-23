@@ -21,10 +21,21 @@ interface DashboardGridProps {
   isEditMode: boolean;
   onLayoutChange: (newLayout: Layout) => void;
   onRemoveWidget: (id: string) => void;
+  onSaveWidget: (widgetData: any) => void;
   saas: string;
 }
 
 function WidgetRenderer({ widget, organizationId }: { widget: any, organizationId: string }) {
+  if (widget.type === "text") {
+    return (
+      <Box p="xs" style={{ height: "100%", overflow: "auto" }}>
+        <Text size="sm" c="gray.2" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+          {widget.description || "Add text content from Configure > Text Box."}
+        </Text>
+      </Box>
+    );
+  }
+
   const { data: result, isLoading, error } = useQuery({
     queryKey: ['widgetData', widget._id, widget.queryId, widget.mapping],
     queryFn: async () => {
@@ -95,7 +106,7 @@ function WidgetRenderer({ widget, organizationId }: { widget: any, organizationI
   );
 }
 
-export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWidget, saas }: DashboardGridProps) {
+export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWidget, onSaveWidget, saas }: DashboardGridProps) {
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const [selectedWidget, setSelectedWidget] = useState<any>(null);
   const [panelOpened, setPanelOpened] = useState(false);
@@ -138,7 +149,6 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
           <Paper
             radius="lg"
             p="md"
-            onClick={() => handleWidgetClick(widget)}
             style={{
               height: "100%",
               display: "flex",
@@ -171,7 +181,16 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                 </Menu.Target>
                 <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
                   <Menu.Item leftSection={<IconArrowsMaximize size={14} />} c="white">Expand</Menu.Item>
-                  <Menu.Item leftSection={<IconSettings size={14} />} c="white">Configure</Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconSettings size={14} />}
+                    c="white"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleWidgetClick(widget);
+                    }}
+                  >
+                    Configure
+                  </Menu.Item>
                   <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />
                   <Menu.Item 
                     leftSection={<IconTrash size={14} />} 
@@ -216,6 +235,8 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
         opened={panelOpened} 
         onClose={() => setPanelOpened(false)} 
         widget={selectedWidget} 
+        mode="edit"
+        onSave={onSaveWidget}
         saas={saas}
       />
     </Box>

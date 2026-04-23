@@ -26,7 +26,8 @@ import {
   ThemeIcon,
   Accordion,
   MultiSelect,
-  ColorInput
+  ColorInput,
+  Textarea
 } from "@mantine/core";
 import {
   IconSettings,
@@ -72,6 +73,8 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
 
   // Styling States
   const [seriesColors, setSeriesColors] = useState<Record<string, string>>(widget?.mapping?.seriesColors || {});
+  const [widgetTitle, setWidgetTitle] = useState(widget?.title || "");
+  const [textContent, setTextContent] = useState(widget?.description || "");
 
   // Reset state when panel opens/closes
   useEffect(() => {
@@ -86,6 +89,8 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
       setPreviewRows([]);
       setSqlModalOpened(false);
       setSeriesColors(widget?.mapping?.seriesColors || {});
+      setWidgetTitle(widget?.title || "");
+      setTextContent(widget?.description || "");
     }
   }, [opened, widget]);
 
@@ -206,6 +211,72 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   };
 
   const validationLogs = getSmartValidationLogs();
+  const isTextWidget = widget?.type === "text";
+
+  if (isTextWidget) {
+    return (
+      <Modal
+        opened={opened}
+        onClose={onClose}
+        title={
+          <Group gap="xs">
+            <IconChartBar size={20} color="var(--mantine-color-violet-filled)" />
+            <Text fw={700}>Text Box: {widget?.title || "New Text Box"}</Text>
+          </Group>
+        }
+        size="lg"
+        radius="lg"
+        styles={{
+          content: {
+            background: "#0c0a1d",
+            border: "1px solid rgba(147, 51, 234, 0.2)",
+            backdropFilter: "blur(24px)",
+            color: "white"
+          },
+          header: { background: "transparent" },
+          close: { color: "gray" }
+        }}
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Component Title"
+            placeholder="e.g. Executive Notes"
+            value={widgetTitle}
+            onChange={(e) => setWidgetTitle(e.currentTarget.value)}
+          />
+          <Textarea
+            label="Text Content"
+            placeholder="Add explanatory notes, business context, assumptions, and guidance..."
+            minRows={8}
+            autosize
+            value={textContent}
+            onChange={(e) => setTextContent(e.currentTarget.value)}
+          />
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" color="gray" onClick={onClose}>Cancel</Button>
+            <Button
+              color="violet"
+              onClick={() => {
+                if (onSave) {
+                  onSave({
+                    ...widget,
+                    title: widgetTitle || "Text Box",
+                    description: textContent,
+                    queryId: undefined,
+                    mapping: undefined,
+                    status: "configured",
+                  });
+                }
+                onClose();
+              }}
+            >
+              {mode === "create" ? "Add to Dashboard" : "Apply Settings"}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    );
+  }
 
 
   return (
@@ -424,7 +495,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
 
             <Group justify="flex-end" mt="xl">
               <Button variant="subtle" color="gray" onClick={onClose}>Cancel</Button>
-              <Button color="violet" onClick={() => { if (onSave) onSave({ ...widget, queryId: selectedQueryId, mapping: { labelKey, valueKeys, seriesColors }, status: 'configured' }); onClose(); }}>
+              <Button color="violet" onClick={() => { if (onSave) onSave({ ...widget, title: widgetTitle || widget?.title, description: textContent, queryId: selectedQueryId, mapping: { labelKey, valueKeys, seriesColors }, status: 'configured' }); onClose(); }}>
                 {mode === "create" ? "Add to Dashboard" : "Apply Settings"}
               </Button>
             </Group>
