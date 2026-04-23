@@ -106,7 +106,10 @@ export const saveWidget = mutation({
       await ctx.db.patch(widgetId, data);
       return widgetId;
     } else {
-      return await ctx.db.insert("dashboardWidgets", data);
+      return await ctx.db.insert("dashboardWidgets", {
+        ...data,
+        createdAt: Date.now(),
+      });
     }
   },
 });

@@ -8,9 +8,7 @@ import {
 } from "react-grid-layout";
 import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center } from "@mantine/core";
 import { IconDotsVertical, IconTrash, IconArrowsMaximize, IconSettings, IconChartBar } from "@tabler/icons-react";
-import { useAction } from "convex/react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/convex/_generated/api";
 import { DynamicChart } from "./DynamicChart";
 
 // Add necessary CSS for libraries
@@ -27,19 +25,28 @@ interface DashboardGridProps {
 }
 
 function WidgetRenderer({ widget, organizationId }: { widget: any, organizationId: string }) {
-  const executeQuery = useAction(api.biActions.executeWidgetQuery);
-
   const { data: result, isLoading, error } = useQuery({
     queryKey: ['widgetData', widget._id, widget.queryId, widget.mapping],
     queryFn: async () => {
       if (!widget.queryId || !widget.mapping) return null;
-      return await executeQuery({
-        widgetId: widget._id,
-        organizationId: organizationId as any
+      const response = await fetch("/api/bi/widget-query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          widgetId: widget._id,
+          organizationId,
+        }),
       });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to load widget data.");
+      }
+      return data;
     },
     enabled: !!widget.queryId && !!widget.mapping,
     staleTime: 5 * 60 * 1000, // Keep data fresh for 5 minutes
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const queryData = result?.success ? result.rows : [];

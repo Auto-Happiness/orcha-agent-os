@@ -124,7 +124,8 @@ export default function CommandCenterPage() {
       title: `New ${type.toUpperCase()}`,
       order: widgets.length,
       size: "medium",
-      layout: { x: (widgets.length * 3) % 12, y: Infinity, w: 4, h: 4 }
+      // Use a finite y value to satisfy Convex number validation.
+      layout: { x: (widgets.length * 3) % 12, y: widgets.length * 4, w: 4, h: 4 }
     };
     setSelectedWidget(template);
     setModalMode("create");
