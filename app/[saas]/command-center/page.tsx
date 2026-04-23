@@ -1,0 +1,416 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { useParams } from "next/navigation";
+import { 
+  Box, 
+  Container, 
+  Group, 
+  Title, 
+  Text, 
+  Button, 
+  Select, 
+  Badge,
+  Divider,
+  ActionIcon,
+  Tooltip,
+  Modal,
+  TextInput,
+  Center,
+  Loader,
+  Stack
+} from "@mantine/core";
+import { 
+  IconPlus, 
+  IconShare, 
+  IconLayout2, 
+  IconDeviceDesktopAnalytics,
+  IconDeviceFloppy,
+  IconPencil,
+  IconChevronDown,
+  IconChartBar,
+  IconChartLine,
+  IconChartPie,
+  IconNumbers,
+  IconAlignLeft,
+  IconFileTypePdf
+} from "@tabler/icons-react";
+import { Menu } from "@mantine/core";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+
+// Dynamically import the Grid to avoid SSR issues with react-grid-layout
+const DashboardGrid = dynamic(
+  () => import("@/components/BI/DashboardGrid").then((mod) => mod.DashboardGrid),
+  { ssr: false }
+);
+
+import { WidgetIntelligencePanel } from "@/components/BI/WidgetIntelligencePanel";
+
+export default function CommandCenterPage() {
+  const { saas } = useParams();
+  const organization = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
+  const dashboards = useQuery(api.bi.listDashboards, organization ? { organizationId: organization._id } : "skip");
+
+  const [currentDashboardId, setCurrentDashboardId] = useState<string | null>(null);
+  const dashboardData = useQuery(api.bi.getDashboard, currentDashboardId ? { dashboardId: currentDashboardId as any } : "skip");
+  
+  const createDashboardMutation = useMutation(api.bi.createDashboard);
+  const saveWidgetMutation = useMutation(api.bi.saveWidget);
+  const removeWidgetMutation = useMutation(api.bi.removeWidget);
+
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedWidget, setSelectedWidget] = useState<any>(null);
+  const [intelligenceOpened, setIntelligenceOpened] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
+  const [createDashboardOpened, setCreateDashboardOpened] = useState(false);
+  const [newDashboardName, setNewDashboardName] = useState("");
+  const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
+  const [hasPromptedInitialDashboard, setHasPromptedInitialDashboard] = useState(false);
+
+  // Sync current dashboard selection
+  useEffect(() => {
+    if (dashboards && dashboards.length > 0 && !currentDashboardId) {
+      setCurrentDashboardId(dashboards[0]._id);
+    }
+  }, [dashboards, currentDashboardId]);
+
+  // Prompt first dashboard creation for first-time organizations.
+  useEffect(() => {
+    if (!organization || dashboards === undefined || hasPromptedInitialDashboard) return;
+    if (dashboards.length === 0) {
+      setNewDashboardName("Executive Overview");
+      setCreateDashboardOpened(true);
+      setHasPromptedInitialDashboard(true);
+    }
+  }, [organization, dashboards, hasPromptedInitialDashboard]);
+
+  const widgets = dashboardData?.widgets || [];
+
+  const handleCreateDashboard = async () => {
+    if (!organization || !newDashboardName.trim()) return;
+    setIsCreatingDashboard(true);
+    try {
+      const dashboardId = await createDashboardMutation({
+        organizationId: organization._id,
+        name: newDashboardName.trim(),
+      });
+      setCurrentDashboardId(dashboardId as any);
+      setCreateDashboardOpened(false);
+      setNewDashboardName("");
+    } catch (err) {
+      console.error("Failed to create dashboard:", err);
+    } finally {
+      setIsCreatingDashboard(false);
+    }
+  };
+
+  const handleLayoutChange = async (newLayout: any) => {
+    if (!organization || !currentDashboardId || !isEditMode) return;
+
+    try {
+      // Sync each layout change back to the DB
+      for (const item of newLayout) {
+        const widget = widgets.find(w => w._id === item.i);
+        if (widget) {
+          await saveWidgetMutation({
+            widgetId: widget._id,
+            dashboardId: currentDashboardId as any,
+            organizationId: organization._id,
+            type: widget.type,
+            title: widget.title,
+            queryId: widget.queryId,
+            mapping: widget.mapping,
+            layout: { 
+              x: item.x, 
+              y: item.y, 
+              w: item.w, 
+              h: item.h 
+            },
+            order: widget.order,
+            size: widget.size,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to save layout:", err);
+    }
+  };
+
+  const handleAddWidgetStart = (type: string) => {
+    const isText = type === "text";
+    const template = {
+      type,
+      title: isText ? "Text Box" : `New ${type.toUpperCase()}`,
+      description: isText ? "Add your notes, context, or business guidance here." : undefined,
+      order: widgets.length,
+      size: "medium",
+      // Use a finite y value to satisfy Convex number validation.
+      layout: { x: (widgets.length * 3) % 12, y: widgets.length * 4, w: 4, h: 4 }
+    };
+    setSelectedWidget(template);
+    setModalMode("create");
+    setIntelligenceOpened(true);
+  };
+
+  const handleSaveWidget = async (widgetData: any) => {
+    if (!organization || !currentDashboardId) return;
+
+    try {
+      await saveWidgetMutation({
+        widgetId: modalMode === "edit" ? widgetData._id : undefined,
+        dashboardId: currentDashboardId as any,
+        organizationId: organization._id,
+        type: widgetData.type,
+        title: widgetData.title,
+        description: widgetData.description,
+        queryId: widgetData.queryId,
+        mapping: widgetData.mapping,
+        layout: widgetData.layout,
+        order: widgetData.order || widgets.length,
+        size: widgetData.size || "medium",
+      });
+      setIntelligenceOpened(false);
+    } catch (err) {
+      console.error("Failed to save widget:", err);
+    }
+  };
+
+  const handleRemoveWidget = async (id: string) => {
+    try {
+      await removeWidgetMutation({ widgetId: id as any });
+    } catch (err) {
+      console.error("Failed to remove widget:", err);
+    }
+  };
+
+  const handleGeneratePdf = () => {
+    // Print only the dashboard canvas (not the entire app shell/navigation).
+    const style = document.createElement("style");
+    style.setAttribute("data-print-dashboard-only", "true");
+    style.innerHTML = `
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+        #dashboard-report-print,
+        #dashboard-report-print * {
+          visibility: visible !important;
+        }
+        #dashboard-report-print {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: white !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const cleanup = () => {
+      const injected = document.querySelector('style[data-print-dashboard-only="true"]');
+      if (injected?.parentNode) injected.parentNode.removeChild(injected);
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+  };
+
+  return (
+    <Box p="xl" bg="#07050f" style={{ minHeight: "100vh" }}>
+      <Container size="xl">
+        {/* Header Section */}
+        <Group justify="space-between" mb={40}>
+          <Box>
+            <Group gap="sm" mb={4}>
+              <IconDeviceDesktopAnalytics size={24} color="#a855f7" />
+              <Title order={2} c="white" fw={800}>Command Center</Title>
+              <Badge variant="dot" color="violet" size="sm">v1.0-alpha</Badge>
+            </Group>
+            <Text c="dimmed" size="sm">Customize your organization&apos;s real-time intelligence dashboard.</Text>
+          </Box>
+
+          <Group>
+            <Select
+              data={(dashboards || []).map((d: any) => ({ value: d._id, label: d.name }))}
+              value={currentDashboardId}
+              onChange={(v) => setCurrentDashboardId(v)}
+              placeholder="Select Dashboard"
+              leftSection={<IconLayout2 size={16} color="#a855f7" />}
+              styles={{
+                input: {
+                  background: "rgba(147, 51, 234, 0.1)",
+                  border: "1px solid rgba(147, 51, 234, 0.3)",
+                  color: "white",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  width: 220
+                },
+                dropdown: { background: "#130f22", border: "1px solid rgba(147, 51, 234, 0.2)" },
+              }}
+            />
+            <Button
+              variant="light"
+              color="violet"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => {
+                setNewDashboardName("");
+                setCreateDashboardOpened(true);
+              }}
+            >
+              New Dashboard
+            </Button>
+            
+            <Divider orientation="vertical" />
+            
+            <Group gap="xs">
+              {isEditMode ? (
+                <>
+                  <Button 
+                    variant="filled" 
+                    color="green" 
+                    leftSection={<IconDeviceFloppy size={16} />}
+                    onClick={() => setIsEditMode(false)}
+                  >
+                    Save Changes
+                  </Button>
+
+                  <Menu position="bottom-end" shadow="md" width={200} radius="md">
+                    <Menu.Target>
+                      <Button 
+                        variant="light" 
+                        color="violet" 
+                        leftSection={<IconPlus size={16} />}
+                        rightSection={<IconChevronDown size={14} />}
+                      >
+                        Add Insight
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(147,51,234,0.3)" }}>
+                      <Menu.Label>Components</Menu.Label>
+                      <Menu.Item leftSection={<IconChartBar size={16} />} onClick={() => handleAddWidgetStart("bar")}>Bar Chart</Menu.Item>
+                      <Menu.Item leftSection={<IconChartLine size={16} />} onClick={() => handleAddWidgetStart("line")}>Line Chart</Menu.Item>
+                      <Menu.Item leftSection={<IconChartPie size={16} />} onClick={() => handleAddWidgetStart("pie")}>Pie Chart</Menu.Item>
+                      <Menu.Item leftSection={<IconNumbers size={16} />} onClick={() => handleAddWidgetStart("kpi")}>KPI Metric</Menu.Item>
+                      <Menu.Item leftSection={<IconAlignLeft size={16} />} onClick={() => handleAddWidgetStart("text")}>Text Box</Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                </>
+              ) : (
+                <>
+                  <Tooltip label="Enter Designer Mode to rearrange or add widgets">
+                    <Button 
+                      variant="outline" 
+                      color="violet" 
+                      leftSection={<IconPencil size={16} />}
+                      onClick={() => setIsEditMode(true)}
+                    >
+                      Configure Dashboard
+                    </Button>
+                  </Tooltip>
+                  <Tooltip label="Export current dashboard as a PDF report">
+                    <Button
+                      variant="light"
+                      color="grape"
+                      leftSection={<IconFileTypePdf size={16} />}
+                      onClick={handleGeneratePdf}
+                    >
+                      Generate PDF
+                    </Button>
+                  </Tooltip>
+                </>
+              )}
+            </Group>
+            
+            <ActionIcon variant="light" color="gray" size="lg" radius="md">
+              <IconShare size={18} />
+            </ActionIcon>
+          </Group>
+        </Group>
+
+        {/* Dynamic Grid Canvas */}
+        <Box
+          id="dashboard-report-print"
+          style={{ 
+            minHeight: 600, 
+            background: isEditMode ? "rgba(147, 51, 234, 0.02)" : "transparent",
+            borderRadius: 12,
+            border: isEditMode ? "1px dashed rgba(147, 51, 234, 0.2)" : "1px solid transparent",
+            padding: 10,
+            transition: "all 0.3s ease",
+            display: "flex",
+            flexDirection: "column"
+          }}
+        >
+          {dashboards === undefined || (currentDashboardId && dashboardData === undefined) ? (
+            <Center style={{ flex: 1 }}>
+              <Stack align="center" gap="md">
+                <Loader color="violet" size="lg" type="bars" />
+                <Text size="sm" c="dimmed" fw={500}>Synchronizing Intelligence Canvas...</Text>
+              </Stack>
+            </Center>
+          ) : (
+            <>
+              <DashboardGrid 
+                widgets={widgets} 
+                isEditMode={isEditMode}
+                onLayoutChange={handleLayoutChange}
+                onRemoveWidget={handleRemoveWidget}
+                onSaveWidget={handleSaveWidget}
+                saas={saas as string}
+              />
+              
+              {widgets.length === 0 && (
+                <Box py={100} ta="center">
+                  <Text c="dimmed">This dashboard is empty.</Text>
+                  <Button variant="subtle" color="violet" mt="md" onClick={() => handleAddWidgetStart("kpi")}>Add your first widget</Button>
+                </Box>
+              )}
+            </>
+          )}
+        </Box>
+ 
+        {/* Intelligence Panel (Unified Create/Edit) */}
+        <WidgetIntelligencePanel 
+          opened={intelligenceOpened} 
+          onClose={() => setIntelligenceOpened(false)} 
+          widget={selectedWidget}
+          mode={modalMode}
+          onSave={handleSaveWidget}
+          saas={saas as string}
+        />
+
+        <Modal
+          opened={createDashboardOpened}
+          onClose={() => setCreateDashboardOpened(false)}
+          title="Create Dashboard"
+          centered
+        >
+          <TextInput
+            label="Dashboard Name"
+            placeholder="e.g. Executive Overview"
+            value={newDashboardName}
+            onChange={(e) => setNewDashboardName(e.currentTarget.value)}
+            autoFocus
+          />
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" onClick={() => setCreateDashboardOpened(false)}>Cancel</Button>
+            <Button
+              color="violet"
+              onClick={handleCreateDashboard}
+              loading={isCreatingDashboard}
+              disabled={!newDashboardName.trim()}
+            >
+              Create
+            </Button>
+          </Group>
+        </Modal>
+      </Container>
+    </Box>
+  );
+}

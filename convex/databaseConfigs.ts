@@ -176,3 +176,10 @@ export const internalUpdateMemoryProvider = internalMutation({
     });
   },
 });
+
+export const getById = query({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.configId);
+  },
+});

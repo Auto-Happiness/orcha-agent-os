@@ -38,7 +38,7 @@ import { inputStyles } from "@/lib/styles";
 import dynamic from "next/dynamic";
 
 // Use dynamic to ensure client-side rendering for the editor component
-const SqlEditor = dynamic(() => import("./SqlEditor").then(m => m.SqlEditor), { 
+const SqlEditor = dynamic(() => import("./SqlEditor").then(m => m.SqlEditor), {
   ssr: false,
   loading: () => (
     <Box h={300} bg="rgba(255,255,255,0.02)" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -60,6 +60,7 @@ interface QueryLabProps {
 
 export function QueryLab({ currentConfig, organization, currentUser, savedQueries, wizardData }: QueryLabProps) {
   const saveQueryMutation = useMutation(api.savedQueries.save);
+  const renameQueryMutation = useMutation(api.savedQueries.rename);
   const removeQueryMutation = useMutation(api.savedQueries.remove);
 
   const [sql, setSql] = useState("");
@@ -74,9 +75,37 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
     setSql(prev => prev + text);
   };
 
+  const validateSql = (sqlText: string) => {
+    const trimmed = sqlText.trim().toUpperCase();
+    if (!trimmed) return { valid: false, message: "Query cannot be empty." };
+
+    const isSelectOrCte = trimmed.startsWith("SELECT") || trimmed.startsWith("WITH");
+    if (!isSelectOrCte) {
+      return { valid: false, message: "Only SELECT queries are allowed for security reasons." };
+    }
+
+    if (trimmed.includes(";") && trimmed.split(";").filter(s => s.trim()).length > 1) {
+      return { valid: false, message: "Multiple SQL statements are not allowed." };
+    }
+
+    const forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE", "REPLACE", "GRANT", "REVOKE"];
+    for (const keyword of forbidden) {
+      if (new RegExp(`\\b${keyword}\\b`, 'i').test(trimmed)) {
+        return { valid: false, message: `The keyword '${keyword}' is prohibited in the Query Lab.` };
+      }
+    }
+
+    return { valid: true };
+  };
+
   const handleRunQuery = async () => {
     const finalSql = (selectedSql && selectedSql.trim().length > 0) ? selectedSql : sql;
-    if (!finalSql.trim()) return;
+    const validation = validateSql(finalSql);
+
+    if (!validation.valid) {
+      notifications.show({ title: "Query Blocked", message: validation.message, color: "orange" });
+      return;
+    }
 
     setIsExecuting(true);
     setQueryResults(null);
@@ -106,7 +135,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
           title: "Query Success",
           message: `${result.rowCount} rows returned in ${duration}ms.`,
           color: "green",
-          icon: <IconBookmark size={16} /> // Replaced IconCheck with available icon or add to imports
+          icon: <IconBookmark size={16} />
         });
       } else {
         throw new Error(result.message);
@@ -125,6 +154,12 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
 
   const handleSaveQuery = async () => {
     if (!currentUser?._id || !organization?._id) return;
+
+    const validation = validateSql(sql);
+    if (!validation.valid) {
+      notifications.show({ title: "Save Blocked", message: validation.message, color: "orange" });
+      return;
+    }
 
     const queryName = prompt("Enter a name for this query:", "New Query");
     if (!queryName) return;
@@ -150,7 +185,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const handleDeleteQuery = async (e: React.MouseEvent, queryId: any) => {
     e.stopPropagation();
     if (!confirm("Are you sure you want to delete this saved query?")) return;
-    
+
     try {
       await removeQueryMutation({ queryId });
       notifications.show({
@@ -164,12 +199,29 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
     }
   };
 
+  const handleRenameQuery = async (e: React.MouseEvent, queryId: any, currentName: string) => {
+    e.stopPropagation();
+    const newName = prompt("Rename Query:", currentName);
+    if (!newName || newName === currentName) return;
+
+    try {
+      await renameQueryMutation({ queryId, name: newName });
+      notifications.show({
+        title: "Query Renamed",
+        message: `Successfully renamed to "${newName}"`,
+        color: "violet"
+      });
+    } catch (err: any) {
+      notifications.show({ title: "Rename Failed", message: err.message, color: "red" });
+    }
+  };
+
   const handleExportCsv = () => {
     if (!queryResults || queryResults.rows.length === 0) return;
-    
+
     // Create CSV rows
     const headers = queryResults.columns.join(",");
-    const rows = queryResults.rows.map(row => 
+    const rows = queryResults.rows.map(row =>
       queryResults.columns.map(col => {
         const val = row[col];
         if (val === null || val === undefined) return "";
@@ -179,7 +231,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         return `"${escaped}"`;
       }).join(",")
     );
-    
+
     const csvContent = [headers, ...rows].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -216,8 +268,8 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               </Group>
             </Group>
             <Box p={0}>
-              <SqlEditor 
-                value={sql || ""} 
+              <SqlEditor
+                value={sql || ""}
                 onChange={(v) => setSql(v || "")}
                 language={currentConfig?.type || "mysql"}
                 semanticModels={semanticModels || []}
@@ -241,10 +293,10 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                       <span style={{ margin: "0 8px", opacity: 0.3 }}>•</span>
                       {queryResults.executionTime}ms
                     </Text>
-                    <Button 
-                      variant="light" 
-                      color="violet" 
-                      size="compact-xs" 
+                    <Button
+                      variant="light"
+                      color="violet"
+                      size="compact-xs"
                       leftSection={<IconTableExport size={12} />}
                       onClick={handleExportCsv}
                     >
@@ -271,8 +323,8 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                       <Table.Tr key={i}>
                         {queryResults.columns.map(col => (
                           <Table.Td key={col} style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px", borderColor: "rgba(255,255,255,0.02)" }}>
-                            {typeof row[col] === 'object' && row[col] !== null 
-                              ? JSON.stringify(row[col]) 
+                            {typeof row[col] === 'object' && row[col] !== null
+                              ? JSON.stringify(row[col])
                               : row[col]?.toString() ?? <Text span c="dimmed" size="10px">NULL</Text>
                             }
                           </Table.Td>
@@ -296,72 +348,72 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
 
       <Grid.Col span={3}>
         <Paper withBorder h="100%" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderColor: "rgba(255,255,255,0.05)" }}>
-          <Tabs value={activeSidebarTab} onChange={setActiveSidebarTab} color="violet" variant="pills" styles={{ 
+          <Tabs value={activeSidebarTab} onChange={setActiveSidebarTab} color="violet" variant="pills" styles={{
             root: { height: "100%", display: "flex", flexDirection: "column" },
             list: { padding: "12px", borderBottom: "1px solid rgba(255,255,255,0.05)" },
             tab: { fontSize: "10px", fontWeight: 700, textTransform: "uppercase" },
             panel: { flex: 1, padding: "12px" }
           }}>
             <Tabs.List>
-                <Tabs.Tab value="schema" leftSection={<IconTable size={12} />}>Schema</Tabs.Tab>
-                <Tabs.Tab value="library" leftSection={<IconHistory size={12} />}>Library</Tabs.Tab>
+              <Tabs.Tab value="schema" leftSection={<IconTable size={12} />}>Schema</Tabs.Tab>
+              <Tabs.Tab value="library" leftSection={<IconHistory size={12} />}>Library</Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="schema">
-               <Stack gap="md">
-                 <TextInput
-                   placeholder="Filter tables..."
-                   size="xs"
-                   styles={inputStyles}
-                   leftSection={<IconSearch size={12} />}
-                 />
-                 
-                 <ScrollArea h={600}>
-                   <Accordion variant="separated" styles={{ 
-                     item: { border: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)", marginBottom: "4px" },
-                     control: { padding: "8px 12px" },
-                     label: { fontSize: "12px", color: "white", fontWeight: 600 },
-                     content: { padding: "8px" }
-                   }}>
-                     {semanticModels?.map((model) => (
-                       <Accordion.Item key={model._id} value={model.tableName}>
-                         <Accordion.Control>
-                            <Group gap="xs">
-                                <IconTable size={14} color="#a855f7" />
-                                <Text size="xs" truncate>{model.tableName}</Text>
-                            </Group>
-                         </Accordion.Control>
-                         <Accordion.Panel>
-                            <Stack gap={4}>
-                               <Button 
-                                 size="compact-xs" 
-                                 variant="light" 
-                                 color="violet" 
-                                 onClick={() => insertAtCursor(model.tableName)}
-                                 fullWidth
-                                 mb={8}
-                               >
-                                 Use Table
-                               </Button>
-                               <Divider label="Columns" labelPosition="center" styles={{ label: { fontSize: '9px', opacity: 0.5 }}} mb={4} />
-                               {model.fields.map(f => (
-                                 <Group key={f.columnName} justify="space-between" wrap="nowrap" style={{ 
-                                   padding: "4px 8px", 
-                                   borderRadius: "4px",
-                                   background: "rgba(255,255,255,0.02)",
-                                   cursor: "pointer"
-                                 }} onClick={() => insertAtCursor(f.columnName)}>
-                                    <Text size="10px" c="dimmed" truncate>{f.columnName}</Text>
-                                    <Text size="9px" c="violet" style={{ opacity: 0.6 }}>{f.type}</Text>
-                                 </Group>
-                               ))}
-                            </Stack>
-                         </Accordion.Panel>
-                       </Accordion.Item>
-                     ))}
-                   </Accordion>
-                 </ScrollArea>
-               </Stack>
+              <Stack gap="md">
+                <TextInput
+                  placeholder="Filter tables..."
+                  size="xs"
+                  styles={inputStyles}
+                  leftSection={<IconSearch size={12} />}
+                />
+
+                <ScrollArea h={600}>
+                  <Accordion variant="separated" styles={{
+                    item: { border: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)", marginBottom: "4px" },
+                    control: { padding: "8px 12px" },
+                    label: { fontSize: "12px", color: "white", fontWeight: 600 },
+                    content: { padding: "8px" }
+                  }}>
+                    {semanticModels?.map((model) => (
+                      <Accordion.Item key={model._id} value={model.tableName}>
+                        <Accordion.Control>
+                          <Group gap="xs">
+                            <IconTable size={14} color="#a855f7" />
+                            <Text size="xs" truncate>{model.tableName}</Text>
+                          </Group>
+                        </Accordion.Control>
+                        <Accordion.Panel>
+                          <Stack gap={4}>
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              color="violet"
+                              onClick={() => insertAtCursor(model.tableName)}
+                              fullWidth
+                              mb={8}
+                            >
+                              Use Table
+                            </Button>
+                            <Divider label="Columns" labelPosition="center" styles={{ label: { fontSize: '9px', opacity: 0.5 } }} mb={4} />
+                            {model.fields.map(f => (
+                              <Group key={f.columnName} justify="space-between" wrap="nowrap" style={{
+                                padding: "4px 8px",
+                                borderRadius: "4px",
+                                background: "rgba(255,255,255,0.02)",
+                                cursor: "pointer"
+                              }} onClick={() => insertAtCursor(f.columnName)}>
+                                <Text size="10px" c="dimmed" truncate>{f.columnName}</Text>
+                                <Text size="9px" c="violet" style={{ opacity: 0.6 }}>{f.type}</Text>
+                              </Group>
+                            ))}
+                          </Stack>
+                        </Accordion.Panel>
+                      </Accordion.Item>
+                    ))}
+                  </Accordion>
+                </ScrollArea>
+              </Stack>
             </Tabs.Panel>
 
             <Tabs.Panel value="library">
@@ -385,10 +437,18 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                           <Text size="xs" fw={700} c="white">{item.name}</Text>
                           <Group gap={4}>
                             <IconStar size={10} color="#a855f7" />
-                            <ActionIcon 
-                              size="xs" 
-                              variant="subtle" 
-                              color="red" 
+                            <ActionIcon
+                              size="xs"
+                              variant="subtle"
+                              color="blue"
+                              onClick={(e) => handleRenameQuery(e, item._id, item.name)}
+                            >
+                              <IconEdit size={10} />
+                            </ActionIcon>
+                            <ActionIcon
+                              size="xs"
+                              variant="subtle"
+                              color="red"
                               onClick={(e) => handleDeleteQuery(e, item._id)}
                             >
                               <IconTrash size={10} />

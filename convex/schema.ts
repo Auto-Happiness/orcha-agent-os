@@ -283,4 +283,51 @@ export default defineSchema({
   })
     .index("by_org", ["organizationId"])
     .index("by_org_integration", ["organizationId", "integration"]),
+
+  // ─── BI: Command Center Dashboards ──────────────────────────────────────
+  dashboards: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    isDefault: v.optional(v.boolean()),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_org_name", ["organizationId", "name"]),
+
+  dashboardWidgets: defineTable({
+    dashboardId: v.id("dashboards"),
+    organizationId: v.id("organizations"),
+    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
+    title: v.string(),
+    description: v.optional(v.string()),
+    
+    // Data Hook (The 'Chartio' logic)
+    queryId: v.optional(v.id("savedQueries")), // Reference to the SQL query
+    
+    // Mapping: which query columns map to which chart axis
+    mapping: v.optional(v.object({
+      labelKey: v.string(), // e.g. "order_date" (X-Axis)
+      valueKeys: v.array(v.string()), // e.g. ["revenue", "profit"] (Y-Axes)
+      color: v.optional(v.string()),
+      palette: v.optional(v.array(v.string())),
+      seriesColors: v.optional(v.record(v.string(), v.string())), // e.g. {"revenue": "#00ff00"}
+      aggregation: v.optional(v.string()),
+    })),
+    
+    // Layout: Full pixel-grid control (react-grid-layout)
+    layout: v.optional(v.object({
+      x: v.number(),
+      y: v.number(),
+      w: v.number(),
+      h: v.number(),
+    })),
+    order: v.number(),
+    size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
+    
+    createdAt: v.number(),
+  })
+    .index("by_dashboard", ["dashboardId"])
+    .index("by_org", ["organizationId"]),
 });

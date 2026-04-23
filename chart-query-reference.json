@@ -1,0 +1,335 @@
+{
+  "chart_query_templates": [
+    {
+      "id": "sales_by_product_line",
+      "name": "Sales by Product Line",
+      "description": "Total quantity ordered and revenue by product line",
+      "chart_type": ["bar", "pie"],
+      "mapping": {
+        "labelKey": "productLine",
+        "valueKeys": ["totalQuantity", "totalRevenue"]
+      },
+      "sample_output": [
+        {
+          "productLine": "Classic Cars",
+          "totalQuantity": 12345,
+          "totalRevenue": 1234567.89
+        },
+        {
+          "productLine": "Motorcycles",
+          "totalQuantity": 9876,
+          "totalRevenue": 987654.32
+        }
+      ]
+    },
+    {
+      "id": "monthly_sales_trend",
+      "name": "Monthly Sales Trend",
+      "description": "Monthly revenue trend over time with order count",
+      "chart_type": ["line"],
+      "mapping": {
+        "labelKey": "month",
+        "valueKeys": ["revenue", "orderCount"]
+      },
+      "sample_output": [
+        {
+          "month": "2023-01",
+          "revenue": 123456.78,
+          "orderCount": 45
+        },
+        {
+          "month": "2023-02",
+          "revenue": 234567.89,
+          "orderCount": 52
+        }
+      ]
+    },
+    {
+      "id": "order_status_distribution",
+      "name": "Order Status Distribution",
+      "description": "Count of orders by status (Shipped, Pending, Cancelled, etc.)",
+      "chart_type": ["pie", "bar"],
+      "mapping": {
+        "labelKey": "status",
+        "valueKeys": ["orderCount"]
+      },
+      "sample_output": [
+        {
+          "status": "Shipped",
+          "orderCount": 287
+        },
+        {
+          "status": "In Process",
+          "orderCount": 45
+        },
+        {
+          "status": "Cancelled",
+          "orderCount": 8
+        }
+      ]
+    },
+    {
+      "id": "revenue_by_country",
+      "name": "Revenue by Country",
+      "description": "Total revenue per country with order count",
+      "chart_type": ["bar", "pie"],
+      "mapping": {
+        "labelKey": "country",
+        "valueKeys": ["totalRevenue", "orderCount"]
+      },
+      "sample_output": [
+        {
+          "country": "USA",
+          "totalRevenue": 5678901.23,
+          "orderCount": 234
+        },
+        {
+          "country": "France",
+          "totalRevenue": 4567890.12,
+          "orderCount": 198
+        }
+      ]
+    },
+    {
+      "id": "top_products",
+      "name": "Top Products by Quantity",
+      "description": "Top 10 products by quantity ordered",
+      "chart_type": ["bar", "pie"],
+      "mapping": {
+        "labelKey": "productName",
+        "valueKeys": ["quantityOrdered", "revenue"]
+      },
+      "sample_output": [
+        {
+          "productName": "1968 Ford Mustang",
+          "quantityOrdered": 452,
+          "revenue": 234567.89
+        },
+        {
+          "productName": "2001 Ferrari Enzo",
+          "quantityOrdered": 398,
+          "revenue": 198765.43
+        }
+      ]
+    },
+    {
+      "id": "quarterly_revenue",
+      "name": "Quarterly Revenue Trend",
+      "description": "Quarterly revenue comparison across years",
+      "chart_type": ["line", "bar"],
+      "mapping": {
+        "labelKey": "quarter",
+        "valueKeys": ["revenue"]
+      },
+      "sample_output": [
+        {
+          "quarter": "2023-Q1",
+          "revenue": 345678.90
+        },
+        {
+          "quarter": "2023-Q2",
+          "revenue": 456789.01
+        }
+      ]
+    },
+    {
+      "id": "customer_segments",
+      "name": "Customer Segmentation",
+      "description": "Customer segments by payment volume",
+      "chart_type": ["pie", "bar"],
+      "mapping": {
+        "labelKey": "segment",
+        "valueKeys": ["customerCount", "totalPayment"]
+      },
+      "sample_output": [
+        {
+          "segment": "High Volume",
+          "customerCount": 23,
+          "totalPayment": 2345678.90
+        },
+        {
+          "segment": "Medium Volume",
+          "customerCount": 67,
+          "totalPayment": 1234567.89
+        },
+        {
+          "segment": "Low Volume",
+          "customerCount": 145,
+          "totalPayment": 567890.12
+        }
+      ]
+    },
+    {
+      "id": "daily_orders_trend",
+      "name": "Daily Order Count Trend",
+      "description": "Daily order trends with total amounts",
+      "chart_type": ["line"],
+      "mapping": {
+        "labelKey": "orderDate",
+        "valueKeys": ["orderCount", "totalAmount"]
+      },
+      "sample_output": [
+        {
+          "orderDate": "2023-06-01",
+          "orderCount": 12,
+          "totalAmount": 123456.78
+        },
+        {
+          "orderDate": "2023-06-02",
+          "orderCount": 15,
+          "totalAmount": 156789.45
+        }
+      ]
+    },
+    {
+      "id": "employees_by_office",
+      "name": "Employees by Office",
+      "description": "Number of employees per office location",
+      "chart_type": ["bar", "pie"],
+      "mapping": {
+        "labelKey": "city",
+        "valueKeys": ["employeeCount"]
+      },
+      "sample_output": [
+        {
+          "city": "San Francisco, USA",
+          "employeeCount": 8
+        },
+        {
+          "city": "Boston, USA",
+          "employeeCount": 6
+        }
+      ]
+    },
+    {
+      "id": "product_scale_distribution",
+      "name": "Product Scale Distribution",
+      "description": "Distribution of products by scale/size",
+      "chart_type": ["pie", "bar"],
+      "mapping": {
+        "labelKey": "productScale",
+        "valueKeys": ["productCount", "totalQuantityOrdered"]
+      },
+      "sample_output": [
+        {
+          "productScale": "1:18",
+          "productCount": 45,
+          "totalQuantityOrdered": 3456
+        },
+        {
+          "productScale": "1:24",
+          "productCount": 38,
+          "totalQuantityOrdered": 2987
+        }
+      ]
+    }
+  ],
+  "universal_query_pattern": {
+    "structure": "SELECT [labelKey], [valueKey1], [valueKey2], ... FROM [table] GROUP BY [labelKey] ORDER BY [column]",
+    "requirements": {
+      "label_column": {
+        "purpose": "X-axis labels or pie segments",
+        "data_types": ["VARCHAR", "DATE", "DATETIME", "INT"],
+        "rules": "Should contain categorical or temporal data"
+      },
+      "value_columns": {
+        "purpose": "Y-axis values or segment sizes",
+        "data_types": ["INT", "DECIMAL", "FLOAT", "BIGINT"],
+        "rules": "Must be numeric, typically aggregated with SUM/COUNT/AVG"
+      }
+    }
+  },
+  "configuration_example": {
+    "widget_setup": {
+      "type": "bar",
+      "title": "Monthly Revenue",
+      "queryId": "monthly_sales_trend",
+      "mapping": {
+        "labelKey": "month",
+        "valueKeys": ["revenue", "orderCount"],
+        "color": "#9333ea",
+        "palette": ["#9333ea", "#a855f7", "#c084fc", "#d8b4fe"]
+      }
+    }
+  },
+  "best_practices": {
+    "line_charts": {
+      "do": [
+        "Use temporal/time-based labels (dates, months, quarters)",
+        "Keep 1-3 value series for clarity",
+        "Sort by time ascending",
+        "Format dates consistently"
+      ],
+      "dont": [
+        "Mix categorical and temporal data",
+        "Include too many series (>5)",
+        "Use for part-to-whole relationships",
+        "Have irregular time intervals"
+      ]
+    },
+    "bar_charts": {
+      "do": [
+        "Use categorical labels",
+        "Include 1-3 value columns",
+        "Sort by highest/lowest value",
+        "Label axes clearly"
+      ],
+      "dont": [
+        "Use temporal data as primary purpose",
+        "Overcrowd with too many categories (>15)",
+        "Mix incompatible units",
+        "Forget units (%, $, count)"
+      ]
+    },
+    "pie_charts": {
+      "do": [
+        "Use 1 value column (represents segments)",
+        "Limit to 3-8 segments maximum",
+        "Sum values to meaningful total (100%, revenue, etc.)",
+        "Sort by value descending"
+      ],
+      "dont": [
+        "Use multiple value columns",
+        "Include too many small segments",
+        "Use for time-series data",
+        "Include negative values"
+      ]
+    }
+  },
+  "column_naming_conventions": {
+    "recommended_labels": [
+      "date", "month", "quarter", "year", "day",
+      "country", "city", "region", "category", "status",
+      "name", "type", "level", "segment", "product_line"
+    ],
+    "recommended_values": [
+      "revenue", "amount", "total", "count", "quantity",
+      "sales", "orders", "profit", "margin", "percentage",
+      "rate", "average", "sum", "value", "metric"
+    ]
+  },
+  "error_handling": {
+    "common_issues": [
+      {
+        "issue": "Query returns NULL values",
+        "solution": "Add WHERE column IS NOT NULL or use COALESCE(column, 'Unknown')"
+      },
+      {
+        "issue": "Label column is numeric",
+        "solution": "Use CASE/WHEN or CONCAT to convert to text, or use DATE_FORMAT for dates"
+      },
+      {
+        "issue": "Chart renders but appears empty",
+        "solution": "Verify labelKey and valueKeys match column aliases exactly (case-sensitive)"
+      },
+      {
+        "issue": "Too many labels/segments",
+        "solution": "Add LIMIT or use TOP N with UNION for 'Others' category"
+      },
+      {
+        "issue": "Data looks incorrect",
+        "solution": "Verify GROUP BY clauses, check for duplicate keys, validate aggregation functions"
+      }
+    ]
+  }
+}
