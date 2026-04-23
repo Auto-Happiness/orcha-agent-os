@@ -61,8 +61,8 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   // Dynamic States for Mapping
   const user = useQuery(api.users.getCurrentUser);
   const executeQuery = useAction(api.biActions.executeWidgetQuery);
-  const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
-  const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
+  const [selectedConfigId, setSelectedConfigId] = useState<string | null>(widget?.configId || null);
+  const [selectedQueryId, setSelectedQueryId] = useState<string | null>(widget?.queryId || null);
   const [discoveredColumns, setDiscoveredColumns] = useState<string[]>([]);
   const [labelKey, setLabelKey] = useState(widget?.mapping?.labelKey || "");
   const [valueKeys, setValueKeys] = useState<string[]>(widget?.mapping?.valueKeys || []);
@@ -75,22 +75,26 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   const [seriesColors, setSeriesColors] = useState<Record<string, string>>(widget?.mapping?.seriesColors || {});
   const [widgetTitle, setWidgetTitle] = useState(widget?.title || "");
   const [textContent, setTextContent] = useState(widget?.description || "");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Reset state when panel opens/closes
   useEffect(() => {
-    if (!opened) {
-      setSelectedConfigId(null);
-      setSelectedQueryId(null);
-      setDiscoveredColumns([]);
+    if (opened) {
+      setSelectedConfigId(widget?.configId || null);
+      setSelectedQueryId(widget?.queryId || null);
       setLabelKey(widget?.mapping?.labelKey || "");
       setValueKeys(widget?.mapping?.valueKeys || []);
+      setSeriesColors(widget?.mapping?.seriesColors || {});
+      setWidgetTitle(widget?.title || "");
+      setTextContent(widget?.description || "");
+      setIsSaving(false);
+    } else {
+      // Clear specific transient states on close
+      setDiscoveredColumns([]);
       setIsExecuting(false);
       setExecutionError(null);
       setPreviewRows([]);
       setSqlModalOpened(false);
-      setSeriesColors(widget?.mapping?.seriesColors || {});
-      setWidgetTitle(widget?.title || "");
-      setTextContent(widget?.description || "");
     }
   }, [opened, widget]);
 
@@ -256,18 +260,26 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
             <Button variant="subtle" color="gray" onClick={onClose}>Cancel</Button>
             <Button
               color="violet"
-              onClick={() => {
+              loading={isSaving}
+              onClick={async () => {
                 if (onSave) {
-                  onSave({
-                    ...widget,
-                    title: widgetTitle || "Text Box",
-                    description: textContent,
-                    queryId: undefined,
-                    mapping: undefined,
-                    status: "configured",
-                  });
+                  setIsSaving(true);
+                  try {
+                    await onSave({
+                      ...widget,
+                      title: widgetTitle || "Text Box",
+                      description: textContent,
+                      queryId: undefined,
+                      mapping: undefined,
+                      status: "configured",
+                    });
+                    onClose();
+                  } catch (err) {
+                    console.error("Save failed:", err);
+                  } finally {
+                    setIsSaving(false);
+                  }
                 }
-                onClose();
               }}
             >
               {mode === "create" ? "Add to Dashboard" : "Apply Settings"}
@@ -495,7 +507,30 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
 
             <Group justify="flex-end" mt="xl">
               <Button variant="subtle" color="gray" onClick={onClose}>Cancel</Button>
-              <Button color="violet" onClick={() => { if (onSave) onSave({ ...widget, title: widgetTitle || widget?.title, description: textContent, queryId: selectedQueryId, mapping: { labelKey, valueKeys, seriesColors }, status: 'configured' }); onClose(); }}>
+              <Button 
+                color="violet" 
+                loading={isSaving}
+                onClick={async () => { 
+                  if (onSave) {
+                    setIsSaving(true);
+                    try {
+                      await onSave({ 
+                        ...widget, 
+                        title: widgetTitle || widget?.title, 
+                        description: textContent, 
+                        queryId: selectedQueryId, 
+                        mapping: { labelKey, valueKeys, seriesColors }, 
+                        status: 'configured' 
+                      }); 
+                      onClose();
+                    } catch (err) {
+                      console.error("Save failed:", err);
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  } 
+                }}
+              >
                 {mode === "create" ? "Add to Dashboard" : "Apply Settings"}
               </Button>
             </Group>

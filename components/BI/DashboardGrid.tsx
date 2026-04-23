@@ -180,7 +180,6 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                   </ActionIcon>
                 </Menu.Target>
                 <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <Menu.Item leftSection={<IconArrowsMaximize size={14} />} c="white">Expand</Menu.Item>
                   <Menu.Item
                     leftSection={<IconSettings size={14} />}
                     c="white"

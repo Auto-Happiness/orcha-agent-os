@@ -16,7 +16,10 @@ import {
   ActionIcon,
   Tooltip,
   Modal,
-  TextInput
+  TextInput,
+  Center,
+  Loader,
+  Stack
 } from "@mantine/core";
 import { 
   IconPlus, 
@@ -24,7 +27,7 @@ import {
   IconLayout2, 
   IconDeviceDesktopAnalytics,
   IconDeviceFloppy,
-  IconLockOpen,
+  IconPencil,
   IconChevronDown,
   IconChartBar,
   IconChartLine,
@@ -304,7 +307,7 @@ export default function CommandCenterPage() {
                     <Button 
                       variant="outline" 
                       color="violet" 
-                      leftSection={<IconLockOpen size={16} />}
+                      leftSection={<IconPencil size={16} />}
                       onClick={() => setIsEditMode(true)}
                     >
                       Configure Dashboard
@@ -339,23 +342,36 @@ export default function CommandCenterPage() {
             borderRadius: 12,
             border: isEditMode ? "1px dashed rgba(147, 51, 234, 0.2)" : "1px solid transparent",
             padding: 10,
-            transition: "all 0.3s ease"
+            transition: "all 0.3s ease",
+            display: "flex",
+            flexDirection: "column"
           }}
         >
-          <DashboardGrid 
-            widgets={widgets} 
-            isEditMode={isEditMode}
-            onLayoutChange={handleLayoutChange}
-            onRemoveWidget={handleRemoveWidget}
-            onSaveWidget={handleSaveWidget}
-            saas={saas as string}
-          />
-          
-          {widgets.length === 0 && (
-            <Box py={100} ta="center">
-              <Text c="dimmed">This dashboard is empty.</Text>
-              <Button variant="subtle" color="violet" mt="md" onClick={() => handleAddWidgetStart("kpi")}>Add your first widget</Button>
-            </Box>
+          {dashboards === undefined || (currentDashboardId && dashboardData === undefined) ? (
+            <Center style={{ flex: 1 }}>
+              <Stack align="center" gap="md">
+                <Loader color="violet" size="lg" type="bars" />
+                <Text size="sm" c="dimmed" fw={500}>Synchronizing Intelligence Canvas...</Text>
+              </Stack>
+            </Center>
+          ) : (
+            <>
+              <DashboardGrid 
+                widgets={widgets} 
+                isEditMode={isEditMode}
+                onLayoutChange={handleLayoutChange}
+                onRemoveWidget={handleRemoveWidget}
+                onSaveWidget={handleSaveWidget}
+                saas={saas as string}
+              />
+              
+              {widgets.length === 0 && (
+                <Box py={100} ta="center">
+                  <Text c="dimmed">This dashboard is empty.</Text>
+                  <Button variant="subtle" color="violet" mt="md" onClick={() => handleAddWidgetStart("kpi")}>Add your first widget</Button>
+                </Box>
+              )}
+            </>
           )}
         </Box>
  
