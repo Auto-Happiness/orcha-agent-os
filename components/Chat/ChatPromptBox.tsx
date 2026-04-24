@@ -183,10 +183,6 @@ export function ChatPromptBox({
                    size="xs"
                    w={220}
                    comboboxProps={{ position: 'top-start', width: 320, shadow: 'xl' }}
-                   leftSection={allConfigs === undefined
-                     ? <Loader size={12} color="violet" />
-                     : <IconAdjustmentsHorizontal size={14} color="rgba(255,255,255,0.4)" />
-                   }
                    rightSection={<IconChevronDown size={10} color="rgba(255,255,255,0.4)" />}
                    renderOption={({ option }) => {
                       const config = allConfigs?.find(c => c._id === option.value);
