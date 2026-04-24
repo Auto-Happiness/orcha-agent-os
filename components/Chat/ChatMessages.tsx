@@ -149,6 +149,81 @@ const DataTable = memo(function DataTable({ data, sql, organizationId, configId 
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function parseMarkdown(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  
+  // Match bold (**text**), italic (*text*), code (`text`), and links [text](url)
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\)/g;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before this match
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+
+    // Add the matched element
+    if (match[1]) {
+      // Bold
+      parts.push(
+        <Text key={`bold-${match.index}`} component="span" fw={700} c="inherit">
+          {match[1]}
+        </Text>
+      );
+    } else if (match[2]) {
+      // Italic
+      parts.push(
+        <Text key={`italic-${match.index}`} component="span" style={{ fontStyle: "italic" }} c="inherit">
+          {match[2]}
+        </Text>
+      );
+    } else if (match[3]) {
+      // Code
+      parts.push(
+        <Text
+          key={`code-${match.index}`}
+          component="span"
+          size="xs"
+          style={{
+            background: "rgba(147,51,234,0.15)",
+            padding: "2px 6px",
+            borderRadius: 4,
+            fontFamily: "monospace",
+          }}
+          c="violet.2"
+        >
+          {match[3]}
+        </Text>
+      );
+    } else if (match[4] && match[5]) {
+      // Link
+      parts.push(
+        <Text
+          key={`link-${match.index}`}
+          component="a"
+          href={match[5]}
+          target="_blank"
+          rel="noopener noreferrer"
+          c="violet.3"
+          style={{ textDecoration: "underline", cursor: "pointer" }}
+        >
+          {match[4]}
+        </Text>
+      );
+    }
+
+    lastIndex = regex.lastIndex;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
+
 function extractSQLFromParts(parts: any[]): string[] {
   const queries: string[] = [];
   for (const part of parts) {
@@ -331,7 +406,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
           <Text fw={700} size="sm" c="white">{m.role === "user" ? "You" : "Orcha Agent"}</Text>
           {m.parts.map((part: any, i: number) =>
             part.type === "text" && part.text
-              ? <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{part.text}</Text>
+              ? <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{parseMarkdown(part.text)}</Text>
               : null
           )}
           {sqlQueries.length > 0 && (
