@@ -32,10 +32,12 @@ interface CreationWizardStore {
 }
 
 const initialData: WizardData = {
-  dbProvider: "postgres",
+  // Start with NO provider selected so the UI always prompts the user,
+  // rather than silently pre-selecting the previous session's provider.
+  dbProvider: "mysql",
   dbConfig: {
     host: "",
-    port: "5432",
+    port: "",
     user: "",
     password: "",
     database: "",
@@ -65,7 +67,16 @@ export const useCreationWizard = create<CreationWizardStore>()(
       updateData: (updates) => set((state) => ({
         data: { ...state.data, ...updates }
       })),
-      reset: () => set({ step: 0, data: initialData }),
+      reset: () => {
+        // Hard-reset both in-memory state AND the persisted localStorage entry
+        // so that the next wizard open always starts with a clean slate.
+        set({ step: 0, data: initialData });
+        try {
+          localStorage.removeItem("creation-wizard-storage");
+        } catch (_) {
+          // SSR / environments without localStorage
+        }
+      },
     }),
     {
       name: "creation-wizard-storage",

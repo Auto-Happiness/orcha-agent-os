@@ -79,6 +79,7 @@ export class DatabaseScanner {
         password: config.password,
         database: config.database,
         ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+        connectTimeout: 10_000,
       }
     });
 
@@ -114,7 +115,7 @@ export class DatabaseScanner {
       for (const col of allColumns) {
         const t = col.table_name || col.TABLE_NAME;
         if (!columnsByTable.has(t)) columnsByTable.set(t, []);
-        
+
         const tablePks = pksByTable.get(t) || new Set();
         columnsByTable.get(t)!.push({
           name: col.column_name || col.COLUMN_NAME,

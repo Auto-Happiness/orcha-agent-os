@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DbExecutor, DbConfig } from "@/lib/db-executor";
 
+const TIMEOUT_MS = 15_000;
+
+/** Flatten AggregateError (thrown by mysql2 when all TCP attempts fail) into a readable message. */
+function extractErrorMessage(error: any): string {
+  if (error instanceof AggregateError && error.errors?.length) {
+    const causes = error.errors.map((e: any) => e.code ? `${e.code}: ${e.message}` : e.message).join("; ");
+    return `All connection attempts failed – ${causes}`;
+  }
+  if (error.code) return `${error.code}: ${error.message}`;
+  return error.message || "Unknown error";
+}
+
+/** Suggest the correct provider when a port mismatch is detected. */
+function portProviderHint(type: string, port: number): string | null {
+  if (type === "mysql" && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
+  if (type === "mysql" && port === 5432) return "Port 5432 is the PostgreSQL default port. Did you mean to select the PostgreSQL provider?";
+  if (type === "postgres" && port === 3306) return "Port 3306 is the MySQL default port. Did you mean to select the MySQL provider?";
+  if (type === "postgres" && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
+  if (type === "mssql" && port === 3306) return "Port 3306 is the MySQL default port. Did you mean to select the MySQL provider?";
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("[test-connection] Request:", JSON.stringify({ ...body, password: body.password ? "***" : undefined }));
+
     const config: DbConfig = {
       ...body,
       port: body.port ? parseInt(body.port, 10) : (body.type === "postgres" ? 5432 : body.type === "mssql" ? 1433 : 3306),
@@ -17,21 +41,39 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Attempt to execute a simple query
-    console.log(`[API] Testing connection to ${config.type} at ${config.host}...`);
+    // Warn about obvious port/provider mismatches before even attempting
+    const hint = portProviderHint(config.type, config.port);
+    if (hint) {
+      console.warn(`[test-connection] Port mismatch detected: ${hint}`);
+      return NextResponse.json({ success: false, message: hint }, { status: 400 });
+    }
+
+    console.log(`[test-connection] Attempting ${config.type} → ${config.host}:${config.port}/${config.database} ssl=${!!config.ssl}`);
     const startTime = Date.now();
-    await DbExecutor.execute(config, "SELECT 1");
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Connection timed out after ${TIMEOUT_MS / 1000}s – host unreachable or port blocked by firewall.`)),
+        TIMEOUT_MS
+      )
+    );
+
+    await Promise.race([
+      DbExecutor.execute(config, "SELECT 1"),
+      timeoutPromise,
+    ]);
+
     const duration = Date.now() - startTime;
+    console.log(`[test-connection] SUCCESS – ${duration}ms`);
 
     return NextResponse.json({ 
       success: true, 
       message: `Connection successful! (Latency: ${duration}ms)` 
     });
+
   } catch (error: any) {
-    console.error("Test connection error:", error);
-    return NextResponse.json({ 
-      success: false, 
-      message: error.message || "Failed to connect to the database." 
-    }, { status: 500 });
+    const message = extractErrorMessage(error);
+    console.error("[test-connection] FAILED:", message);
+    return NextResponse.json({ success: false, message }, { status: 500 });
   }
 }

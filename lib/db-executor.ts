@@ -54,7 +54,7 @@ export class DbExecutor {
   }
 
   private static async executeMysql(config: DbConfig, sqlStr: string, params: any[]): Promise<any[]> {
-    console.log(`[DbExecutor] Connecting to MySQL...`);
+    console.log(`[DbExecutor] Connecting to MySQL at ${config.host}:${config.port}/${config.database} (ssl=${!!config.ssl})...`);
     const db = serverlessMysql({
       config: {
         host: config.host,
@@ -63,13 +63,20 @@ export class DbExecutor {
         password: config.password,
         database: config.database,
         ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+        // Prevents hanging on unreachable hosts — passed directly to mysql2
+        connectTimeout: 10_000,
+        // Time to wait to acquire a connection from the pool
+        acquireTimeout: 10_000,
       },
     });
+    console.log(`[DbExecutor] MySQL client created, running query...`);
     try {
       const results = await db.query(sqlStr, params);
+      console.log(`[DbExecutor] MySQL query OK, cleaning up connection...`);
       await db.end();
       return results as any[];
-    } catch (error) {
+    } catch (error: any) {
+      console.error(`[DbExecutor] MySQL query FAILED:`, error.code, error.message);
       await db.quit();
       throw error;
     }

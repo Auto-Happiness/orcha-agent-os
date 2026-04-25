@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { 
   Paper, 
   Stack, 
@@ -56,9 +57,16 @@ import {
 
 export function SavedConfigsList() {
   const { saas } = useParams();
+  const router = useRouter();
+  const { reset } = useCreationWizard();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+  const handleNewConfig = () => {
+    reset(); // Wipe all previous wizard state before entering a fresh session
+    router.push(`/${saas}/configure/new`);
+  };
   
   // 1. Resolve Organization ID
   const organization = useQuery(api.organizations.getSafeBySlug, { 
@@ -110,8 +118,7 @@ export function SavedConfigsList() {
           <Text fw={600} c="white">No active environments found</Text>
           <Text size="xs" c="dimmed" mb="md">Connect your first database to start building your semantic bridge.</Text>
           <Button 
-            component={Link} 
-            href={`/${saas}/configure/new`} 
+            onClick={handleNewConfig}
             variant="light" 
             color="violet" 
             leftSection={<IconPlus size={16} />}
@@ -167,8 +174,7 @@ export function SavedConfigsList() {
         </Group>
 
         <Button 
-          component={Link} 
-          href={`/${saas}/configure/new`} 
+          onClick={handleNewConfig}
           variant="light" 
           color="violet" 
           leftSection={<IconPlus size={16} />}
