@@ -26,6 +26,7 @@ import { MySQLForm } from "./Forms/MySQL";
 import { MSSQLForm } from "./Forms/MSSQL";
 import { MongoDBForm } from "./Forms/MongoDB";
 import { BigQueryForm } from "./Forms/BigQuery";
+import { SQLiteForm } from "./Forms/SQLite";
 
 interface ConnectionFormProps {
   provider: string;
@@ -47,12 +48,14 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
   const testConnection = async () => {
     setTesting(true);
     try {
+      // Build payload — SQLite only needs filePath, no host/user/database
+      const payload = provider === "sqlite"
+        ? { type: provider, filePath: data.dbConfig?.filePath }
+        : { type: provider, ...data.dbConfig };
+
       const response = await fetch("/api/test-connection", {
         method: "POST",
-        body: JSON.stringify({
-          type: provider,
-          ...data.dbConfig,
-        }),
+        body: JSON.stringify(payload),
         headers: { "Content-Type": "application/json" },
       });
 
@@ -88,11 +91,15 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
       case "mssql": return <MSSQLForm />;
       case "mongodb": return <MongoDBForm />;
       case "bigquery": return <BigQueryForm />;
+      case "sqlite": return <SQLiteForm />;
       default: return <PostgreSQLForm />;
     }
   };
 
   const getUriPreview = () => {
+    if (provider === "sqlite") {
+      return `sqlite://${data.dbConfig?.filePath || "[file-path]"}`;
+    }
     const { host, port, user, database } = data.dbConfig;
     const h = host || "[host]";
     const p = port || (provider === "postgres" ? "5432" : provider === "mssql" ? "1433" : "3306");

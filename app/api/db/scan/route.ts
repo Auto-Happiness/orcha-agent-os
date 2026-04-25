@@ -33,6 +33,9 @@ export async function POST(req: NextRequest) {
       scanResult = await DatabaseScanner.scanPostgres(config);
     } else if (type === "mssql") {
       scanResult = await DatabaseScanner.scanMSSQL(config);
+    } else if (type === "sqlite") {
+      // SQLite uses filePath from rawConfig, not the parsed network config
+      scanResult = await DatabaseScanner.scanSQLite(rawConfig);
     } else {
       throw new Error(`Unsupported database type: ${type}`);
     }

@@ -62,7 +62,7 @@ export const createOrUpdate = mutation({
   args: {
     configId: v.optional(v.id("databaseConfigs")),
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb")),
+    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb"), v.literal("sqlite")),
     encryptedUri: v.string(), 
     updatedBy: v.id("users"),
   },

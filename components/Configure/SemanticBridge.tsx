@@ -172,45 +172,36 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
 
           <Box>
             <Text size="xs" fw={700} c="dimmed" px="xs" mb={8} style={{ textTransform: "uppercase", letterSpacing: rem(1) }}>Selected Models</Text>
-            <Stack gap="xs">
-              {models.map(m => (
-                <Paper
-                  key={m._id}
-                  p="sm"
-                  radius="md"
-                  style={{
-                    cursor: "pointer",
-                    background: activeTable === m.tableName ? "rgba(147,51,234,0.15)" : "transparent",
-                    border: "1px solid",
-                    borderColor: activeTable === m.tableName ? "rgba(147,51,234,0.3)" : "transparent",
-                    transition: "all 150ms ease"
-                  }}
-                  onClick={() => setActiveTable(m.tableName)}
-                >
-                  <Group gap="sm" wrap="nowrap">
-                    <IconTable size={16} color={activeTable === m.tableName ? "#a855f7" : "rgba(255,255,255,0.3)"} />
-                    <Box style={{ flex: 1 }}>
-                      <Text size="sm" fw={600} c={activeTable === m.tableName ? "white" : "gray.5"}>{m.displayName}</Text>
-                      <Text size="10px" c="dimmed">{m.fields.length} fields</Text>
-                    </Box>
-                  </Group>
-                </Paper>
-              ))}
-            </Stack>
+            <ScrollArea h={500} offsetScrollbars>
+              <Stack gap="xs" pr="xs">
+                {models.map(m => (
+                  <Paper
+                    key={m._id}
+                    p="sm"
+                    radius="md"
+                    style={{
+                      cursor: "pointer",
+                      background: activeTable === m.tableName ? "rgba(147,51,234,0.15)" : "transparent",
+                      border: "1px solid",
+                      borderColor: activeTable === m.tableName ? "rgba(147,51,234,0.3)" : "transparent",
+                      transition: "all 150ms ease"
+                    }}
+                    onClick={() => setActiveTable(m.tableName)}
+                  >
+                    <Group gap="sm" wrap="nowrap">
+                      <IconTable size={16} color={activeTable === m.tableName ? "#a855f7" : "rgba(255,255,255,0.3)"} />
+                      <Box style={{ flex: 1 }}>
+                        <Text size="sm" fw={600} c={activeTable === m.tableName ? "white" : "gray.5"}>{m.displayName}</Text>
+                        <Text size="10px" c="dimmed">{m.fields.length} fields</Text>
+                      </Box>
+                    </Group>
+                  </Paper>
+                ))}
+              </Stack>
+            </ScrollArea>
           </Box>
           
-          <Divider my="sm" style={{ opacity: 0.1 }} />
-          
-          <Button 
-            variant="subtle" 
-            color="violet" 
-            size="xs" 
-            leftSection={<IconPlus size={14} />}
-            fullWidth
-            justify="flex-start"
-          >
-            Add Relationship
-          </Button>
+
         </Stack>
       </Grid.Col>
 
