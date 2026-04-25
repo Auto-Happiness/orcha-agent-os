@@ -124,3 +124,24 @@ export const removeWidget = mutation({
     await ctx.db.delete(args.widgetId);
   },
 });
+
+/**
+ * Delete a dashboard and all its widgets.
+ */
+export const deleteDashboard = mutation({
+  args: { dashboardId: v.id("dashboards") },
+  handler: async (ctx, args) => {
+    // Delete all widgets associated with this dashboard
+    const widgets = await ctx.db
+      .query("dashboardWidgets")
+      .withIndex("by_dashboard", (q) => q.eq("dashboardId", args.dashboardId))
+      .collect();
+
+    for (const widget of widgets) {
+      await ctx.db.delete(widget._id);
+    }
+
+    // Delete the dashboard itself
+    await ctx.db.delete(args.dashboardId);
+  },
+});

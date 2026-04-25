@@ -34,7 +34,9 @@ import {
   IconChartPie,
   IconNumbers,
   IconAlignLeft,
-  IconFileTypePdf
+  IconFileTypePdf,
+  IconTrash,
+  IconDotsVertical
 } from "@tabler/icons-react";
 import { Menu } from "@mantine/core";
 import { useQuery, useMutation } from "convex/react";
@@ -59,8 +61,9 @@ export default function CommandCenterPage() {
   const createDashboardMutation = useMutation(api.bi.createDashboard);
   const saveWidgetMutation = useMutation(api.bi.saveWidget);
   const removeWidgetMutation = useMutation(api.bi.removeWidget);
+  const deleteDashboardMutation = useMutation(api.bi.deleteDashboard);
 
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(true);
   const [selectedWidget, setSelectedWidget] = useState<any>(null);
   const [intelligenceOpened, setIntelligenceOpened] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
@@ -68,6 +71,7 @@ export default function CommandCenterPage() {
   const [newDashboardName, setNewDashboardName] = useState("");
   const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
   const [hasPromptedInitialDashboard, setHasPromptedInitialDashboard] = useState(false);
+  const [deletingDashboardId, setDeletingDashboardId] = useState<string | null>(null);
 
   // Sync current dashboard selection
   useEffect(() => {
@@ -221,21 +225,45 @@ export default function CommandCenterPage() {
     window.print();
   };
 
+  const handleDeleteDashboard = async () => {
+    if (!currentDashboardId) return;
+    setDeletingDashboardId(currentDashboardId);
+  };
+
+  const confirmDeleteDashboard = async () => {
+    if (!deletingDashboardId) return;
+    
+    try {
+      await deleteDashboardMutation({ dashboardId: deletingDashboardId as any });
+      // Reset to the first available dashboard or null if none exist
+      const remaining = dashboards?.filter(d => d._id !== deletingDashboardId) || [];
+      setCurrentDashboardId(remaining.length > 0 ? remaining[0]._id : null);
+      setDeletingDashboardId(null);
+    } catch (err) {
+      console.error("Failed to delete dashboard:", err);
+      setDeletingDashboardId(null);
+    }
+  };
+
   return (
     <Box p="xl" bg="#07050f" style={{ minHeight: "100vh" }}>
       <Container size="xl">
         {/* Header Section */}
-        <Group justify="space-between" mb={40}>
+        <Group justify="space-between" align="flex-start" mb={40}>
+          {/* Left: Title and Action Buttons */}
           <Box>
             <Group gap="sm" mb={4}>
               <IconDeviceDesktopAnalytics size={24} color="#a855f7" />
               <Title order={2} c="white" fw={800}>Command Center</Title>
               <Badge variant="dot" color="violet" size="sm">v1.0-alpha</Badge>
             </Group>
-            <Text c="dimmed" size="sm">Customize your organization&apos;s real-time intelligence dashboard.</Text>
+            <Text c="dimmed" size="sm" mb="md">Customize your organization&apos;s real-time intelligence dashboard.</Text>
+            
+            {/* Action buttons removed from here, moving to the right-side meatball menu */}
           </Box>
 
-          <Group>
+          {/* Right: Dashboard Controls */}
+          <Group gap="md" align="center">
             <Select
               data={(dashboards || []).map((d: any) => ({ value: d._id, label: d.name }))}
               value={currentDashboardId}
@@ -254,82 +282,84 @@ export default function CommandCenterPage() {
                 dropdown: { background: "#130f22", border: "1px solid rgba(147, 51, 234, 0.2)" },
               }}
             />
-            <Button
-              variant="light"
-              color="violet"
-              leftSection={<IconPlus size={16} />}
-              onClick={() => {
-                setNewDashboardName("");
-                setCreateDashboardOpened(true);
-              }}
-            >
-              New Dashboard
-            </Button>
-            
-            <Divider orientation="vertical" />
-            
-            <Group gap="xs">
-              {isEditMode ? (
-                <>
-                  <Button 
-                    variant="filled" 
-                    color="green" 
-                    leftSection={<IconDeviceFloppy size={16} />}
-                    onClick={() => setIsEditMode(false)}
-                  >
-                    Save Changes
-                  </Button>
 
-                  <Menu position="bottom-end" shadow="md" width={200} radius="md">
-                    <Menu.Target>
-                      <Button 
-                        variant="light" 
-                        color="violet" 
-                        leftSection={<IconPlus size={16} />}
-                        rightSection={<IconChevronDown size={14} />}
-                      >
-                        Add Insight
-                      </Button>
-                    </Menu.Target>
-                    <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(147,51,234,0.3)" }}>
-                      <Menu.Label>Components</Menu.Label>
-                      <Menu.Item leftSection={<IconChartBar size={16} />} onClick={() => handleAddWidgetStart("bar")}>Bar Chart</Menu.Item>
-                      <Menu.Item leftSection={<IconChartLine size={16} />} onClick={() => handleAddWidgetStart("line")}>Line Chart</Menu.Item>
-                      <Menu.Item leftSection={<IconChartPie size={16} />} onClick={() => handleAddWidgetStart("pie")}>Pie Chart</Menu.Item>
-                      <Menu.Item leftSection={<IconNumbers size={16} />} onClick={() => handleAddWidgetStart("kpi")}>KPI Metric</Menu.Item>
-                      <Menu.Item leftSection={<IconAlignLeft size={16} />} onClick={() => handleAddWidgetStart("text")}>Text Box</Menu.Item>
-                    </Menu.Dropdown>
-                  </Menu>
-                </>
-              ) : (
-                <>
-                  <Tooltip label="Enter Designer Mode to rearrange or add widgets">
-                    <Button 
-                      variant="outline" 
-                      color="violet" 
-                      leftSection={<IconPencil size={16} />}
-                      onClick={() => setIsEditMode(true)}
-                    >
-                      Configure Dashboard
-                    </Button>
-                  </Tooltip>
-                  <Tooltip label="Export current dashboard as a PDF report">
-                    <Button
-                      variant="light"
-                      color="grape"
-                      leftSection={<IconFileTypePdf size={16} />}
-                      onClick={handleGeneratePdf}
-                    >
-                      Generate PDF
-                    </Button>
-                  </Tooltip>
-                </>
-              )}
-            </Group>
-            
-            <ActionIcon variant="light" color="gray" size="lg" radius="md">
-              <IconShare size={18} />
-            </ActionIcon>
+            <Menu position="bottom-end" shadow="xl" width={220} radius="md" transitionProps={{ transition: 'pop-top-right' }}>
+              <Menu.Target>
+                <ActionIcon 
+                  variant="light" 
+                  color="violet" 
+                  size="lg" 
+                  radius="md" 
+                  style={{ border: "1px solid rgba(168, 85, 247, 0.3)" }}
+                >
+                  <IconDotsVertical size={20} />
+                </ActionIcon>
+              </Menu.Target>
+
+              <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(147,51,234,0.3)", borderRadius: 12 }}>
+                <Menu.Label>Dashboard Actions</Menu.Label>
+                
+                <Menu.Item 
+                  leftSection={<IconPlus size={16} />} 
+                  onClick={() => {
+                    setNewDashboardName("");
+                    setCreateDashboardOpened(true);
+                  }}
+                >
+                  New Dashboard
+                </Menu.Item>
+
+                <Menu.Divider color="rgba(255,255,255,0.05)" />
+
+                <Menu.Label>Add Insights</Menu.Label>
+                <Menu.Item 
+                  leftSection={<IconChartBar size={16} />} 
+                  onClick={() => handleAddWidgetStart("bar")}
+                >
+                  Bar Chart
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconChartLine size={16} />} 
+                  onClick={() => handleAddWidgetStart("line")}
+                >
+                  Line Chart
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconChartPie size={16} />} 
+                  onClick={() => handleAddWidgetStart("pie")}
+                >
+                  Pie Chart
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconNumbers size={16} />} 
+                  onClick={() => handleAddWidgetStart("kpi")}
+                >
+                  KPI Metric
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconAlignLeft size={16} />} 
+                  onClick={() => handleAddWidgetStart("text")}
+                >
+                  Text Box
+                </Menu.Item>
+
+                <Menu.Divider color="rgba(255,255,255,0.05)" />
+
+                <Menu.Label>Export</Menu.Label>
+                <Menu.Item leftSection={<IconFileTypePdf size={16} />} onClick={handleGeneratePdf}>
+                  Export PDF
+                </Menu.Item>
+
+                <Menu.Divider color="rgba(255,255,255,0.05)" />
+                <Menu.Item 
+                  color="red" 
+                  leftSection={<IconTrash size={16} />} 
+                  onClick={handleDeleteDashboard}
+                >
+                  Delete Dashboard
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Group>
 
@@ -409,6 +439,34 @@ export default function CommandCenterPage() {
               Create
             </Button>
           </Group>
+        </Modal>
+
+        <Modal
+          opened={!!deletingDashboardId}
+          onClose={() => setDeletingDashboardId(null)}
+          title="Delete Dashboard"
+          centered
+          size="sm"
+          overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
+          styles={{
+            content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 12 },
+            header: { background: "#130f22", color: "white" },
+            title: { fontWeight: 600 }
+          }}
+        >
+          <Stack gap="md">
+            <Text size="sm" c="rgba(255,255,255,0.7)">
+              Are you sure you want to delete this dashboard? This action cannot be undone and will remove all associated widgets and data.
+            </Text>
+            <Group justify="flex-end" gap="sm">
+              <Button variant="subtle" color="gray" onClick={() => setDeletingDashboardId(null)} size="xs">
+                Cancel
+              </Button>
+              <Button color="red" onClick={confirmDeleteDashboard} size="xs">
+                Delete
+              </Button>
+            </Group>
+          </Stack>
         </Modal>
       </Container>
     </Box>
