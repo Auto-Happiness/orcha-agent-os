@@ -62,6 +62,7 @@ export default function ChatPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const createSession = useMutation(api.chatSessions.create);
   const updateTitle = useMutation(api.chatSessions.updateTitle);
+  const updateSessionConfig = useMutation(api.chatSessions.updateConfig);
   const appendMessage = useMutation(api.chatMessages.append);
 
   const existingSessions = useQuery(
@@ -98,6 +99,45 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [showResults, setShowResults] = useState(true);
   const [isStreaming, setIsStreaming] = useState(false);
+
+  // ── Sync Session Config ────────────────────────────────────────────────
+  // When activeSession changes (e.g. user selects a different session in sidebar),
+  // we restore that session's specific environment & model selection.
+  useEffect(() => {
+    if (!activeSession) return;
+    
+    if (activeSession.configId && activeSession.configId !== selectedConfigId) {
+      console.log("[Chat] Syncing session configId:", activeSession.configId);
+      setSelectedConfigId(activeSession.configId);
+    }
+    
+    if (activeSession.modelId && activeSession.modelId !== selectedModel) {
+      console.log("[Chat] Syncing session modelId:", activeSession.modelId);
+      setSelectedModel(activeSession.modelId);
+    }
+  }, [activeSession?._id]);
+
+  // Persist changes to the session when the user manually changes the selector
+  const handleConfigChange = useCallback((id: string | null) => {
+    setSelectedConfigId(id);
+    if (activeSessionId && id) {
+      updateSessionConfig({ 
+        sessionId: activeSessionId as Id<"chatSessions">, 
+        configId: id as Id<"databaseConfigs"> 
+      }).catch(console.error);
+    }
+  }, [activeSessionId, updateSessionConfig]);
+
+  const handleModelChange = useCallback((model: string) => {
+    setSelectedModel(model);
+    if (activeSessionId) {
+      updateSessionConfig({ 
+        sessionId: activeSessionId as Id<"chatSessions">, 
+        modelId: model 
+      }).catch(console.error);
+    }
+  }, [activeSessionId, updateSessionConfig]);
+
   const activeOrgId = activeOrg?._id;
 
   const chatParamsRef = useRef({ activeOrgId, selectedConfigId, selectedModel, saas, showResults, activeSessionId });
@@ -301,10 +341,10 @@ export default function ChatPage() {
             isLoading={isLoading}
             allConfigs={allConfigs || []}
             selectedConfigId={selectedConfigId}
-            setSelectedConfigId={setSelectedConfigId}
+            setSelectedConfigId={handleConfigChange}
             aiKeys={aiKeys || []}
             selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
+            setSelectedModel={handleModelChange}
             showResults={showResults}
             setShowResults={setShowResults}
           />

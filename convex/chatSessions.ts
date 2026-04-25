@@ -84,3 +84,22 @@ export const remove = mutation({
     await ctx.db.delete(args.sessionId);
   },
 });
+
+export const updateConfig = mutation({
+  args: { 
+    sessionId: v.id("chatSessions"), 
+    configId: v.optional(v.id("databaseConfigs")),
+    modelId: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) throw new Error("Session not found.");
+    await checkMembership(ctx, session.organizationId);
+    
+    const updates: any = { updatedAt: Date.now() };
+    if (args.configId !== undefined) updates.configId = args.configId;
+    if (args.modelId !== undefined) updates.modelId = args.modelId;
+    
+    await ctx.db.patch(args.sessionId, updates);
+  },
+});
