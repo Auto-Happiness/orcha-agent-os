@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DbExecutor, DbConfig } from "@/lib/db-executor";
+import fs from "fs";
 
 const TIMEOUT_MS = 15_000;
 
@@ -28,9 +29,39 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log("[test-connection] Request:", JSON.stringify({ ...body, password: body.password ? "***" : undefined }));
 
+    const type = body.type as string;
+
+    // ── SQLite: file-based, no network params ──────────────────────────────
+    if (type === "sqlite") {
+      const { filePath } = body;
+      if (!filePath) {
+        return NextResponse.json({ success: false, message: "SQLite requires a file path." }, { status: 400 });
+      }
+      if (!fs.existsSync(filePath)) {
+        return NextResponse.json({ success: false, message: `File not found: ${filePath}` }, { status: 400 });
+      }
+
+      console.log(`[test-connection] Testing SQLite at: ${filePath}`);
+      const startTime = Date.now();
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`SQLite test timed out after ${TIMEOUT_MS / 1000}s.`)), TIMEOUT_MS)
+      );
+
+      await Promise.race([
+        DbExecutor.execute({ type: "sqlite", filePath }, "SELECT 1"),
+        timeoutPromise,
+      ]);
+
+      const duration = Date.now() - startTime;
+      console.log(`[test-connection] SQLite SUCCESS – ${duration}ms`);
+      return NextResponse.json({ success: true, message: `SQLite connection successful! (${duration}ms)` });
+    }
+
+    // ── Network databases (MySQL, PostgreSQL, MSSQL) ───────────────────────
     const config: DbConfig = {
       ...body,
-      port: body.port ? parseInt(body.port, 10) : (body.type === "postgres" ? 5432 : body.type === "mssql" ? 1433 : 3306),
+      port: body.port ? parseInt(body.port, 10) : (type === "postgres" ? 5432 : type === "mssql" ? 1433 : 3306),
     };
 
     // Basic validation
@@ -42,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Warn about obvious port/provider mismatches before even attempting
-    const hint = portProviderHint(config.type, config.port);
+    const hint = portProviderHint(config.type, config.port!);
     if (hint) {
       console.warn(`[test-connection] Port mismatch detected: ${hint}`);
       return NextResponse.json({ success: false, message: hint }, { status: 400 });

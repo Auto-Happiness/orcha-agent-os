@@ -1,6 +1,7 @@
 import serverlessMysql from 'serverless-mysql';
 import postgres from 'postgres';
 import * as mssql from 'mssql';
+import Database from 'better-sqlite3';
 
 function createSql(config: any) {
   return postgres({
@@ -322,6 +323,58 @@ export class DatabaseScanner {
   }
 
   /**
+   * Scans a SQLite database for its schema metadata.
+   * Uses sqlite_master for table discovery, PRAGMA table_info for columns,
+   * and PRAGMA foreign_key_list for FK relationships.
+   */
+  static async scanSQLite(config: any): Promise<ScanResult> {
+    if (!config.filePath) throw new Error("SQLite requires a filePath.");
+    console.log(`[DatabaseScanner] Opening SQLite at: ${config.filePath}`);
+    const db = new Database(config.filePath, { readonly: true });
+    db.pragma("foreign_keys = ON");
+
+    try {
+      // 1. Get all user tables
+      const tableRows = db
+        .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+        .all() as { name: string }[];
+
+      const tableSummaries: TableSummary[] = [];
+      const foreignKeys: ForeignKeySummary[] = [];
+
+      for (const { name: tableName } of tableRows) {
+        // 2. Get column info via PRAGMA
+        const colRows = db.prepare(`PRAGMA table_info("${tableName}")`).all() as any[];
+        const columns: ColumnSummary[] = colRows.map((col) => ({
+          name: col.name,
+          dataType: col.type || 'TEXT',
+          isPrimary: col.pk > 0,
+          isNullable: col.notnull === 0,
+          defaultValue: col.dflt_value ?? undefined,
+        }));
+
+        tableSummaries.push({ name: tableName, columns });
+
+        // 3. Get FK relationships via PRAGMA
+        const fkRows = db.prepare(`PRAGMA foreign_key_list("${tableName}")`).all() as any[];
+        for (const fk of fkRows) {
+          foreignKeys.push({
+            fromTable: tableName,
+            fromColumn: fk.from,
+            toTable: fk.table,
+            toColumn: fk.to,
+            constraintName: `fk_${tableName}_${fk.from}_${fk.table}`,
+          });
+        }
+      }
+
+      return { tables: tableSummaries, foreignKeys };
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
    * Executes a raw SQL query and returns rows & column definitions.
    */
   static async executeQuery(type: string, config: any, sqlStr: string): Promise<{ rows: any[], columns: string[] }> {
@@ -349,6 +402,16 @@ export class DatabaseScanner {
       const rows = result.recordset;
       const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
       return { rows, columns };
+    } else if (type === "sqlite") {
+      if (!config.filePath) throw new Error("SQLite requires a filePath.");
+      const db = new Database(config.filePath, { readonly: true });
+      try {
+        const rows = db.prepare(sqlStr).all() as any[];
+        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+        return { rows, columns };
+      } finally {
+        db.close();
+      }
     } else {
       // postgres (porsager) for PostgreSQL
       const sql = createSql(config);

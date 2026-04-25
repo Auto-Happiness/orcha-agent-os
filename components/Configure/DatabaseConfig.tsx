@@ -32,6 +32,7 @@ export function DatabaseConfig() {
       mssql: "1433",
       mongodb: "27017",
       bigquery: "",
+      sqlite: "",  // file-based — no port
     };
     updateData({
       dbProvider: provider,

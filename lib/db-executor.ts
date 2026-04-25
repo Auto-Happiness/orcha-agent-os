@@ -1,16 +1,20 @@
 import postgres from "postgres";
 import serverlessMysql from "serverless-mysql";
 import * as mssql from "mssql";
+import Database from "better-sqlite3";
 
 export type DbConfig = {
-  type: "mysql" | "postgres" | "mssql";
-  host: string;
-  port: number;
-  user: string;
+  type: "mysql" | "postgres" | "mssql" | "sqlite";
+  // Network-based databases
+  host?: string;
+  port?: number;
+  user?: string;
   password?: string;
-  database: string;
+  database?: string;
   schema?: string;
   ssl?: boolean;
+  // SQLite — local file path only
+  filePath?: string;
 };
 
 // MSSQL connection pool cache
@@ -21,7 +25,7 @@ async function getMssqlPool(config: DbConfig): Promise<any> {
   if (!mssqlPools.has(key)) {
     console.log(`[DbExecutor] Connecting to MSSQL: ${config.host}:${config.port}...`);
     const pool = new mssql.ConnectionPool({
-      server: config.host,
+      server: config.host!,
       port: config.port,
       user: config.user,
       password: config.password,
@@ -46,7 +50,8 @@ export class DbExecutor {
       if (config.type === "mysql") return await this.executeMysql(config, query, params);
       if (config.type === "postgres") return await this.executePostgres(config, query, params);
       if (config.type === "mssql") return await this.executeMssql(config, query, params);
-      throw new Error(`Unsupported database type: ${config.type}`);
+      if (config.type === "sqlite") return await this.executeSqlite(config, query, params);
+      throw new Error(`Unsupported database type: ${(config as any).type}`);
     } catch (err: any) {
       console.error(`[DbExecutor] ${config.type} execution error:`, err.message);
       throw err;
@@ -65,8 +70,6 @@ export class DbExecutor {
         ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
         // Prevents hanging on unreachable hosts — passed directly to mysql2
         connectTimeout: 10_000,
-        // Time to wait to acquire a connection from the pool
-        acquireTimeout: 10_000,
       },
     });
     console.log(`[DbExecutor] MySQL client created, running query...`);
@@ -84,7 +87,6 @@ export class DbExecutor {
 
   private static async executePostgres(config: DbConfig, sqlStr: string, params: any[]): Promise<any[]> {
     console.log(`[DbExecutor] Running query on Postgres...`);
-    // 'postgres' (porsager) is ESM-native — no Turbopack interop issues
     const sql = postgres({
       host: config.host,
       port: config.port,
@@ -119,5 +121,20 @@ export class DbExecutor {
 
     const result = await request.query(mssqlQuery);
     return result.recordset;
+  }
+
+  private static async executeSqlite(config: DbConfig, sqlStr: string, params: any[]): Promise<any[]> {
+    if (!config.filePath) throw new Error("SQLite requires a filePath.");
+    console.log(`[DbExecutor] Opening SQLite database at: ${config.filePath}`);
+    // better-sqlite3 is synchronous — open read-write, throw if file missing
+    const db = new Database(config.filePath);
+    db.pragma("journal_mode = WAL");
+    try {
+      const stmt = db.prepare(sqlStr);
+      const result = stmt.all(...params);
+      return result as any[];
+    } finally {
+      db.close();
+    }
   }
 }

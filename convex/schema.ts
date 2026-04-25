@@ -67,7 +67,7 @@ export default defineSchema({
   // ─── Bridge: Multi-Tenant DB Configs ────────────────────
   databaseConfigs: defineTable({
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb")),
+    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb"), v.literal("sqlite")),
     encryptedUri: v.string(), // Encrypted DB URI
     name: v.string(),        // Environment Profile Name
     description: v.optional(v.string()),
