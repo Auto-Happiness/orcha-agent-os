@@ -12,6 +12,7 @@ export const bulkUpdate = mutation({
     tables: v.array(
       v.object({
         name: v.string(),
+        isView: v.optional(v.boolean()),
         columns: v.array(
           v.object({
             name: v.string(),
@@ -67,6 +68,7 @@ export const bulkUpdate = mutation({
         // For the first "Bridge" scan, we'll just merge fields
         await ctx.db.patch(existing._id, {
           fields,
+          isView: table.isView ?? false,
           updatedAt: now,
         });
       } else {
@@ -76,6 +78,7 @@ export const bulkUpdate = mutation({
           configId: args.configId,
           tableName: table.name,
           displayName: table.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          isView: table.isView ?? false,
           fields,
           createdAt: now,
           updatedAt: now,

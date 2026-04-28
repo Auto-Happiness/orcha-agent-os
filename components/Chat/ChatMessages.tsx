@@ -1,11 +1,15 @@
 "use client";
 
 import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal } from "@mantine/core";
-import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck } from "@tabler/icons-react";
+import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck, IconChartBar } from "@tabler/icons-react";
 import { UIMessage } from "ai";
 import { useCallback, useState, memo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import {
+  BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from "recharts";
 
 interface ChatMessagesProps {
   messages: UIMessage[];
@@ -143,6 +147,132 @@ const DataTable = memo(function DataTable({ data, sql, organizationId, configId 
           )}
         </Box>
       )}
+    </Box>
+  );
+});
+
+// ── ChartBlock ────────────────────────────────────────────────────────────────
+
+const CHART_COLORS = ["#a855f7", "#7c3aed", "#ec4899", "#06b6d4", "#10b981", "#f59e0b", "#f97316", "#6366f1"];
+
+const chartTooltipStyle = {
+  contentStyle: {
+    background: "rgba(13,10,26,0.97)",
+    border: "1px solid rgba(147,51,234,0.25)",
+    borderRadius: 8,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.85)",
+  },
+  labelStyle: { color: "rgba(192,132,252,0.9)", fontWeight: 600 },
+  cursor: { fill: "rgba(147,51,234,0.07)" },
+};
+
+const axisStyle = {
+  tick: { fill: "rgba(255,255,255,0.35)", fontSize: 11 },
+  tickLine: false as const,
+  axisLine: { stroke: "rgba(255,255,255,0.08)" },
+};
+
+const ChartBlock = memo(function ChartBlock({
+  chartType, title, xKey, yKeys, data,
+}: {
+  chartType: "bar" | "line" | "area" | "pie";
+  title: string;
+  xKey: string;
+  yKeys: string[];
+  data: any[];
+}) {
+  if (!data || data.length === 0) return null;
+
+  const renderChart = () => {
+    if (chartType === "pie") {
+      const valueKey = yKeys[0];
+      const pieData = data.map((row) => ({ name: String(row[xKey] ?? ""), value: Number(row[valueKey] ?? 0) }));
+      return (
+        <PieChart>
+          <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`} labelLine={false}>
+            {pieData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+          </Pie>
+          <Tooltip {...chartTooltipStyle} />
+          <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />
+        </PieChart>
+      );
+    }
+    if (chartType === "line") {
+      return (
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+          <XAxis dataKey={xKey} {...axisStyle} />
+          <YAxis {...axisStyle} />
+          <Tooltip {...chartTooltipStyle} />
+          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+          {yKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={false} />)}
+        </LineChart>
+      );
+    }
+    if (chartType === "area") {
+      return (
+        <AreaChart data={data}>
+          <defs>
+            {yKeys.map((k, i) => (
+              <linearGradient key={k} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={CHART_COLORS[i % CHART_COLORS.length]} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={CHART_COLORS[i % CHART_COLORS.length]} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+          <XAxis dataKey={xKey} {...axisStyle} />
+          <YAxis {...axisStyle} />
+          <Tooltip {...chartTooltipStyle} />
+          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+          {yKeys.map((k, i) => (
+            <Area key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]} fill={`url(#grad-${i})`} strokeWidth={2} />
+          ))}
+        </AreaChart>
+      );
+    }
+    // default: bar
+    return (
+      <BarChart data={data} barCategoryGap="30%">
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+        <XAxis dataKey={xKey} {...axisStyle} />
+        <YAxis {...axisStyle} />
+        <Tooltip {...chartTooltipStyle} />
+        {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+        {yKeys.map((k, i) => (
+          <Bar key={k} dataKey={k} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[4, 4, 0, 0]} />
+        ))}
+      </BarChart>
+    );
+  };
+
+  return (
+    <Box style={{ borderRadius: 14, overflow: "hidden", border: "1px solid rgba(147,51,234,0.18)", boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(147,51,234,0.06)" }}>
+      {/* Header */}
+      <Box style={{ background: "rgba(19,16,42,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(147,51,234,0.12)", padding: "10px 16px" }}>
+        <Group justify="space-between">
+          <Group gap={10}>
+            <Group gap={5}>
+              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(147,51,234,0.6)", boxShadow: "0 0 8px rgba(147,51,234,0.8)" }} />
+            </Group>
+            <Box style={{ width: 1, height: 14, background: "rgba(255,255,255,0.06)" }} />
+            <IconChartBar size={13} color="rgba(192,132,252,0.8)" />
+            <Text size="11px" fw={600} c="rgba(192,132,252,0.8)" style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}>{title}</Text>
+            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.12)", border: "1px solid rgba(147,51,234,0.2)" }}>
+              <Text size="10px" fw={700} c="violet.4">{chartType.toUpperCase()} · {data.length} rows</Text>
+            </Box>
+          </Group>
+        </Group>
+      </Box>
+      {/* Chart */}
+      <Box style={{ background: "rgba(10,8,20,0.85)", padding: "24px 12px 12px 4px" }}>
+        <ResponsiveContainer width="100%" height={280}>
+          {renderChart()}
+        </ResponsiveContainer>
+      </Box>
     </Box>
   );
 });
@@ -290,7 +420,26 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
   }
 
   const isSQL = toolName === "execute_sql";
-  const partSql = isSQL ? part.input?.sql : undefined;
+  const partSql = isSQL 
+    ? (part.input?.sql ?? part.toolInvocation?.args?.sql ?? part.args?.sql) 
+    : undefined;
+
+  // Render chart
+  const isChart = isSQL && result.chartConfig != null;
+  if (isChart && result.success && result.data?.length > 0) {
+    const config = result.chartConfig;
+    return (
+      <Box key={i} ml="3rem" mt="sm">
+        <ChartBlock
+          chartType={config.chartType}
+          title={config.title}
+          xKey={config.xKey}
+          yKeys={[config.yKey]}
+          data={result.data}
+        />
+      </Box>
+    );
+  }
 
   // Render SQL Tables
   if (isSQL && result.data?.length > 0) {

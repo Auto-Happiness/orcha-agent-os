@@ -114,21 +114,53 @@ export async function createChatAgent(context: AgentContext) {
 ${schemaDescription}
 ${relationshipDescription}
 Dialect: ${dialectRules}
-Limit results to ${MAX_ROWS} rows.`;
+Limit results to ${MAX_ROWS} rows.
+
+- ONLY output a chart if the user explicitly asks to visualize, chart, graph, or plot the data.
+- To plot a chart, you MUST use the execute_sql tool and provide the optional chartConfig object.
+- THE FRONTEND AUTOMATICALLY RENDERS THE CHART IF chartConfig IS PROVIDED. DO NOT output markdown image links (e.g. ![chart](...)) or attempt to display the chart yourself in the text.
+- Choose the most appropriate chartType:
+  - "bar"  → comparisons between categories
+  - "line" → trends over time or ordered sequences
+  - "area" → cumulative trends
+  - "pie"  → proportions / part-of-whole (use only if there are ≤ 8 categories)
+- xKey must be the EXACT column name or alias for the X-axis (or pie labels) as returned by your SQL query.
+- yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query (e.g. "revenue"). Use AS aliases in your SQL to ensure clean keys.`;
 
   // 7. Initialize Agent
   const tools = {
     execute_sql: {
-      description: `Executes a SQL query.`,
+      description: `Executes a SQL SELECT query and returns the result rows. If the user asked for a chart/graph, you MUST provide the chartConfig object.`,
       inputSchema: jsonSchema({
         type: "object",
-        properties: { sql: { type: "string" } },
+        properties: { 
+          sql: { type: "string" },
+          chartConfig: {
+            type: "object",
+            description: "Provide this ONLY if the user explicitly asked to visualize, chart, graph, or plot the data.",
+            properties: {
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie"], description: "The type of chart to render." },
+              title: { type: "string", description: "A short descriptive title for the chart." },
+              xKey: { type: "string", description: "The column name to use for the X-axis (or labels in a pie chart)." },
+              yKey: { type: "string", description: "The column name for the Y-axis values (or value in a pie chart). Example: 'sales'" }
+            },
+            required: ["chartType", "title", "xKey", "yKey"]
+          }
+        },
         required: ["sql"],
       }),
-      execute: async ({ sql }: { sql: string }) => {
+      execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
-        const rows = await DbExecutor.execute(dbConfig, sql);
-        return { success: true, data: rows.slice(0, MAX_ROWS) };
+        try {
+          const rows = await DbExecutor.execute(dbConfig, sql);
+          return { 
+            success: true, 
+            data: rows.slice(0, MAX_ROWS),
+            chartConfig 
+          };
+        } catch (err: any) {
+          return { success: false, error: err.message || "Failed to execute SQL." };
+        }
       },
     },
     ...mcpTools,

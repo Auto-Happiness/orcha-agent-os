@@ -20,6 +20,7 @@ function createSql(config: any) {
 export interface TableSummary {
   name: string;
   columns: ColumnSummary[];
+  isView?: boolean;
 }
 
 export interface ColumnSummary {
@@ -47,7 +48,7 @@ export interface ScanResult {
 const mssqlPools = new Map<string, any>();
 
 async function getMssqlPool(config: any): Promise<any> {
-  const key = `${config.host}:${config.port || 1433}/${config.database}/${config.user}`;
+  const key = `${config.host}:${config.port || 1433}/${config.database}/${config.user}/${config.instanceName || ""}`;
   if (!mssqlPools.has(key)) {
     const pool = new mssql.ConnectionPool({
       server: config.host,
@@ -56,8 +57,9 @@ async function getMssqlPool(config: any): Promise<any> {
       password: config.password,
       database: config.database,
       options: {
-        encrypt: true,
-        trustServerCertificate: true,
+        encrypt: config.encrypt ?? config.ssl ?? true,
+        trustServerCertificate: config.trustServerCertificate ?? true,
+        instanceName: config.instanceName,
       },
       connectionTimeout: 10_000,
     });
@@ -102,7 +104,20 @@ export class DatabaseScanner {
         pksByTable.get(t)!.add(c);
       }
 
-      // 2. Get all COLUMNS for the entire schema at once
+      // 2. Discover all tables AND views
+      const tableTypeRows: any[] = await db.query(
+        `SELECT TABLE_NAME, TABLE_TYPE
+         FROM INFORMATION_SCHEMA.TABLES
+         WHERE TABLE_SCHEMA = ? AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')`,
+        [config.database]
+      );
+      const tableTypeMap = new Map<string, boolean>(); // name -> isView
+      for (const r of tableTypeRows) {
+        const name = r.TABLE_NAME || r.table_name;
+        tableTypeMap.set(name, (r.TABLE_TYPE || r.table_type) === 'VIEW');
+      }
+
+      // 3. Get all COLUMNS for the entire schema at once
       const allColumns: any[] = await db.query(
         `SELECT table_name, column_name, data_type, is_nullable, column_default
          FROM information_schema.columns
@@ -111,7 +126,7 @@ export class DatabaseScanner {
         [config.database]
       );
 
-      // Group columns by table
+      // Group columns by table/view
       const columnsByTable = new Map<string, any[]>();
       for (const col of allColumns) {
         const t = col.table_name || col.TABLE_NAME;
@@ -130,9 +145,10 @@ export class DatabaseScanner {
       const tableSummaries: TableSummary[] = Array.from(columnsByTable.entries()).map(([name, columns]) => ({
         name,
         columns,
+        isView: tableTypeMap.get(name) ?? false,
       }));
 
-      // 3. Get all foreign key relationships
+      // 4. Get all foreign key relationships (tables only; views have no FKs)
       const fkRows: any[] = await db.query(
         `SELECT 
           TABLE_NAME as from_table,
@@ -167,18 +183,21 @@ export class DatabaseScanner {
     const schemaName = config.schema || 'public';
     const sql = createSql(config);
     try {
-      // 1. Get tables
+      // 1. Get tables AND views
       const tablesRes = await sql`
-        SELECT table_name FROM information_schema.tables
+        SELECT table_name, table_type
+        FROM information_schema.tables
         WHERE table_schema = ${schemaName}
+          AND table_type IN ('BASE TABLE', 'VIEW')
       `;
 
       const tableSummaries: TableSummary[] = [];
 
       for (const row of tablesRes) {
         const tableName = row.table_name as string;
+        const isView = row.table_type === 'VIEW';
 
-        // 2. Get Primary Keys
+        // 2. Get Primary Keys (views have none, but the query safely returns 0 rows)
         const pkRes = await sql`
           SELECT kcu.column_name
           FROM information_schema.table_constraints tc
@@ -200,6 +219,7 @@ export class DatabaseScanner {
 
         tableSummaries.push({
           name: tableName,
+          isView,
           columns: columnsRes.map((col: any) => ({
             name: col.column_name,
             dataType: col.data_type,
@@ -210,7 +230,7 @@ export class DatabaseScanner {
         });
       }
 
-      // 4. Get all foreign key relationships
+      // 4. Get all foreign key relationships (tables only; views have no FKs)
       const fkRes = await sql`
         SELECT
           kcu.table_name AS from_table,
@@ -254,12 +274,21 @@ export class DatabaseScanner {
         "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = 'dbo'"
       );
 
+      // 1b. Get views
+      const viewsResult = await pool.request().query(
+        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = 'dbo'"
+      );
+
       const tableSummaries: TableSummary[] = [];
 
-      for (const row of tablesResult.recordset) {
-        const tableName = row.TABLE_NAME;
+      // Combine tables and views into a unified list
+      const allObjects: Array<{ name: string; isView: boolean }> = [
+        ...tablesResult.recordset.map((r: any) => ({ name: r.TABLE_NAME, isView: false })),
+        ...viewsResult.recordset.map((r: any) => ({ name: r.TABLE_NAME, isView: true })),
+      ];
 
-        // 2. Get Primary Keys for this table
+      for (const { name: tableName, isView } of allObjects) {
+        // 2. Get Primary Keys (views return 0 rows safely)
         const pkResult = await pool.request()
           .input('tableName', tableName)
           .query(`
@@ -281,6 +310,7 @@ export class DatabaseScanner {
 
         tableSummaries.push({
           name: tableName,
+          isView,
           columns: columnsResult.recordset.map((col: any) => ({
             name: col.COLUMN_NAME,
             dataType: col.DATA_TYPE,
@@ -291,7 +321,7 @@ export class DatabaseScanner {
         });
       }
 
-      // 4. Get all foreign key relationships
+      // 4. Get all foreign key relationships (tables only; views have no FKs)
       const fkResult = await pool.request().query(`
         SELECT
             fk.name AS constraint_name,
@@ -334,16 +364,18 @@ export class DatabaseScanner {
     db.pragma("foreign_keys = ON");
 
     try {
-      // 1. Get all user tables
-      const tableRows = db
-        .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
-        .all() as { name: string }[];
+      // 1. Get all user tables AND views
+      const objectRows = db
+        .prepare(`SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name`)
+        .all() as { name: string; type: string }[];
 
       const tableSummaries: TableSummary[] = [];
       const foreignKeys: ForeignKeySummary[] = [];
 
-      for (const { name: tableName } of tableRows) {
-        // 2. Get column info via PRAGMA
+      for (const { name: tableName, type: objType } of objectRows) {
+        const isView = objType === 'view';
+
+        // 2. Get column info via PRAGMA (works for both tables and views)
         const colRows = db.prepare(`PRAGMA table_info("${tableName}")`).all() as any[];
         const columns: ColumnSummary[] = colRows.map((col) => ({
           name: col.name,
@@ -353,18 +385,20 @@ export class DatabaseScanner {
           defaultValue: col.dflt_value ?? undefined,
         }));
 
-        tableSummaries.push({ name: tableName, columns });
+        tableSummaries.push({ name: tableName, isView, columns });
 
-        // 3. Get FK relationships via PRAGMA
-        const fkRows = db.prepare(`PRAGMA foreign_key_list("${tableName}")`).all() as any[];
-        for (const fk of fkRows) {
-          foreignKeys.push({
-            fromTable: tableName,
-            fromColumn: fk.from,
-            toTable: fk.table,
-            toColumn: fk.to,
-            constraintName: `fk_${tableName}_${fk.from}_${fk.table}`,
-          });
+        // 3. Get FK relationships via PRAGMA (views have no FKs)
+        if (!isView) {
+          const fkRows = db.prepare(`PRAGMA foreign_key_list("${tableName}")`).all() as any[];
+          for (const fk of fkRows) {
+            foreignKeys.push({
+              fromTable: tableName,
+              fromColumn: fk.from,
+              toTable: fk.table,
+              toColumn: fk.to,
+              constraintName: `fk_${tableName}_${fk.from}_${fk.table}`,
+            });
+          }
         }
       }
 
