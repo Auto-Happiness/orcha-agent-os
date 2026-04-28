@@ -360,9 +360,9 @@ function extractSQLFromParts(parts: any[]): string[] {
     const type: string = part.type ?? "";
     let sql: string | undefined;
     if (type === "tool-execute_sql") sql = part.input?.sql;
-    else if (type === "tool-invocation" && (part.toolInvocation?.toolName === "execute_sql" || part.toolInvocation?.toolName === "render_chart"))
+    else if (type === "tool-invocation" && part.toolInvocation?.toolName === "execute_sql")
       sql = (part.toolInvocation.input as any)?.sql ?? (part.toolInvocation.args as any)?.sql;
-    else if (type === "tool-result" && (part.toolName === "execute_sql" || part.toolName === "render_chart"))
+    else if (type === "tool-result" && part.toolName === "execute_sql")
       sql = (part.input as any)?.sql ?? (part.args as any)?.sql;
     
     if (sql && !queries.includes(sql)) queries.push(sql);
@@ -420,18 +420,21 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
   }
 
   const isSQL = toolName === "execute_sql";
-  const partSql = isSQL ? part.input?.sql : undefined;
+  const partSql = isSQL 
+    ? (part.input?.sql ?? part.toolInvocation?.args?.sql ?? part.args?.sql) 
+    : undefined;
 
   // Render chart
-  const isChart = toolName === "render_chart";
+  const isChart = isSQL && result.chartConfig != null;
   if (isChart && result.success && result.data?.length > 0) {
+    const config = result.chartConfig;
     return (
       <Box key={i} ml="3rem" mt="sm">
         <ChartBlock
-          chartType={result.chartType}
-          title={result.title}
-          xKey={result.xKey}
-          yKeys={result.yKeys}
+          chartType={config.chartType}
+          title={config.title}
+          xKey={config.xKey}
+          yKeys={[config.yKey]}
           data={result.data}
         />
       </Box>

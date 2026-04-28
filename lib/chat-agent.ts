@@ -116,79 +116,50 @@ ${relationshipDescription}
 Dialect: ${dialectRules}
 Limit results to ${MAX_ROWS} rows.
 
-Chart instructions:
-- ONLY call render_chart if the user explicitly asks to visualize, chart, graph, or plot the data.
-- To render a chart, you MUST use the render_chart tool by providing the SQL query to fetch the data, along with the chart configuration.
-- YOU MUST ACTUALLY CALL THE TOOL. DO NOT just generate text claiming the chart was created. The chart will NOT exist unless you successfully invoke the render_chart tool.
-- THE FRONTEND AUTOMATICALLY RENDERS THE CHART. DO NOT output markdown image links (e.g. ![chart](...)) or attempt to display the chart yourself in the text.
-- Choose the most appropriate chart type:
+- ONLY output a chart if the user explicitly asks to visualize, chart, graph, or plot the data.
+- To plot a chart, you MUST use the execute_sql tool and provide the optional chartConfig object.
+- THE FRONTEND AUTOMATICALLY RENDERS THE CHART IF chartConfig IS PROVIDED. DO NOT output markdown image links (e.g. ![chart](...)) or attempt to display the chart yourself in the text.
+- Choose the most appropriate chartType:
   - "bar"  → comparisons between categories
   - "line" → trends over time or ordered sequences
   - "area" → cumulative trends
   - "pie"  → proportions / part-of-whole (use only if there are ≤ 8 categories)
 - xKey must be the EXACT column name or alias for the X-axis (or pie labels) as returned by your SQL query.
-- yKeys must be a COMMA-SEPARATED STRING of EXACT column names or aliases for the Y-axis values as returned by your SQL query (e.g. "revenue, profit"). Use AS aliases in your SQL to ensure clean keys.
-- Do NOT call render_chart if the user only asked a data question with no mention of chart/graph/plot/visualize.`;
+- yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query (e.g. "revenue"). Use AS aliases in your SQL to ensure clean keys.`;
 
   // 7. Initialize Agent
   const tools = {
     execute_sql: {
-      description: `Executes a SQL SELECT query and returns the result rows.`,
+      description: `Executes a SQL SELECT query and returns the result rows. If the user asked for a chart/graph, you MUST provide the chartConfig object.`,
       inputSchema: jsonSchema({
         type: "object",
-        properties: { sql: { type: "string" } },
+        properties: { 
+          sql: { type: "string" },
+          chartConfig: {
+            type: "object",
+            description: "Provide this ONLY if the user explicitly asked to visualize, chart, graph, or plot the data.",
+            properties: {
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie"], description: "The type of chart to render." },
+              title: { type: "string", description: "A short descriptive title for the chart." },
+              xKey: { type: "string", description: "The column name to use for the X-axis (or labels in a pie chart)." },
+              yKey: { type: "string", description: "The column name for the Y-axis values (or value in a pie chart). Example: 'sales'" }
+            },
+            required: ["chartType", "title", "xKey", "yKey"]
+          }
+        },
         required: ["sql"],
       }),
-      execute: async ({ sql }: { sql: string }) => {
+      execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
-        const rows = await DbExecutor.execute(dbConfig, sql);
-        return { success: true, data: rows.slice(0, MAX_ROWS) };
-      },
-    },
-    render_chart: {
-      description: `Renders a chart from data. You MUST ACTUALLY CALL THIS TOOL when the user explicitly asks to visualize, chart, graph, or plot data. DO NOT just generate text claiming you created a chart.`,
-      inputSchema: jsonSchema({
-        type: "object",
-        properties: {
-          sql: {
-            type: "string",
-            description: "The SQL query to fetch the data for the chart.",
-          },
-          chartType: {
-            type: "string",
-            enum: ["bar", "line", "area", "pie"],
-            description: "The type of chart to render.",
-          },
-          title: {
-            type: "string",
-            description: "A short descriptive title for the chart.",
-          },
-          xKey: {
-            type: "string",
-            description: "The column name to use for the X-axis (or labels in a pie chart).",
-          },
-          yKeys: {
-            type: "string",
-            description: "A comma-separated list of column names for the Y-axis values (or value in a pie chart). Example: 'sales, profit'",
-          },
-        },
-        required: ["sql", "chartType", "title", "xKey", "yKeys"],
-      }),
-      execute: async (input: { sql: string; chartType: string; title: string; xKey: string; yKeys: string }) => {
-        if (!isSafeSQL(input.sql)) return { success: false, error: "Unsafe SQL blocked." };
         try {
-          const rows = await DbExecutor.execute(dbConfig, input.sql);
-          const yKeysArray = input.yKeys.split(",").map(k => k.trim()).filter(Boolean);
-          return {
-            success: true,
-            chartType: input.chartType,
-            title: input.title,
-            xKey: input.xKey,
-            yKeys: yKeysArray,
+          const rows = await DbExecutor.execute(dbConfig, sql);
+          return { 
+            success: true, 
             data: rows.slice(0, MAX_ROWS),
+            chartConfig 
           };
         } catch (err: any) {
-          return { success: false, error: err.message || "Failed to execute SQL for chart." };
+          return { success: false, error: err.message || "Failed to execute SQL." };
         }
       },
     },
