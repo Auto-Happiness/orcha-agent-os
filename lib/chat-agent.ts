@@ -114,12 +114,26 @@ export async function createChatAgent(context: AgentContext) {
 ${schemaDescription}
 ${relationshipDescription}
 Dialect: ${dialectRules}
-Limit results to ${MAX_ROWS} rows.`;
+Limit results to ${MAX_ROWS} rows.
+
+Chart instructions:
+- ONLY call render_chart if the user explicitly asks to visualize, chart, graph, or plot the data.
+- To render a chart, you MUST use the render_chart tool by providing the SQL query to fetch the data, along with the chart configuration.
+- YOU MUST ACTUALLY CALL THE TOOL. DO NOT just generate text claiming the chart was created. The chart will NOT exist unless you successfully invoke the render_chart tool.
+- THE FRONTEND AUTOMATICALLY RENDERS THE CHART. DO NOT output markdown image links (e.g. ![chart](...)) or attempt to display the chart yourself in the text.
+- Choose the most appropriate chart type:
+  - "bar"  → comparisons between categories
+  - "line" → trends over time or ordered sequences
+  - "area" → cumulative trends
+  - "pie"  → proportions / part-of-whole (use only if there are ≤ 8 categories)
+- xKey must be the EXACT column name or alias for the X-axis (or pie labels) as returned by your SQL query.
+- yKeys must be a COMMA-SEPARATED STRING of EXACT column names or aliases for the Y-axis values as returned by your SQL query (e.g. "revenue, profit"). Use AS aliases in your SQL to ensure clean keys.
+- Do NOT call render_chart if the user only asked a data question with no mention of chart/graph/plot/visualize.`;
 
   // 7. Initialize Agent
   const tools = {
     execute_sql: {
-      description: `Executes a SQL query.`,
+      description: `Executes a SQL SELECT query and returns the result rows.`,
       inputSchema: jsonSchema({
         type: "object",
         properties: { sql: { type: "string" } },
@@ -129,6 +143,53 @@ Limit results to ${MAX_ROWS} rows.`;
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
         const rows = await DbExecutor.execute(dbConfig, sql);
         return { success: true, data: rows.slice(0, MAX_ROWS) };
+      },
+    },
+    render_chart: {
+      description: `Renders a chart from data. You MUST ACTUALLY CALL THIS TOOL when the user explicitly asks to visualize, chart, graph, or plot data. DO NOT just generate text claiming you created a chart.`,
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          sql: {
+            type: "string",
+            description: "The SQL query to fetch the data for the chart.",
+          },
+          chartType: {
+            type: "string",
+            enum: ["bar", "line", "area", "pie"],
+            description: "The type of chart to render.",
+          },
+          title: {
+            type: "string",
+            description: "A short descriptive title for the chart.",
+          },
+          xKey: {
+            type: "string",
+            description: "The column name to use for the X-axis (or labels in a pie chart).",
+          },
+          yKeys: {
+            type: "string",
+            description: "A comma-separated list of column names for the Y-axis values (or value in a pie chart). Example: 'sales, profit'",
+          },
+        },
+        required: ["sql", "chartType", "title", "xKey", "yKeys"],
+      }),
+      execute: async (input: { sql: string; chartType: string; title: string; xKey: string; yKeys: string }) => {
+        if (!isSafeSQL(input.sql)) return { success: false, error: "Unsafe SQL blocked." };
+        try {
+          const rows = await DbExecutor.execute(dbConfig, input.sql);
+          const yKeysArray = input.yKeys.split(",").map(k => k.trim()).filter(Boolean);
+          return {
+            success: true,
+            chartType: input.chartType,
+            title: input.title,
+            xKey: input.xKey,
+            yKeys: yKeysArray,
+            data: rows.slice(0, MAX_ROWS),
+          };
+        } catch (err: any) {
+          return { success: false, error: err.message || "Failed to execute SQL for chart." };
+        }
       },
     },
     ...mcpTools,

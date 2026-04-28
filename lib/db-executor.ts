@@ -13,6 +13,10 @@ export type DbConfig = {
   database?: string;
   schema?: string;
   ssl?: boolean;
+  // MSSQL specific
+  encrypt?: boolean;
+  trustServerCertificate?: boolean;
+  instanceName?: string;
   // SQLite — local file path only
   filePath?: string;
 };
@@ -21,9 +25,9 @@ export type DbConfig = {
 const mssqlPools = new Map<string, any>();
 
 async function getMssqlPool(config: DbConfig): Promise<any> {
-  const key = `${config.host}:${config.port}/${config.database}/${config.user}`;
+  const key = `${config.host}:${config.port}/${config.database}/${config.user}/${config.instanceName || ""}`;
   if (!mssqlPools.has(key)) {
-    console.log(`[DbExecutor] Connecting to MSSQL: ${config.host}:${config.port}...`);
+    console.log(`[DbExecutor] Connecting to MSSQL: ${config.host}:${config.port} (instance: ${config.instanceName || "default"})...`);
     const pool = new mssql.ConnectionPool({
       server: config.host!,
       port: config.port,
@@ -31,10 +35,11 @@ async function getMssqlPool(config: DbConfig): Promise<any> {
       password: config.password,
       database: config.database,
       options: {
-        encrypt: true,
-        trustServerCertificate: true,
+        encrypt: config.encrypt ?? config.ssl ?? true,
+        trustServerCertificate: config.trustServerCertificate ?? true,
+        instanceName: config.instanceName,
       },
-      connectionTimeout: 5_000,
+      connectionTimeout: 12_000,
       pool: { max: 5, min: 0, idleTimeoutMillis: 30_000 },
     });
     await pool.connect();
@@ -79,9 +84,19 @@ export class DbExecutor {
       await db.end();
       return results as any[];
     } catch (error: any) {
-      console.error(`[DbExecutor] MySQL query FAILED:`, error.code, error.message);
-      await db.quit();
-      throw error;
+      if (error.name === "AggregateError" || error instanceof AggregateError) {
+        console.error(`[DbExecutor] MySQL query FAILED with AggregateError. Inner errors:`);
+        for (const err of error.errors || []) {
+          console.error(` - ${err.code}: ${err.message}`);
+        }
+        await db.quit();
+        const messages = (error.errors || []).map((e: any) => e.message).join(", ");
+        throw new Error(`Connection failed: ${messages}`);
+      } else {
+        console.error(`[DbExecutor] MySQL query FAILED:`, error.code, error.message);
+        await db.quit();
+        throw error;
+      }
     }
   }
 

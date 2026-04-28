@@ -126,9 +126,10 @@ export default defineSchema({
   semanticModels: defineTable({
     organizationId: v.id("organizations"),
     configId: v.id("databaseConfigs"),
-    tableName: v.string(),     // Physical table name (e.g. 'users_raw')
+    tableName: v.string(),     // Physical table/view name (e.g. 'users_raw')
     displayName: v.string(),   // Business name (e.g. 'Customers')
     description: v.optional(v.string()),
+    isView: v.optional(v.boolean()), // true if this is a database view, not a base table
     fields: v.array(v.object({
       columnName: v.string(),  // Physical column name
       displayName: v.string(), // Business name (e.g. 'Revenue')
