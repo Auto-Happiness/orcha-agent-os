@@ -27,21 +27,28 @@ docker-compose up -d
 ```
 *Wait for the containers to become healthy (approx 30 seconds).*
 
-### 3. Install Dependencies & Drivers
+### 3 Generate Local Admin Key
+Run the following command to generate a local admin key for your self-hosted instance:
+```bash
+docker compose exec backend ./generate_admin_key.sh
+```
+*Copy the generated key for use in the next step.*
+
+### 4. Install Dependencies & Drivers
 You must install the database drivers (not included by default) to enable the Bridge:
 ```bash
 npm install
 npm install mysql2 pg
 ```
 
-### 4. Start Convex Sync
+### 5. Start Convex Sync
 Run the development sync against your local instance. **Do not use the standard `npx convex dev`** as it defaults to the cloud:
 ```powershell
 # Use npx.cmd on Windows to bypass .ps1 restrictions
 npx.cmd convex dev --url http://localhost:3210 --admin-key "convex-self-hosted|01204f53c7b09a60cdd9975785ec0ce915b75dcef849ac14185aa49edbd5f302c9298c0274"
 ```
 
-### 5. Run Next.js
+### 6. Run Next.js
 In a separate terminal:
 ```bash
 npm run dev
