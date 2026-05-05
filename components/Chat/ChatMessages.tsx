@@ -1,9 +1,9 @@
 "use client";
 
-import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal } from "@mantine/core";
-import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck, IconChartBar } from "@tabler/icons-react";
+import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal, Popover, ColorPicker, ActionIcon, ColorInput, Divider, Tooltip as MantineTooltip } from "@mantine/core";
+import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck, IconChartBar, IconPalette } from "@tabler/icons-react";
 import { UIMessage } from "ai";
-import { useCallback, useState, memo } from "react";
+import { useCallback, useState, memo, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -155,6 +155,14 @@ const DataTable = memo(function DataTable({ data, sql, organizationId, configId 
 
 const CHART_COLORS = ["#a855f7", "#7c3aed", "#ec4899", "#06b6d4", "#10b981", "#f59e0b", "#f97316", "#6366f1"];
 
+const PALETTES = {
+  Orcha: ["#a855f7", "#7c3aed", "#ec4899", "#06b6d4", "#10b981", "#f59e0b", "#f97316", "#6366f1"],
+  Ocean: ["#0ea5e9", "#0284c7", "#0369a1", "#075985", "#0c4a6e", "#00d1ff", "#7dd3fc", "#e0f2fe"],
+  Sunset: ["#f43f5e", "#e11d48", "#be123c", "#9f1239", "#fb7185", "#fda4af", "#fecdd3", "#fff1f2"],
+  Forest: ["#10b981", "#059669", "#047857", "#065f46", "#064e3b", "#34d399", "#6ee7b7", "#a7f3d0"],
+  Cyberpunk: ["#ff00ff", "#00ffff", "#ffff00", "#ff00aa", "#aa00ff", "#00ffaa", "#ffaa00", "#00aaff"],
+};
+
 const chartTooltipStyle = {
   contentStyle: {
     background: "rgba(13,10,26,0.97)",
@@ -182,6 +190,27 @@ const ChartBlock = memo(function ChartBlock({
   yKeys: string[];
   data: any[];
 }) {
+  const [seriesColors, setSeriesColors] = useState<Record<string, string>>({});
+  const [popoverOpened, setPopoverOpened] = useState(false);
+
+  // Identify all "elements" that can be colored
+  const elements = (chartType === "pie" || (chartType === "bar" && yKeys.length === 1))
+    ? data.map(row => String(row[xKey] ?? "Unknown"))
+    : yKeys;
+
+  // Initialize colors if missing
+  useEffect(() => {
+    const newColors = { ...seriesColors };
+    let changed = false;
+    elements.forEach((el, i) => {
+      if (!newColors[el]) {
+        newColors[el] = CHART_COLORS[i % CHART_COLORS.length];
+        changed = true;
+      }
+    });
+    if (changed) setSeriesColors(newColors);
+  }, [elements]);
+
   if (!data || data.length === 0) return null;
 
   const renderChart = () => {
@@ -191,7 +220,7 @@ const ChartBlock = memo(function ChartBlock({
       return (
         <PieChart>
           <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`} labelLine={false}>
-            {pieData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+            {pieData.map((entry, i) => <Cell key={i} fill={seriesColors[entry.name] || CHART_COLORS[i % CHART_COLORS.length]} />)}
           </Pie>
           <Tooltip {...chartTooltipStyle} />
           <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />
@@ -206,7 +235,7 @@ const ChartBlock = memo(function ChartBlock({
           <YAxis {...axisStyle} />
           <Tooltip {...chartTooltipStyle} />
           {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
-          {yKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={false} />)}
+          {yKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={false} />)}
         </LineChart>
       );
     }
@@ -214,12 +243,15 @@ const ChartBlock = memo(function ChartBlock({
       return (
         <AreaChart data={data}>
           <defs>
-            {yKeys.map((k, i) => (
-              <linearGradient key={k} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={CHART_COLORS[i % CHART_COLORS.length]} stopOpacity={0.3} />
-                <stop offset="95%" stopColor={CHART_COLORS[i % CHART_COLORS.length]} stopOpacity={0} />
-              </linearGradient>
-            ))}
+            {yKeys.map((k, i) => {
+              const color = seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length];
+              return (
+                <linearGradient key={k} id={`grad-${k}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              );
+            })}
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
           <XAxis dataKey={xKey} {...axisStyle} />
@@ -227,7 +259,7 @@ const ChartBlock = memo(function ChartBlock({
           <Tooltip {...chartTooltipStyle} />
           {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
           {yKeys.map((k, i) => (
-            <Area key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]} fill={`url(#grad-${i})`} strokeWidth={2} />
+            <Area key={k} type="monotone" dataKey={k} stroke={seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length]} fill={`url(#grad-${k})`} strokeWidth={2} />
           ))}
         </AreaChart>
       );
@@ -241,7 +273,11 @@ const ChartBlock = memo(function ChartBlock({
         <Tooltip {...chartTooltipStyle} />
         {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
         {yKeys.map((k, i) => (
-          <Bar key={k} dataKey={k} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[4, 4, 0, 0]} />
+          <Bar key={k} dataKey={k} fill={seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length]} radius={[4, 4, 0, 0]}>
+            {(yKeys.length === 1) && data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={seriesColors[String(entry[xKey])] || CHART_COLORS[index % CHART_COLORS.length]} />
+            ))}
+          </Bar>
         ))}
       </BarChart>
     );
@@ -265,6 +301,68 @@ const ChartBlock = memo(function ChartBlock({
               <Text size="10px" fw={700} c="violet.4">{chartType.toUpperCase()} · {data.length} rows</Text>
             </Box>
           </Group>
+          <Popover opened={popoverOpened} onChange={setPopoverOpened} position="bottom-end" shadow="md" withArrow>
+            <Popover.Target>
+              <ActionIcon variant="subtle" color="violet" radius="md" onClick={() => setPopoverOpened((o) => !o)} style={{ opacity: 0.7 }}>
+                <IconPalette size={14} />
+              </ActionIcon>
+            </Popover.Target>
+            <Popover.Dropdown style={{ background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)", minWidth: 260 }}>
+              <Stack gap="md">
+                <Box>
+                  <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Quick Palettes</Text>
+                  <Group gap={8}>
+                    {Object.entries(PALETTES).map(([name, colors]) => (
+                      <MantineTooltip key={name} label={name} position="top">
+                        <Box 
+                          onClick={() => {
+                            const newColors = { ...seriesColors };
+                            elements.forEach((el, i) => {
+                              newColors[el] = colors[i % colors.length];
+                            });
+                            setSeriesColors(newColors);
+                          }}
+                          style={{ 
+                            width: 24, 
+                            height: 24, 
+                            borderRadius: 4, 
+                            cursor: "pointer", 
+                            background: `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1] || colors[0]} 100%)`,
+                            border: "1px solid rgba(255,255,255,0.1)"
+                          }} 
+                        />
+                      </MantineTooltip>
+                    ))}
+                  </Group>
+                </Box>
+
+                <Divider color="rgba(147,51,234,0.1)" />
+
+                <Box>
+                  <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Custom Elements</Text>
+                  <ScrollArea.Autosize mah={300} type="auto">
+                    <Stack gap={8}>
+                      {elements.map((el) => (
+                        <Group key={el} justify="space-between" wrap="nowrap">
+                          <Text size="xs" c="dimmed" style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{el}</Text>
+                          <ColorInput 
+                            size="xs" 
+                            w={100} 
+                            value={seriesColors[el] || "#a855f7"} 
+                            onChange={(c) => setSeriesColors(prev => ({ ...prev, [el]: c }))}
+                            format="hex"
+                            withPicker={true}
+                            swatches={CHART_COLORS}
+                            popoverProps={{ withinPortal: false }}
+                          />
+                        </Group>
+                      ))}
+                    </Stack>
+                  </ScrollArea.Autosize>
+                </Box>
+              </Stack>
+            </Popover.Dropdown>
+          </Popover>
         </Group>
       </Box>
       {/* Chart */}
