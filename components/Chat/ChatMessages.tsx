@@ -1,11 +1,12 @@
 "use client";
 
-import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal, Popover, ColorPicker, ActionIcon, ColorInput, Divider, Tooltip as MantineTooltip } from "@mantine/core";
-import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck, IconChartBar, IconPalette } from "@tabler/icons-react";
+import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal, Popover, ColorPicker, ActionIcon, ColorInput, Divider, Tooltip as MantineTooltip, UnstyledButton, Collapse } from "@mantine/core";
+import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck, IconChartBar, IconPalette, IconBrain, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import { UIMessage } from "ai";
-import { useCallback, useState, memo, useEffect, useRef } from "react";
+import React, { useCallback, useState, memo, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useDisclosure } from "@mantine/hooks";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -741,6 +742,54 @@ function SQLModal({ queries, opened, onClose, organizationId, configId }: {
   );
 }
 
+function ReasoningBlock({ text }: { text: string }) {
+  const [opened, { toggle }] = useDisclosure(true);
+  // Bug fix: use a loose split instead of a strict regex so minor LLM formatting
+  // variations (extra spaces, missing newline) don't break the strip.
+  const reasoningMarker = "### \uD83E\uDDE0 Reasoning";
+  const markerIndex = text.indexOf(reasoningMarker);
+  const content = markerIndex >= 0
+    ? text.slice(markerIndex + reasoningMarker.length).trimStart()
+    : text;
+
+  return (
+    <Box 
+      style={{ 
+        background: "transparent", 
+        border: "none",
+        borderRadius: 8,
+        overflow: "hidden",
+        marginBottom: 16
+      }}
+    >
+      <UnstyledButton 
+        onClick={toggle}
+        p="xs"
+        px="sm"
+        w="100%"
+        style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          gap: 10,
+          background: "transparent"
+        }}
+      >
+        <IconBrain size={15} color="#a855f7" />
+        <Text fw={600} c="violet.2" style={{ flex: 1, fontSize: 10.5, letterSpacing: "0.01em" }}>Reasoning Process</Text>
+        {opened ? <IconChevronUp size={14} opacity={0.5} /> : <IconChevronDown size={14} opacity={0.5} />}
+      </UnstyledButton>
+      
+      <Collapse expanded={opened}>
+        <Box p="xs" px="sm" pb="sm">
+          <Text size="xs" c="rgba(255, 255, 255, 0.65)" style={{ lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+            {parseMarkdown(content)}
+          </Text>
+        </Box>
+      </Collapse>
+    </Box>
+  );
+}
+
 // ── MessageRow (memoized — only re-renders when its own message changes) ─────
 
 const MessageRow = memo(function MessageRow({ m, showResults, organizationId, configId, onViewSql }: {
@@ -755,11 +804,43 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
         </Avatar>
         <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
           <Text fw={700} size="sm" c="white">{m.role === "user" ? "You" : "Orcha Agent"}</Text>
-          {m.parts.map((part: any, i: number) =>
-            part.type === "text" && part.text
-              ? <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{parseMarkdown(part.text)}</Text>
-              : null
-          )}
+          {m.parts.map((part: any, i: number) => {
+            if (part.type !== "text" || !part.text) return null;
+
+            const MARKER = "### \uD83E\uDDE0 Reasoning";
+            const markerIdx = part.text.indexOf(MARKER);
+
+            // Pure reasoning block (starts with marker, no prior text)
+            if (markerIdx === 0) {
+              return <ReasoningBlock key={i} text={part.text} />;
+            }
+
+            // Mixed: text before marker + reasoning block
+            // This handles the case where the LLM emits reasoning + answer as one part
+            if (markerIdx > 0) {
+              const before = part.text.slice(0, markerIdx).trim();
+              const reasoningAndAfter = part.text.slice(markerIdx);
+              // Check if there is text AFTER the reasoning block
+              const afterMarker = reasoningAndAfter.slice(MARKER.length).trimStart();
+              const nextMarkerIdx = afterMarker.indexOf("\n\n");
+              const reasoningContent = nextMarkerIdx > -1 ? afterMarker.slice(0, nextMarkerIdx) : afterMarker;
+              const afterAnswer = nextMarkerIdx > -1 ? afterMarker.slice(nextMarkerIdx).trim() : "";
+              return (
+                <React.Fragment key={i}>
+                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{parseMarkdown(before)}</Text> : null}
+                  <ReasoningBlock text={MARKER + "\n" + reasoningContent} />
+                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{parseMarkdown(afterAnswer)}</Text> : null}
+                </React.Fragment>
+              );
+            }
+
+            // Plain text part — no reasoning marker
+            return (
+              <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                {parseMarkdown(part.text)}
+              </Text>
+            );
+          })}
           {sqlQueries.length > 0 && (
             <Box mt={6}>
               <Button size="compact-xs" variant="subtle" color="violet" radius="md" leftSection={<IconCode size={11} />} onClick={() => onViewSql(sqlQueries)} styles={{ root: { fontSize: 11, opacity: 0.6 } }}>
