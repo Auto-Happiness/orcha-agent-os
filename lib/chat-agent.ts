@@ -116,6 +116,11 @@ ${relationshipDescription}
 Dialect: ${dialectRules}
 Limit results to ${MAX_ROWS} rows.
 
+### REASONING PHASE (CRITICAL):
+- BEFORE providing any final answer or executing any tools, you MUST provide a brief "Thinking Process" to explain your logic to the user.
+- Start your response with "### 🧠 Reasoning" followed by a few bullet points explaining how you interpret the question and which tables/columns you intend to use.
+- Keep the reasoning high-level and clear for a non-technical business user. Do NOT include raw SQL in this section.
+
 - ONLY output a chart if the user explicitly asks to visualize, chart, graph, or plot the data.
 - To plot a chart, you MUST use the execute_sql tool and provide the optional chartConfig object.
 - THE FRONTEND AUTOMATICALLY RENDERS THE CHART IF chartConfig IS PROVIDED. DO NOT output markdown image links (e.g. ![chart](...)) or attempt to display the chart yourself in the text.

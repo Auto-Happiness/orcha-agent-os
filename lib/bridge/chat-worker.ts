@@ -3,7 +3,7 @@ import IORedis from "ioredis";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { createChatAgent } from "../chat-agent";
-import { convertToModelMessages } from "ai";
+import { normalizeChatHistory, trimToolResultParts } from "../chat-utils";
 
 /**
  * ChatWorker handles AI Agent execution in the background
@@ -57,41 +57,8 @@ export class ChatWorker {
               convex,
             });
 
-            // 3. Native History Conversion
-            // We must map our legacy database 'tool-invocation' parts (nested) 
-            // into the flat ToolUIPart format that Vercel AI SDK 6.x expects.
-            const safeContextMessages = (context.messages || []).map((m: any) => {
-              const parts = Array.isArray(m.parts) ? m.parts : [];
-              
-              const standardParts = parts.map((p: any) => {
-                // Handle standard text parts
-                if (p.type === 'text') return p;
-
-                // Map our legacy nested tool format to the flat AI SDK 6.x format
-                if (p.type === 'tool-invocation' && p.toolInvocation) {
-                  const ti = p.toolInvocation;
-                  return {
-                    type: `tool-${ti.toolName}`,
-                    toolCallId: ti.toolCallId,
-                    state: ti.state === 'result' ? 'output-available' : ti.state,
-                    input: ti.args,
-                    output: ti.result || ti.output,
-                    toolName: ti.toolName,
-                  };
-                }
-
-                // Handle other standard parts if they exist
-                if (p.type === 'file' || p.type === 'reasoning') return p;
-
-                return null;
-              }).filter(Boolean);
-
-              return {
-                ...m,
-                parts: standardParts.length > 0 ? standardParts : [{ type: 'text', text: m.content || "" }]
-              };
-            });
-            const modelMessages = await convertToModelMessages(safeContextMessages);
+            // 3. Normalize history — same logic as Sync mode (route.ts)
+            const modelMessages = await normalizeChatHistory(context.messages);
 
             console.log(`[ChatWorker] Turn ${context.messages.length} | Normalized history: ${modelMessages.length} ModelMessage(s)`);
 
@@ -138,11 +105,11 @@ export class ChatWorker {
                   pending.toolInvocation.result = r;
                   pending.toolInvocation.output = r; // Sync with both naming conventions
                 }
-                await pushUpdate(fullContent, [...collectedParts, { type: "text", text: fullContent || " " }]);
+                await pushUpdate(fullContent, trimToolResultParts([...collectedParts, { type: "text", text: fullContent || " " }]));
               }
             }
 
-            const finalParts: any[] = [...collectedParts, { type: "text", text: fullContent || " " }];
+            const finalParts: any[] = trimToolResultParts([...collectedParts, { type: "text", text: fullContent || " " }]);
             await pushUpdate(fullContent || "(Response finished)", finalParts);
 
             console.log(`✅ [ChatWorker] JOB COMPLETED: ${job.id}`);

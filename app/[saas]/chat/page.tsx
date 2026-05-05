@@ -15,6 +15,7 @@ import { WelcomeScreen } from "@/components/Chat/WelcomeScreen";
 import { ChatMessages } from "@/components/Chat/ChatMessages";
 import { ChatPromptBox } from "@/components/Chat/ChatPromptBox";
 import { ChatSessionSidebar } from "@/components/Chat/ChatSessionSidebar";
+import { trimToolResultParts } from "@/lib/chat-utils";
 
 export default function ChatPage() {
   const { saas } = useParams();
@@ -180,12 +181,8 @@ export default function ChatPage() {
       if (!params.activeSessionId) return;
       try {
         const textContent = (message.parts as any[])?.find((p: any) => p.type === "text")?.text ?? "";
-        const safeParts = (message.parts as any[])?.map((p: any) => {
-          if (p.output && (p.output as any).data && Array.isArray((p.output as any).data)) {
-            return { ...p, output: { ...p.output as any, data: (p.output as any).data.slice(0, 20) } };
-          }
-          return p;
-        });
+        // Use shared trimToolResultParts — same logic as Async mode (chat-worker.ts)
+        const safeParts = trimToolResultParts(message.parts as any[]);
         await appendMessage({
           sessionId: params.activeSessionId as Id<"chatSessions">,
           role: "assistant",

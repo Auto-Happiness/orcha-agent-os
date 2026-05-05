@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { auth } from "@clerk/nextjs/server";
 import { createChatAgent } from "@/lib/chat-agent";
 import { Id } from "@/convex/_generated/dataModel";
-import { convertToModelMessages } from "ai";
+import { normalizeChatHistory } from "@/lib/chat-utils";
 
 export async function POST(req: NextRequest) {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     });
 
     const result = await agent.stream({
-      messages: await convertToModelMessages(body.messages),
+      messages: await normalizeChatHistory(body.messages),
     });
 
     return result.toUIMessageStreamResponse();
