@@ -3,7 +3,7 @@
 import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal, Popover, ColorPicker, ActionIcon, ColorInput, Divider, Tooltip as MantineTooltip } from "@mantine/core";
 import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck, IconChartBar, IconPalette } from "@tabler/icons-react";
 import { UIMessage } from "ai";
-import { useCallback, useState, memo, useEffect } from "react";
+import { useCallback, useState, memo, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
@@ -194,6 +194,7 @@ const ChartBlock = memo(function ChartBlock({
   parts?: any[];
   partIndex?: number;
 }) {
+  const chartRef = useRef<HTMLDivElement>(null);
   const [seriesColors, setSeriesColors] = useState<Record<string, string>>(initialColors || {});
   const [popoverOpened, setPopoverOpened] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -250,6 +251,44 @@ const ChartBlock = memo(function ChartBlock({
       console.error("[ChartBlock] Save failed:", e);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleExportJPG = async () => {
+    if (!chartRef.current) return;
+    try {
+      const svg = chartRef.current.querySelector("svg");
+      if (!svg) return;
+
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(svg);
+      const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+
+      img.onload = () => {
+        canvas.width = svg.clientWidth * 2; // High res
+        canvas.height = svg.clientHeight * 2;
+        if (ctx) {
+          // Fill background (JPG doesn't support transparency)
+          ctx.fillStyle = "#0a0814"; // Match chart background
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          const jpgUrl = canvas.toDataURL("image/jpeg", 0.9);
+          const link = document.createElement("a");
+          link.download = `${title.toLowerCase().replace(/\s+/g, "_")}_chart.jpg`;
+          link.href = jpgUrl;
+          link.click();
+        }
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    } catch (e) {
+      console.error("[ChartBlock] Export failed:", e);
     }
   };
 
@@ -343,86 +382,91 @@ const ChartBlock = memo(function ChartBlock({
               <Text size="10px" fw={700} c="violet.4">{chartType.toUpperCase()} · {data.length} rows</Text>
             </Box>
           </Group>
-          <Popover opened={popoverOpened} onChange={setPopoverOpened} position="bottom-end" shadow="md" withArrow closeOnClickOutside={false}>
-            <Popover.Target>
-              <ActionIcon variant="subtle" color="violet" radius="md" onClick={() => setPopoverOpened((o) => !o)} style={{ opacity: 0.7 }}>
-                <IconPalette size={14} />
-              </ActionIcon>
-            </Popover.Target>
-            <Popover.Dropdown style={{ background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)", minWidth: 260 }}>
-              <Stack gap="md">
-                <Box>
-                  <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Quick Palettes</Text>
-                  <Group gap={8}>
-                    {Object.entries(PALETTES).map(([name, colors]) => (
-                      <MantineTooltip key={name} label={name} position="top">
-                        <Box 
-                          onClick={() => {
-                            const newColors = { ...seriesColors };
-                            elements.forEach((el, i) => {
-                              newColors[el] = colors[i % colors.length];
-                            });
-                            setSeriesColors(newColors);
-                          }}
-                          style={{ 
-                            width: 24, 
-                            height: 24, 
-                            borderRadius: 4, 
-                            cursor: "pointer", 
-                            background: `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1] || colors[0]} 100%)`,
-                            border: "1px solid rgba(255,255,255,0.1)"
-                          }} 
-                        />
-                      </MantineTooltip>
-                    ))}
-                  </Group>
-                </Box>
-
-                <Divider color="rgba(147,51,234,0.1)" />
-
-                <Box>
-                  <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Custom Elements</Text>
-                  <ScrollArea.Autosize mah={300} type="auto">
-                    <Stack gap={8}>
-                      {elements.map((el) => (
-                        <Group key={el} justify="space-between" wrap="nowrap">
-                          <Text size="xs" c="dimmed" style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{el}</Text>
-                          <ColorInput 
-                            size="xs" 
-                            w={100} 
-                            value={seriesColors[el] || "#a855f7"} 
-                            onChange={(c) => setSeriesColors(prev => ({ ...prev, [el]: c }))}
-                            format="hex"
-                            withPicker={true}
-                            swatches={CHART_COLORS}
-                            popoverProps={{ withinPortal: true, zIndex: 1000 }}
+          <Group gap={5}>
+            <Popover opened={popoverOpened} onChange={setPopoverOpened} position="bottom-end" shadow="md" withArrow closeOnClickOutside={false}>
+              <Popover.Target>
+                <ActionIcon variant="subtle" color="violet" radius="md" onClick={() => setPopoverOpened((o) => !o)} style={{ opacity: 0.7 }}>
+                  <IconPalette size={14} />
+                </ActionIcon>
+              </Popover.Target>
+              <Popover.Dropdown style={{ background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)", minWidth: 260 }}>
+                <Stack gap="md">
+                  <Box>
+                    <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Quick Palettes</Text>
+                    <Group gap={8}>
+                      {Object.entries(PALETTES).map(([name, colors]) => (
+                        <MantineTooltip key={name} label={name} position="top">
+                          <Box 
+                            onClick={() => {
+                              const newColors = { ...seriesColors };
+                              elements.forEach((el, i) => {
+                                newColors[el] = colors[i % colors.length];
+                              });
+                              setSeriesColors(newColors);
+                            }}
+                            style={{ 
+                              width: 24, 
+                              height: 24, 
+                              borderRadius: 4, 
+                              cursor: "pointer", 
+                              background: `linear-gradient(135deg, ${colors[0]} 0%, ${colors[1] || colors[0]} 100%)`,
+                              border: "1px solid rgba(255,255,255,0.1)"
+                            }} 
                           />
-                        </Group>
+                        </MantineTooltip>
                       ))}
-                    </Stack>
-                  </ScrollArea.Autosize>
-                </Box>
+                    </Group>
+                  </Box>
 
-                {messageId && (
-                  <Button 
-                    size="xs" 
-                    color="violet" 
-                    fullWidth 
-                    variant="light" 
-                    leftSection={<IconCheck size={14} />}
-                    loading={isSaving}
-                    onClick={handleSave}
-                  >
-                    Save Configuration
-                  </Button>
-                )}
-              </Stack>
-            </Popover.Dropdown>
-          </Popover>
+                  <Divider color="rgba(147,51,234,0.1)" />
+
+                  <Box>
+                    <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Custom Elements</Text>
+                    <ScrollArea.Autosize mah={300} type="auto">
+                      <Stack gap={8}>
+                        {elements.map((el) => (
+                          <Group key={el} justify="space-between" wrap="nowrap">
+                            <Text size="xs" c="dimmed" style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{el}</Text>
+                            <ColorInput 
+                              size="xs" 
+                              w={100} 
+                              value={seriesColors[el] || "#a855f7"} 
+                              onChange={(c) => setSeriesColors(prev => ({ ...prev, [el]: c }))}
+                              format="hex"
+                              withPicker={true}
+                              swatches={CHART_COLORS}
+                              popoverProps={{ withinPortal: true, zIndex: 1000 }}
+                            />
+                          </Group>
+                        ))}
+                      </Stack>
+                    </ScrollArea.Autosize>
+                  </Box>
+
+                  {messageId && (
+                    <Button 
+                      size="xs" 
+                      color="violet" 
+                      fullWidth 
+                      variant="light" 
+                      leftSection={<IconCheck size={14} />}
+                      loading={isSaving}
+                      onClick={handleSave}
+                    >
+                      Save Configuration
+                    </Button>
+                  )}
+                </Stack>
+              </Popover.Dropdown>
+            </Popover>
+            <ActionIcon variant="subtle" color="dimmed" radius="md" onClick={handleExportJPG} title="Export as JPG">
+              <IconDownload size={14} />
+            </ActionIcon>
+          </Group>
         </Group>
       </Box>
       {/* Chart */}
-      <Box style={{ background: "rgba(10,8,20,0.85)", padding: "24px 12px 12px 4px" }}>
+      <Box ref={chartRef} style={{ background: "rgba(10,8,20,0.85)", padding: "24px 12px 12px 4px" }}>
         <ResponsiveContainer width="100%" height={280}>
           {renderChart()}
         </ResponsiveContainer>
