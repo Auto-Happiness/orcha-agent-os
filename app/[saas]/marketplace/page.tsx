@@ -151,6 +151,11 @@ export default function MarketplacePage() {
   const [keyValue, setKeyValue] = useState("");
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [customMcpModal, setCustomMcpModal] = useState(false);
+  const [customMcpName, setCustomMcpName] = useState("");
+  const [customMcpUrl, setCustomMcpUrl] = useState("");
+  const [customMcpToken, setCustomMcpToken] = useState("");
+  const [savingCustom, setSavingCustom] = useState(false);
 
   const registryKey = (name: string) => name.toLowerCase().replace(/\s+/g, "_");
   const getRegistryConfig = (name: string) => getMcpServer(registryKey(name));
@@ -247,6 +252,44 @@ export default function MarketplacePage() {
     });
     notifications.show({ message: `${name} disconnected.`, color: "blue" });
   };
+
+  const handleSaveCustomMcp = async () => {
+    if (!customMcpName.trim() || !customMcpUrl.trim() || !activeOrg?._id) return;
+
+    // Prevent duplicate names
+    const integrationKey = `custom_mcp__${customMcpName.trim().toLowerCase().replace(/\s+/g, "_")}`;
+    const alreadyExists = customMcpServers.some(k => k.integration === integrationKey);
+    if (alreadyExists) {
+      notifications.show({ title: "Name taken", message: `A custom MCP server named "${customMcpName}" already exists. Use a different name.`, color: "orange" });
+      return;
+    }
+
+    setSavingCustom(true);
+    try {
+      const res = await fetch("/api/settings/integration-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: activeOrg._id,
+          integration: integrationKey,
+          keyType: "custom_mcp",
+          keyValue: JSON.stringify({ url: customMcpUrl.trim(), token: customMcpToken.trim() }),
+          mcpUrl: customMcpUrl.trim(),
+          qualifiedName: `custom/${customMcpName.trim()}`,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      notifications.show({ title: "Custom MCP Added", message: `${customMcpName} is now available as a tool server.`, color: "green" });
+      setCustomMcpModal(false);
+      setCustomMcpName(""); setCustomMcpUrl(""); setCustomMcpToken("");
+    } catch (e: any) {
+      notifications.show({ title: "Error", message: e.message, color: "red" });
+    } finally {
+      setSavingCustom(false);
+    }
+  };
+
+  const customMcpServers = connectedKeys?.filter(k => k.integration.startsWith("custom_mcp__")) ?? [];
 
   return (
     <Box p="xl" style={{ minHeight: "calc(100vh - 56px)" }}>
@@ -346,6 +389,90 @@ export default function MarketplacePage() {
         </Grid>
       </Container>
 
+      {/* ── Custom MCP Servers ─────────────────────────────────────────────── */}
+      <Container size="xl" mt={60}>
+        <Group justify="space-between" align="center" mb="lg">
+          <Box>
+            <Group gap="xs" mb={4}>
+              <IconTool size={16} color="#a855f7" />
+              <Text size="xs" fw={700} c="violet.4" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>Custom MCP Servers</Text>
+            </Group>
+            <Text c="white" fw={600} size="lg">Bring Your Own MCP</Text>
+            <Text c="dimmed" size="sm">Connect any MCP-compatible server — self-hosted, private, or third-party.</Text>
+          </Box>
+          <Button leftSection={<IconPlugConnected size={14} />} color="violet" variant="light" radius="md" onClick={() => setCustomMcpModal(true)}>
+            Add Custom Server
+          </Button>
+        </Group>
+
+        {customMcpServers.length === 0 ? (
+          <Box p="xl" style={{ border: "2px dashed rgba(147,51,234,0.15)", borderRadius: 12, textAlign: "center" }}>
+            <IconTool size={32} color="rgba(147,51,234,0.3)" style={{ margin: "0 auto 12px" }} />
+            <Text c="dimmed" size="sm">No custom MCP servers yet.</Text>
+            <Text c="dimmed" size="xs" mt={4}>Any HTTP server that speaks JSON-RPC 2.0 MCP can be added here.</Text>
+          </Box>
+        ) : (
+          <Grid>
+            {customMcpServers.map(k => {
+              const displayName = k.integration.replace("custom_mcp__", "").replace(/_/g, " ");
+              const serverUrl = k.mcpUrl ?? "";
+              return (
+                <Grid.Col key={k._id} span={{ base: 12, sm: 6, lg: 4 }}>
+                  <Card withBorder padding="lg" radius="md" style={{ backgroundColor: "rgba(19,15,34,0.4)", borderColor: "rgba(34,197,94,0.2)" }}>
+                    <Group justify="space-between" mb="sm">
+                      <Group gap="sm">
+                        <Box style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(147,51,234,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <IconTool size={18} color="#a855f7" />
+                        </Box>
+                        <Box>
+                          <Text fw={600} c="white" size="sm" style={{ textTransform: "capitalize" }}>{displayName}</Text>
+                          <Text size="10px" c="dimmed" truncate style={{ maxWidth: 180 }}>{serverUrl}</Text>
+                        </Box>
+                      </Group>
+                      <Badge size="xs" color="green" variant="light" leftSection={<IconCheck size={10} />}>Active</Badge>
+                    </Group>
+                    <Group justify="flex-end">
+                      <Button variant="subtle" color="red" size="xs" leftSection={<IconTrash size={12} />}
+                        onClick={async () => {
+                          if (!activeOrg?._id) return;
+                          await fetch("/api/settings/integration-keys", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId: activeOrg._id, integration: k.integration }) });
+                          notifications.show({ message: `${displayName} removed.`, color: "blue" });
+                        }}>
+                        Remove
+                      </Button>
+                    </Group>
+                  </Card>
+                </Grid.Col>
+              );
+            })}
+          </Grid>
+        )}
+      </Container>
+
+      {/* Custom MCP Modal */}
+      <Modal
+        opened={customMcpModal}
+        onClose={() => setCustomMcpModal(false)}
+        title={<Group gap={8}><IconTool size={16} color="#a855f7" /><Text fw={600} c="white">Add Custom MCP Server</Text></Group>}
+        radius="md"
+        styles={{ content: { background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)" }, header: { background: "#0d0a1a", borderBottom: "1px solid rgba(147,51,234,0.1)" } }}
+      >
+        <Stack gap="md" pt="xs">
+          <Alert icon={<IconInfoCircle size={14} />} color="violet" variant="light" radius="md">
+            <Text size="xs">Any server that implements the <b>MCP JSON-RPC 2.0</b> protocol over HTTP is supported — Smithery-hosted, self-hosted, or third-party.</Text>
+          </Alert>
+          <TextInput label="Server Name" placeholder="e.g. My Internal CRM" value={customMcpName} onChange={e => setCustomMcpName(e.target.value)} styles={{ input: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(147,51,234,0.2)", color: "white" }, label: { color: "rgba(255,255,255,0.6)", fontSize: 12 } }} />
+          <TextInput label="MCP Server URL" placeholder="https://your-server.com/mcp" value={customMcpUrl} onChange={e => setCustomMcpUrl(e.target.value)} styles={{ input: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(147,51,234,0.2)", color: "white" }, label: { color: "rgba(255,255,255,0.6)", fontSize: 12 } }} />
+          <TextInput label="Bearer Token (optional)" placeholder="Leave blank if no auth required" value={customMcpToken} onChange={e => setCustomMcpToken(e.target.value)} type="password" styles={{ input: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(147,51,234,0.2)", color: "white" }, label: { color: "rgba(255,255,255,0.6)", fontSize: 12 } }} />
+          <Text size="11px" c="dimmed">The URL and token are encrypted and stored securely within your organization.</Text>
+          <Group justify="flex-end" gap={8}>
+            <Button variant="subtle" color="gray" onClick={() => setCustomMcpModal(false)}>Cancel</Button>
+            <Button color="violet" loading={savingCustom} disabled={!customMcpName.trim() || !customMcpUrl.trim()} onClick={handleSaveCustomMcp}>Add Server</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Integration connect modal */}
       <Modal
         opened={!!modal}
         onClose={() => setModal(null)}
