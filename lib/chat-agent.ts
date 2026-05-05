@@ -125,7 +125,13 @@ Limit results to ${MAX_ROWS} rows.
   - "area" → cumulative trends
   - "pie"  → proportions / part-of-whole (use only if there are ≤ 8 categories)
 - xKey must be the EXACT column name or alias for the X-axis (or pie labels) as returned by your SQL query.
-- yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query (e.g. "revenue"). Use AS aliases in your SQL to ensure clean keys.`;
+- yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query (e.g. "revenue"). Use AS aliases in your SQL to ensure clean keys.
+
+### SCOPE RESTRICTION (CRITICAL):
+- You MUST ONLY assist with:
+  1. Questions related to the provided database schema and data analysis.
+  2. Requests that can be fulfilled using your available MCP tools and integrations (e.g., Slack, Gmail, Google Drive, etc.).
+- If a user asks about any other topic (e.g., general knowledge, jokes, personal advice, or unrelated technical help), you must politely decline and explain that your role is strictly limited to database analysis and managing your connected integrations for this organization.`;
 
   // 7. Initialize Agent
   const tools = {
@@ -133,7 +139,7 @@ Limit results to ${MAX_ROWS} rows.
       description: `Executes a SQL SELECT query and returns the result rows. If the user asked for a chart/graph, you MUST provide the chartConfig object.`,
       inputSchema: jsonSchema({
         type: "object",
-        properties: { 
+        properties: {
           sql: { type: "string" },
           chartConfig: {
             type: "object",
@@ -153,10 +159,10 @@ Limit results to ${MAX_ROWS} rows.
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
         try {
           const rows = await DbExecutor.execute(dbConfig, sql);
-          return { 
-            success: true, 
+          return {
+            success: true,
             data: rows.slice(0, MAX_ROWS),
-            chartConfig 
+            chartConfig
           };
         } catch (err: any) {
           return { success: false, error: err.message || "Failed to execute SQL." };
