@@ -182,16 +182,22 @@ const axisStyle = {
 };
 
 const ChartBlock = memo(function ChartBlock({
-  chartType, title, xKey, yKeys, data,
+  chartType, title, xKey, yKeys, data, initialColors, messageId, parts, partIndex
 }: {
   chartType: "bar" | "line" | "area" | "pie";
   title: string;
   xKey: string;
   yKeys: string[];
   data: any[];
+  initialColors?: Record<string, string>;
+  messageId?: string;
+  parts?: any[];
+  partIndex?: number;
 }) {
-  const [seriesColors, setSeriesColors] = useState<Record<string, string>>({});
+  const [seriesColors, setSeriesColors] = useState<Record<string, string>>(initialColors || {});
   const [popoverOpened, setPopoverOpened] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const updateMessage = useMutation(api.chatMessages.update);
 
   // Identify all "elements" that can be colored
   const elements = (chartType === "pie" || (chartType === "bar" && yKeys.length === 1))
@@ -200,6 +206,7 @@ const ChartBlock = memo(function ChartBlock({
 
   // Initialize colors if missing
   useEffect(() => {
+    if (initialColors && Object.keys(initialColors).length > 0) return;
     const newColors = { ...seriesColors };
     let changed = false;
     elements.forEach((el, i) => {
@@ -209,7 +216,42 @@ const ChartBlock = memo(function ChartBlock({
       }
     });
     if (changed) setSeriesColors(newColors);
-  }, [elements]);
+  }, [elements, initialColors]);
+
+  const handleSave = async () => {
+    if (!messageId || !parts || partIndex === undefined) return;
+    setIsSaving(true);
+    try {
+      const newParts = [...parts];
+      const part = { ...newParts[partIndex] };
+      
+      // Navigate to the chartConfig and inject the colors
+      if (part.output) {
+        part.output = { 
+          ...part.output, 
+          chartConfig: { ...part.output.chartConfig, seriesColors } 
+        };
+      } else if (part.toolInvocation?.result) {
+        part.toolInvocation.result = {
+          ...part.toolInvocation.result,
+          chartConfig: { ...part.toolInvocation.result.chartConfig, seriesColors }
+        };
+      } else if (part.result) {
+        part.result = {
+          ...part.result,
+          chartConfig: { ...part.result.chartConfig, seriesColors }
+        };
+      }
+
+      newParts[partIndex] = part;
+      await updateMessage({ messageId: messageId as any, parts: newParts });
+      setPopoverOpened(false);
+    } catch (e) {
+      console.error("[ChartBlock] Save failed:", e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!data || data.length === 0) return null;
 
@@ -301,7 +343,7 @@ const ChartBlock = memo(function ChartBlock({
               <Text size="10px" fw={700} c="violet.4">{chartType.toUpperCase()} · {data.length} rows</Text>
             </Box>
           </Group>
-          <Popover opened={popoverOpened} onChange={setPopoverOpened} position="bottom-end" shadow="md" withArrow>
+          <Popover opened={popoverOpened} onChange={setPopoverOpened} position="bottom-end" shadow="md" withArrow closeOnClickOutside={false}>
             <Popover.Target>
               <ActionIcon variant="subtle" color="violet" radius="md" onClick={() => setPopoverOpened((o) => !o)} style={{ opacity: 0.7 }}>
                 <IconPalette size={14} />
@@ -353,13 +395,27 @@ const ChartBlock = memo(function ChartBlock({
                             format="hex"
                             withPicker={true}
                             swatches={CHART_COLORS}
-                            popoverProps={{ withinPortal: false }}
+                            popoverProps={{ withinPortal: true, zIndex: 1000 }}
                           />
                         </Group>
                       ))}
                     </Stack>
                   </ScrollArea.Autosize>
                 </Box>
+
+                {messageId && (
+                  <Button 
+                    size="xs" 
+                    color="violet" 
+                    fullWidth 
+                    variant="light" 
+                    leftSection={<IconCheck size={14} />}
+                    loading={isSaving}
+                    onClick={handleSave}
+                  >
+                    Save Configuration
+                  </Button>
+                )}
               </Stack>
             </Popover.Dropdown>
           </Popover>
@@ -468,7 +524,7 @@ function extractSQLFromParts(parts: any[]): string[] {
   return queries;
 }
 
-function renderToolPart(part: any, i: number, showResults: boolean, organizationId?: string, configId?: string | null) {
+function renderToolPart(part: any, i: number, showResults: boolean, organizationId?: string, configId?: string | null, messageId?: string, parts?: any[]) {
   const type: string = part.type ?? "";
 
   if (
@@ -534,6 +590,10 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
           xKey={config.xKey}
           yKeys={[config.yKey]}
           data={result.data}
+          initialColors={config.seriesColors}
+          messageId={messageId}
+          parts={parts}
+          partIndex={i}
         />
       </Box>
     );
@@ -665,7 +725,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
           )}
         </Stack>
       </Group>
-      {(m.parts as any[]).map((part: any, i: number) => renderToolPart(part, i, showResults, organizationId, configId))}
+      {(m.parts as any[]).map((part: any, i: number) => renderToolPart(part, i, showResults, organizationId, configId, m.id || m._id, m.parts))}
     </Stack>
   );
 });
