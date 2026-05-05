@@ -67,8 +67,17 @@ export class ChatWorker {
             });
 
             let fullContent = "";
+            let currentText = "";
             const collectedParts: any[] = [];
             const pendingToolCalls = new Map<string, any>();
+
+            // Helper to build the parts array for the current update tick
+            const getPartsToPush = (appendText: string) => {
+              if (appendText) {
+                return [...collectedParts, { type: "text", text: appendText }];
+              }
+              return collectedParts;
+            };
 
             const reader = result.fullStream.getReader();
             while (true) {
@@ -77,10 +86,17 @@ export class ChatWorker {
 
               if (value.type === "text-delta") {
                 fullContent += value.text;
-                if (fullContent.length % 20 === 0) {
-                  await pushUpdate(fullContent, [...collectedParts, { type: "text", text: fullContent || " " }]);
+                currentText += value.text;
+                if (currentText.length % 20 === 0) {
+                  await pushUpdate(fullContent, trimToolResultParts(getPartsToPush(currentText)));
                 }
               } else if (value.type === "tool-call") {
+                // When a tool is called, commit the current text part into the array
+                if (currentText) {
+                  collectedParts.push({ type: "text", text: currentText });
+                  currentText = ""; // Start a fresh text part for anything after the tool
+                }
+
                 const args = typeof (value as any).args === 'string' ? JSON.parse((value as any).args) : (value.input ?? (value as any).args);
                 const part = {
                   type: "tool-invocation",
@@ -105,11 +121,11 @@ export class ChatWorker {
                   pending.toolInvocation.result = r;
                   pending.toolInvocation.output = r; // Sync with both naming conventions
                 }
-                await pushUpdate(fullContent, trimToolResultParts([...collectedParts, { type: "text", text: fullContent || " " }]));
+                await pushUpdate(fullContent, trimToolResultParts(getPartsToPush(currentText)));
               }
             }
 
-            const finalParts: any[] = trimToolResultParts([...collectedParts, { type: "text", text: fullContent || " " }]);
+            const finalParts: any[] = trimToolResultParts(getPartsToPush(currentText));
             await pushUpdate(fullContent || "(Response finished)", finalParts);
 
             console.log(`✅ [ChatWorker] JOB COMPLETED: ${job.id}`);

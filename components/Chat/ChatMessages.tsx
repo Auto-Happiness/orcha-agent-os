@@ -497,6 +497,10 @@ const ChartBlock = memo(function ChartBlock({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseMarkdown(text: string): React.ReactNode[] {
+  // Pre-filter: Remove massive data URIs that Gemini sometimes generates despite prompt instructions
+  text = text.replace(/!?\[[^\]]*\]\(data:image\/[^)]+\)/g, "[Chart visualization hidden]");
+  text = text.replace(/\(?data:image\/[^\s)]+\)?/g, "[Chart visualization hidden]");
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   
@@ -828,26 +832,34 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
             const MARKER = "### \uD83E\uDDE0 Reasoning";
             const markerIdx = part.text.indexOf(MARKER);
 
-            // Pure reasoning block (starts with marker, no prior text)
-            if (markerIdx === 0) {
-              return <ReasoningBlock key={i} text={part.text} />;
-            }
-
-            // Mixed: text before marker + reasoning block
-            // This handles the case where the LLM emits reasoning + answer as one part
-            if (markerIdx > 0) {
+            // Combined Reasoning Split Logic
+            if (markerIdx !== -1) {
               const before = part.text.slice(0, markerIdx).trim();
               const reasoningAndAfter = part.text.slice(markerIdx);
-              // Check if there is text AFTER the reasoning block
               const afterMarker = reasoningAndAfter.slice(MARKER.length).trimStart();
-              const nextMarkerIdx = afterMarker.indexOf("\n\n");
-              const reasoningContent = nextMarkerIdx > -1 ? afterMarker.slice(0, nextMarkerIdx) : afterMarker;
-              const afterAnswer = nextMarkerIdx > -1 ? afterMarker.slice(nextMarkerIdx).trim() : "";
+              
+              // Smart split: Group reasoning paragraphs until we hit one that doesn't look like reasoning
+              const sections = afterMarker.split(/\n{2,}/);
+              let reasoningEndIndex = 0;
+              
+              for (let j = 1; j < sections.length; j++) {
+                const s = sections[j].trimStart();
+                const lowerS = s.toLowerCase();
+                // If it starts with a common answer transition or doesn't look like a bullet/bold header, we break
+                if (lowerS.startsWith("final") || lowerS.startsWith("based on") || lowerS.startsWith("here") || lowerS.startsWith("the ") || (!s.startsWith("*") && !s.startsWith("-") && !s.startsWith("#") && !/^\d+\./.test(s))) {
+                  break;
+                }
+                reasoningEndIndex = j;
+              }
+              
+              const reasoningContent = sections.slice(0, reasoningEndIndex + 1).join("\n\n").trim();
+              const afterAnswer = sections.slice(reasoningEndIndex + 1).join("\n\n").trim();
+
               return (
                 <React.Fragment key={i}>
-                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{parseMarkdown(before)}</Text> : null}
+                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{parseMarkdown(before)}</Text> : null}
                   <ReasoningBlock text={MARKER + "\n" + reasoningContent} />
-                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{parseMarkdown(afterAnswer)}</Text> : null}
+                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }}>{parseMarkdown(afterAnswer)}</Text> : null}
                 </React.Fragment>
               );
             }
