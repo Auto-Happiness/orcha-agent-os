@@ -255,39 +255,57 @@ const ChartBlock = memo(function ChartBlock({
     }
   };
 
-  const handleExportJPG = async () => {
+  const handleExportJPG = () => {
     if (!chartRef.current) return;
     try {
       const svg = chartRef.current.querySelector("svg");
       if (!svg) return;
 
-      const serializer = new XMLSerializer();
-      const svgString = serializer.serializeToString(svg);
-      const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-      const url = URL.createObjectURL(svgBlob);
+      // getBoundingClientRect gives real rendered pixel dimensions
+      // unlike clientWidth which returns 0 for % width SVGs
+      const rect = svg.getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
 
+      if (!w || !h) {
+        console.error("[ChartBlock] Could not determine chart dimensions");
+        return;
+      }
+
+      // Clone the SVG and stamp in explicit pixel dimensions
+      const svgClone = svg.cloneNode(true) as SVGSVGElement;
+      svgClone.setAttribute("width", w.toString());
+      svgClone.setAttribute("height", h.toString());
+      svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+      const svgData = new XMLSerializer().serializeToString(svgClone);
+      // Encode as a data URL so it loads in the image element without CORS issues
+      const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgData)}`;
+
+      const scale = 2; // 2x high-res
       const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const img = new Image();
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext("2d")!;
 
+      const img = new Image();
       img.onload = () => {
-        canvas.width = svg.clientWidth * 2; // High res
-        canvas.height = svg.clientHeight * 2;
-        if (ctx) {
-          // Fill background (JPG doesn't support transparency)
-          ctx.fillStyle = "#0a0814"; // Match chart background
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          
-          const jpgUrl = canvas.toDataURL("image/jpeg", 0.9);
+        ctx.fillStyle = "#0a0814";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.download = `${title.toLowerCase().replace(/\s+/g, "_")}_chart.jpg`;
-          link.href = jpgUrl;
+          link.href = url;
           link.click();
-        }
-        URL.revokeObjectURL(url);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }, "image/jpeg", 0.95);
       };
-      img.src = url;
+      img.onerror = (e) => console.error("[ChartBlock] Image load failed:", e);
+      img.src = svgDataUrl;
     } catch (e) {
       console.error("[ChartBlock] Export failed:", e);
     }
