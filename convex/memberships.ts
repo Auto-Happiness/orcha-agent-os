@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
@@ -19,11 +19,18 @@ export const syncMembership = mutation({
       throw new Error("Unauthenticated");
     }
 
-    // Find our Convex user
-    const user = await ctx.db
+    // Find our Convex user by full tokenIdentifier or subject
+    let user = await ctx.db
       .query("users")
       .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
+
+    if (!user && identity.subject) {
+      user = await ctx.db
+        .query("users")
+        .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
+        .unique();
+    }
 
     if (!user) {
       throw new Error("User record not found. Please sync user first.");
@@ -59,4 +66,47 @@ export const syncMembership = mutation({
 
     return { success: true, membershipId };
   },
+});
+
+/**
+ * checkMembershipStatus
+ * 
+ * Fast query to verify if the current user has membership to the organization.
+ */
+export const checkMembershipStatus = query({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return false;
+
+    // Find our Convex user
+    let user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    if (!user && identity.subject) {
+      user = await ctx.db
+        .query("users")
+        .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
+        .unique();
+    }
+
+    if (!user) return false;
+
+    const existing = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_user", (q) => 
+        q.eq("organizationId", args.organizationId).eq("userId", user!._id)
+      )
+      .unique();
+
+    if (existing) return true;
+
+    // Direct owner check just in case
+    const org = await ctx.db.get(args.organizationId);
+    if (org && org.ownerId === user._id) return true;
+
+    return false;
+  }
 });

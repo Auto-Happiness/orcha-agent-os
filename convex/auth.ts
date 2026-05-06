@@ -468,11 +468,12 @@ export const syncOrganization = mutation({
     type: v.union(v.literal("organization.created"), v.literal("organization.updated"), v.literal("organization.deleted")),
   },
   handler: async (ctx, args) => {
-    const { slug, name, type } = args;
+    const { slug, name, clerkOrgId, type } = args;
 
+    // Primary lookup by Clerk ID (the most stable identifier)
     const existing = await ctx.db
       .query("organizations")
-      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkOrgId))
       .unique();
 
     if (type === "organization.deleted") {
@@ -481,14 +482,93 @@ export const syncOrganization = mutation({
     }
 
     if (existing) {
-      await ctx.db.patch(existing._id, { name });
+      await ctx.db.patch(existing._id, { 
+        name, 
+        slug // Update slug in case it changed in Clerk
+      });
       return existing._id;
     } else {
+      // For new orgs, double check slug availability just in case
+      // (though Clerk handles this on their end)
       return await ctx.db.insert("organizations", {
         name,
         slug,
+        clerkId: clerkOrgId,
         plan: "free",
         createdAt: Date.now(),
+      });
+    }
+  },
+});
+
+/**
+ * Synchronize an organization membership from Clerk.
+ */
+export const syncMembership = mutation({
+  args: {
+    clerkOrgId: v.string(),
+    tokenIdentifier: v.string(),
+    role: v.string(),
+    type: v.union(v.literal("organizationMembership.created"), v.literal("organizationMembership.updated"), v.literal("organizationMembership.deleted")),
+  },
+  handler: async (ctx, args) => {
+    const { clerkOrgId, tokenIdentifier, role, type } = args;
+
+    // Map Clerk's role to our schema
+    const mappedRole = role.includes("admin") ? "admin" : "member";
+
+    const org = await ctx.db
+      .query("organizations")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkOrgId))
+      .unique();
+
+    if (!org) {
+      console.warn(`Cannot sync membership: org ${clerkOrgId} not found`);
+      return;
+    }
+
+    let user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", tokenIdentifier))
+      .unique();
+
+    if (!user) {
+      // Fallback: in case tokenIdentifier from Clerk doesn't exactly match (e.g. just user_id)
+      const userIdFromToken = tokenIdentifier.split('|').pop();
+      if (userIdFromToken) {
+        const allUsers = await ctx.db.query("users").collect();
+        user = allUsers.find(u => u.tokenIdentifier.endsWith(userIdFromToken));
+      }
+    }
+
+    if (!user) {
+      console.warn(`Cannot sync membership: user ${tokenIdentifier} not found`);
+      return;
+    }
+
+    const existingMembership = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_user", (q) => 
+        q.eq("organizationId", org._id).eq("userId", user!._id)
+      )
+      .unique();
+
+    if (type === "organizationMembership.deleted") {
+      if (existingMembership) {
+        await ctx.db.delete(existingMembership._id);
+      }
+      return;
+    }
+
+    if (existingMembership) {
+      await ctx.db.patch(existingMembership._id, { role: mappedRole as "admin" | "member" });
+      return existingMembership._id;
+    } else {
+      return await ctx.db.insert("memberships", {
+        organizationId: org._id,
+        userId: user._id,
+        role: mappedRole as "admin" | "member",
+        joinedAt: Date.now(),
       });
     }
   },

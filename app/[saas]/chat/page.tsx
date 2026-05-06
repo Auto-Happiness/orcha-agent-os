@@ -199,7 +199,7 @@ export default function ChatPage() {
 
   const persistedMessages = useQuery(
     api.chatMessages.listBySession,
-    activeSessionId ? { sessionId: activeSessionId as Id<"chatSessions"> } : "skip"
+    activeSessionId && isSignedIn ? { sessionId: activeSessionId as Id<"chatSessions"> } : "skip"
   );
 
   const restoredSessionRef = useRef<string | null>(null);
