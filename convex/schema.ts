@@ -1,8 +1,59 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-export default defineSchema({
-  // ─── Users ────────────────────────────────────────────────
+// --- Schema Optimization: Extracted Validators ---
+// Extracting deep validators prevents the V8 isolate from hitting the 1s 
+// evaluation timeout when compiling the schema in constrained environments.
+
+const SemanticFieldValidator = v.object({
+  columnName: v.string(),  
+  displayName: v.string(), 
+  description: v.optional(v.string()),
+  type: v.string(),        
+  aggregation: v.optional(v.string()), 
+  expression: v.optional(v.string()),  
+  isPrimary: v.optional(v.boolean()),
+  isHidden: v.optional(v.boolean()),
+});
+
+const SpreadsheetSheetValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  order: v.number(),
+  celldata: v.array(v.object({
+    r: v.number(),
+    c: v.number(),
+    v: v.any(), 
+  })),
+  columnlen: v.optional(v.any()),
+  rowlen: v.optional(v.any()),
+  images: v.optional(v.array(v.object({
+    id: v.string(),
+    src: v.string(),
+    left: v.number(),
+    top: v.number(),
+    width: v.number(),
+    height: v.number(),
+  }))),
+});
+
+const WidgetMappingValidator = v.object({
+  labelKey: v.string(), 
+  valueKeys: v.array(v.string()), 
+  color: v.optional(v.string()),
+  palette: v.optional(v.array(v.string())),
+  seriesColors: v.optional(v.record(v.string(), v.string())), 
+  aggregation: v.optional(v.string()),
+});
+
+const WidgetLayoutValidator = v.object({
+  x: v.number(),
+  y: v.number(),
+  w: v.number(),
+  h: v.number(),
+});
+
+export default defineSchema({  // ─── Users ────────────────────────────────────────────────
   // Updated for Clerk integration:
   // We identify users by their Clerk 'subject' (sub) in JWTs.
   users: defineTable({
@@ -130,16 +181,7 @@ export default defineSchema({
     displayName: v.string(),   // Business name (e.g. 'Customers')
     description: v.optional(v.string()),
     isView: v.optional(v.boolean()), // true if this is a database view, not a base table
-    fields: v.array(v.object({
-      columnName: v.string(),  // Physical column name
-      displayName: v.string(), // Business name (e.g. 'Revenue')
-      description: v.optional(v.string()),
-      type: v.string(),        // 'dimension' or 'measure'
-      aggregation: v.optional(v.string()), // 'sum', 'avg', etc.
-      expression: v.optional(v.string()),  // e.g. 'price * quantity'
-      isPrimary: v.optional(v.boolean()),
-      isHidden: v.optional(v.boolean()),
-    })),
+    fields: v.array(SemanticFieldValidator),
     // Multi-dimensional embedding support for different providers
     embedding_768: v.optional(v.array(v.float64())),  // Gemini, Ollama (nomic)
     embedding_1024: v.optional(v.array(v.float64())), // Ollama (mxbai)
@@ -242,29 +284,7 @@ export default defineSchema({
     organizationId: v.id("organizations"),
     name: v.string(),
     // Sparse cell storage per sheet — only non-null cells stored
-    sheets: v.array(v.object({
-      id: v.string(),
-      name: v.string(),
-      order: v.number(),
-      // celldata: sparse [{r, c, v: Cell}]
-      celldata: v.array(v.object({
-        r: v.number(),
-        c: v.number(),
-        v: v.any(), // Cell object
-      })),
-      // column widths / row heights
-      columnlen: v.optional(v.any()),
-      rowlen: v.optional(v.any()),
-      // floating images
-      images: v.optional(v.array(v.object({
-        id: v.string(),
-        src: v.string(),
-        left: v.number(),
-        top: v.number(),
-        width: v.number(),
-        height: v.number(),
-      }))),
-    })),
+    sheets: v.array(SpreadsheetSheetValidator),
     createdBy: v.id("users"),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -308,22 +328,10 @@ export default defineSchema({
     queryId: v.optional(v.id("savedQueries")), // Reference to the SQL query
     
     // Mapping: which query columns map to which chart axis
-    mapping: v.optional(v.object({
-      labelKey: v.string(), // e.g. "order_date" (X-Axis)
-      valueKeys: v.array(v.string()), // e.g. ["revenue", "profit"] (Y-Axes)
-      color: v.optional(v.string()),
-      palette: v.optional(v.array(v.string())),
-      seriesColors: v.optional(v.record(v.string(), v.string())), // e.g. {"revenue": "#00ff00"}
-      aggregation: v.optional(v.string()),
-    })),
+    mapping: v.optional(WidgetMappingValidator),
     
     // Layout: Full pixel-grid control (react-grid-layout)
-    layout: v.optional(v.object({
-      x: v.number(),
-      y: v.number(),
-      w: v.number(),
-      h: v.number(),
-    })),
+    layout: v.optional(WidgetLayoutValidator),
     order: v.number(),
     size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
     

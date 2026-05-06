@@ -12,10 +12,18 @@ export async function checkMembership(ctx: QueryCtx | MutationCtx, organizationI
   }
 
   // Find the user in our system by their tokenIdentifier (the full Clerk issuer|subject)
-  const user = await ctx.db
+  // Or by their subject (the Clerk user ID, which is what the webhook saves)
+  let user = await ctx.db
     .query("users")
     .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
     .unique();
+
+  if (!user && identity.subject) {
+    user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
+      .unique();
+  }
 
   if (!user) {
     throw new Error("User not found in system.");

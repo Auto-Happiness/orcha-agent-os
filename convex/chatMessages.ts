@@ -6,7 +6,7 @@ export const listBySession = query({
   args: { sessionId: v.id("chatSessions") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthenticated.");
+    if (!identity) return [];
     const session = await ctx.db.get(args.sessionId);
     if (!session) return [];
     // Verify caller belongs to the session's org (single membership check)

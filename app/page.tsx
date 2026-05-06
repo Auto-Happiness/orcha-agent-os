@@ -176,8 +176,35 @@ const clerkAppearance = {
 
 /* ─── Auth pane ─────────────────────────────────────────────────────────── */
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+
 function AuthPane() {
   const [mode, setMode] = useState<"login" | "register">("login");
+  const { isSignedIn, isLoaded } = useUser();
+  const router = useRouter();
+
+  // Safe client-side redirect to avoid Next.js hydration errors
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.replace("/redirect");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  if (!isLoaded || isSignedIn) {
+    return (
+      <div className="flex flex-1 items-center justify-center" style={{ background: "#07050f" }}>
+        <div className="flex flex-col items-center gap-3">
+          <svg className="animate-spin w-8 h-8" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#9333ea" strokeWidth="4" />
+            <path className="opacity-75" fill="#9333ea" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.4)" }}>Loading secure environment…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -228,14 +255,14 @@ function AuthPane() {
               appearance={clerkAppearance}
               routing="hash"
               signUpUrl="/#register"
-              forceRedirectUrl="/redirect"
+              // Removed forceRedirectUrl to prevent Next.js hydration crashes
             />
           ) : (
             <SignUp
               appearance={clerkAppearance}
               routing="hash"
               signInUrl="/#login"
-              forceRedirectUrl="/home"
+              // Removed forceRedirectUrl to prevent Next.js hydration crashes
             />
           )}
         </div>

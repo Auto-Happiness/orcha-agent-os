@@ -5,11 +5,13 @@ import { checkMembership } from "./authUtils";
 export const listByOrganizationAndUser = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
-    await checkMembership(ctx, args.organizationId);
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    await checkMembership(ctx, args.organizationId);
+    
     const user = await ctx.db
       .query("users")
-      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity!.tokenIdentifier))
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
     if (!user) return [];
     return await ctx.db

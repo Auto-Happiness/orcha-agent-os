@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState, useMemo } from "react";
+import { ReactNode, useState, useMemo, useEffect } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,6 +19,8 @@ import {
   Box,
   ActionIcon,
   Kbd,
+  Center,
+  Loader,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useUser, useOrganization, SignOutButton } from "@clerk/nextjs";
@@ -41,7 +43,7 @@ import {
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 import { Spotlight, spotlight } from "@mantine/spotlight";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 /* ─── Brand logo ─────────────────────────────────────────────────────────── */
@@ -50,10 +52,10 @@ function OrchaLogo({ collapsed }: { collapsed: boolean }) {
   return (
     <Group gap="xs" wrap="nowrap">
       <Box style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <img 
-          src="/graphics/orca ai 2.png" 
-          alt="Orcha Logo" 
-          style={{ width: "100%", height: "100%", objectFit: "contain" }} 
+        <img
+          src="/graphics/orca ai 2.png"
+          alt="Orcha Logo"
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
       </Box>
       {!collapsed && (
@@ -148,15 +150,18 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   const params = useParams<{ saas: string }>();
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useUser();
-  const { organization } = useOrganization();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { organization, isLoaded: orgLoaded } = useOrganization();
+  const syncMembership = useMutation(api.memberships.syncMembership);
+  const [syncing, setSyncing] = useState(false);
 
   const slug = params?.saas ?? "";
 
   // ─── Search implementation ──────────────────────────────────────────
   const orgDoc = useQuery(api.organizations.getSafeBySlug, slug ? { slug } : "skip");
+  const isMember = useQuery(api.memberships.checkMembershipStatus, orgDoc?._id ? { organizationId: orgDoc._id } : "skip");
   const dbConfigs = useQuery(
-    api.databaseConfigs.listByOrganization, 
+    api.databaseConfigs.listByOrganization,
     orgDoc?._id ? { organizationId: orgDoc._id } : "skip"
   );
 
@@ -167,15 +172,15 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
       description: `${config.type.charAt(0).toUpperCase() + config.type.slice(1)} Environment`,
       onClick: () => router.push(`/${slug}/configure/${config._id}`),
       leftSection: (
-        <Box 
-          style={{ 
-            width: 28, 
-            height: 28, 
-            borderRadius: 6, 
-            background: "rgba(147,51,234,0.1)", 
-            display: "flex", 
-            alignItems: "center", 
-            justifyContent: "center" 
+        <Box
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            background: "rgba(147,51,234,0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
           }}
         >
           <IconAdjustments size={16} color="#a855f7" />
@@ -183,6 +188,21 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
       ),
     }));
   }, [dbConfigs, router, slug]);
+
+  // Handle JIT Membership Synchronization
+  useEffect(() => {
+    // If we've confirmed they are NOT a member, and we haven't started syncing yet
+    if (isMember === false && orgDoc?._id && userLoaded && orgLoaded && !syncing) {
+      setSyncing(true);
+      syncMembership({ organizationId: orgDoc._id }).catch((err) => {
+        console.error("Failed to sync membership:", err);
+      });
+    }
+  }, [isMember, orgDoc, userLoaded, orgLoaded, syncing, syncMembership]);
+
+  // Can safely render children if we confirmed they are a member,
+  // or if the workspace doesn't exist (let children handle 404)
+  const canRenderChildren = isMember === true || (orgDoc === null && organization === null);
 
   function isActive(href: string) {
     return pathname === `/${slug}/${href}` || pathname.startsWith(`/${slug}/${href}/`);
@@ -317,10 +337,10 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                   <Menu.Label c="dimmed" >
                     {user?.primaryEmailAddress?.emailAddress}
                   </Menu.Label>
-                  <Menu.Item 
+                  <Menu.Item
                     component={Link}
                     href={`/${slug}/settings`}
-                    leftSection={<IconSettings size={15} />} 
+                    leftSection={<IconSettings size={15} />}
                     c="rgba(255,255,255,0.75)"
                   >
                     Settings
@@ -445,7 +465,11 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
 
         {/* ── Page content ────────────────────────────────────────────── */}
         <AppShell.Main>
-          {children}
+          {canRenderChildren ? children : (
+            <Center h="100vh">
+              <Loader color="violet" type="dots" />
+            </Center>
+          )}
         </AppShell.Main>
 
         {/* ── Search Spotlight ────────────────────────────────────────── */}
@@ -460,8 +484,8 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
           limit={7}
           styles={{
             root: { zIndex: 1000 },
-            content: { 
-              background: "#130f22", 
+            content: {
+              background: "#130f22",
               border: "1px solid rgba(147,51,234,0.18)",
               borderRadius: "12px",
               boxShadow: "0 20px 40px rgba(0,0,0,0.4)"

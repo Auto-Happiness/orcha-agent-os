@@ -56,10 +56,14 @@ export async function POST(req: Request) {
     const email = email_addresses?.[0]?.email_address;
     const name = `${first_name || ''} ${last_name || ''}`.trim();
 
-    console.log(`Syncing user: ${id} (${email})...`);
+    // Build the full Convex-compatible tokenIdentifier: "<issuerDomain>|<userId>"
+    const issuerDomain = process.env.CLERK_ISSUER_DOMAIN || '';
+    const tokenIdentifier = issuerDomain ? `${issuerDomain}|${id}` : id;
+
+    console.log(`Syncing user: ${tokenIdentifier} (${email})...`);
     try {
       const result = await convex.mutation(api.auth.syncUser, {
-        tokenIdentifier: id,
+        tokenIdentifier,
         email,
         name,
         avatarUrl: image_url,
@@ -74,13 +78,15 @@ export async function POST(req: Request) {
   if (eventType === 'organization.created' || eventType === 'organization.updated') {
     const { id, name, slug } = evt.data;
     
-    if (slug) {
-        console.log(`Syncing organization: ${slug} (${name})...`);
+    // Use the ID as a fallback slug if Clerk hasn't generated one yet
+    const finalSlug = slug || id;
+    if (finalSlug) {
+        console.log(`Syncing organization: ${finalSlug} (${name})...`);
         try {
           const result = await convex.mutation(api.auth.syncOrganization, {
               clerkOrgId: id,
               name,
-              slug,
+              slug: finalSlug,
               type: eventType,
           });
           console.log(`Org sync result:`, result);
@@ -90,7 +96,30 @@ export async function POST(req: Request) {
     }
   }
 
-  // TODO: Add more event handlers (e.g. user.deleted, organization.membership.created)
+  if (eventType === 'organizationMembership.created' || eventType === 'organizationMembership.updated' || eventType === 'organizationMembership.deleted') {
+    const { organization, public_user_data, role } = evt.data;
+    const clerkOrgId = organization.id;
+    const clerkUserId = public_user_data.user_id;
+
+    // Build the full Convex-compatible tokenIdentifier
+    const issuerDomain = process.env.CLERK_ISSUER_DOMAIN || '';
+    const tokenIdentifier = issuerDomain ? `${issuerDomain}|${clerkUserId}` : clerkUserId;
+
+    console.log(`Syncing membership for ${clerkUserId} in ${clerkOrgId}...`);
+    try {
+      const result = await convex.mutation(api.auth.syncMembership, {
+        clerkOrgId,
+        tokenIdentifier,
+        role,
+        type: eventType,
+      });
+      console.log(`Membership sync result:`, result);
+    } catch (e: any) {
+      console.error(`FAILED to sync membership to Convex:`, e.message);
+    }
+  }
+
+  // TODO: Add more event handlers (e.g. user.deleted)
 
   return new Response('', { status: 200 });
 }
