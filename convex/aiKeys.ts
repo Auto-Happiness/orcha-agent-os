@@ -12,7 +12,7 @@ export const listByOrganization = query({
     return await ctx.db
       .query("aiKeys")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
-      .collect();
+      .take(20);
   },
 });
 
@@ -149,6 +149,6 @@ export const internalListByOrganization = internalQuery({
     return await ctx.db
       .query("aiKeys")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
-      .collect();
+      .take(20);
   },
 });

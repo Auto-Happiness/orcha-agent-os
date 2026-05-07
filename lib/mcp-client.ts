@@ -1,3 +1,12 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { EventSource } from "eventsource";
+
+// Polyfill EventSource for Node.js environment
+if (typeof global !== 'undefined' && !(global as any).EventSource) {
+  (global as any).EventSource = EventSource as any;
+}
+
 export interface McpTool {
   name: string;
   description?: string;
@@ -88,6 +97,28 @@ export class McpClient {
    * Fetches the available tools from an MCP server.
    */
   static async listTools(url: string, credential?: string, authHeader?: string): Promise<McpTool[]> {
+    // 1. Handle SSE transport if URL indicates it (Native MCP servers)
+    if (url.toLowerCase().includes("/sse")) {
+      try {
+        console.log(`[McpClient] Connecting to SSE server at ${url}...`);
+        const transport = new SSEClientTransport(new URL(url));
+        const client = new Client(
+          { name: "OrchaAgent", version: "1.0.0" },
+          { capabilities: {} }
+        );
+
+        await client.connect(transport);
+        const result = await client.listTools();
+        await client.close();
+
+        return (result.tools as any[]) || [];
+      } catch (e: any) {
+        console.error(`[McpClient] SSE listTools failed at ${url}:`, e.message);
+        return [];
+      }
+    }
+
+    // 2. Fallback to Stateless HTTP (Smithery-style)
     let resolvedToken = credential || "";
 
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {
@@ -102,8 +133,6 @@ export class McpClient {
     const finalUrl = buildUrl(url, resolvedToken, authHeader);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-    // If it's NOT handled via ?config= (indicated by buildUrl not having changed the URL based on authHeader),
-    // we send it via Authorization header as a fallback.
     const isEncodedInUrl = finalUrl.includes("config=");
     if (resolvedToken && resolvedToken !== "none" && !isEncodedInUrl) {
       headers["Authorization"] = `Bearer ${resolvedToken}`;
@@ -135,6 +164,29 @@ export class McpClient {
    * Calls a specific tool on an MCP server.
    */
   static async callTool(url: string, toolName: string, args: any, credential?: string, authHeader?: string): Promise<any> {
+    // 1. Handle SSE transport if URL indicates it (Native MCP servers)
+    if (url.toLowerCase().includes("/sse")) {
+      try {
+        const transport = new SSEClientTransport(new URL(url));
+        const client = new Client(
+          { name: "OrchaAgent", version: "1.0.0" },
+          { capabilities: {} }
+        );
+
+        await client.connect(transport);
+        const result = await client.callTool({
+          name: toolName,
+          arguments: args,
+        });
+        await client.close();
+        return result;
+      } catch (e: any) {
+        console.error(`[McpClient] SSE callTool failed at ${url}:`, e.message);
+        throw e;
+      }
+    }
+
+    // 2. Fallback to Stateless HTTP (Smithery-style)
     let resolvedToken = credential || "";
 
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {
@@ -173,3 +225,4 @@ export class McpClient {
     return data.result;
   }
 }
+

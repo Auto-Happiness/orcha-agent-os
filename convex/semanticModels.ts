@@ -96,12 +96,17 @@ export const bulkUpdate = mutation({
 export const listModelsByConfig = query({
   args: { configId: v.id("databaseConfigs") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    // Cap at 500 and strip heavy embeddings to avoid 1s Convex timeout.
+    // Embeddings are only needed for the actual vector search action.
+    const models = await ctx.db
       .query("semanticModels")
       .withIndex("by_config", (q) => q.eq("configId", args.configId))
-      .collect();
+      .take(500);
+    
+    return models.map(({ embedding_768, embedding_1024, embedding_1536, ...rest }: any) => rest);
   },
 });
+
 
 /**
  * Update a specific semantic model's metadata (business names, types, etc.)
@@ -292,7 +297,7 @@ export const generateAiEnrichment = action({
     // 2. Prepare the prompt (conceptually using the businessContext)
     for (const model of models) {
       // In a real LLM call, we'd say: "Given the context: ${promptContext}, name this table ${model.tableName}"
-      const enrichedFields = model.fields.map(f => {
+      const enrichedFields = model.fields.map((f: any) => {
         const name = f.columnName.toLowerCase();
         
         // Simple "AI-like" heuristic for the demo

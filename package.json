@@ -41,6 +41,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.32.0",
+    "eventsource": "^4.1.0",
     "fast-csv": "^5.0.5",
     "hyperformula": "^2.7.1",
     "ioredis": "^5.10.1",

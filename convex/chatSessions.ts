@@ -5,24 +5,20 @@ import { checkMembership } from "./authUtils";
 export const listByOrganizationAndUser = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    await checkMembership(ctx, args.organizationId);
+    // 1. checkMembership already resolves the user and verifies access
+    const { user } = await checkMembership(ctx, args.organizationId);
     
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .unique();
-    if (!user) return [];
+    // 2. Return recent sessions, capped at 50 to avoid timeouts.
     return await ctx.db
       .query("chatSessions")
       .withIndex("by_org_user", (q) =>
         q.eq("organizationId", args.organizationId).eq("userId", user._id)
       )
       .order("desc")
-      .collect();
+      .take(50);
   },
 });
+
 
 export const get = query({
   args: { sessionId: v.id("chatSessions") },
