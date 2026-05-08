@@ -8,6 +8,7 @@ import {
   Text,
   Avatar,
   TextInput,
+  Textarea,
   Switch,
   Tooltip,
   Loader
@@ -105,7 +106,7 @@ export function ChatPromptBox({
     setLocalValue(input || "");
   }, [input]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setLocalValue(e.target.value);
     if (typeof handleInputChange === 'function') {
       handleInputChange(e);
@@ -137,7 +138,7 @@ export function ChatPromptBox({
     }
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       executeSend();
@@ -157,12 +158,15 @@ export function ChatPromptBox({
           }}
         >
           <Stack gap="xs">
-            <TextInput
+            <Textarea
               placeholder="Talk to your database"
               variant="unstyled"
               size="md"
               value={localValue}
               autoFocus
+              autosize
+              minRows={1}
+              maxRows={10}
               onChange={handleChange}
               onKeyDown={onKeyDown}
               styles={{ 
@@ -170,7 +174,9 @@ export function ChatPromptBox({
                   color: "white", 
                   fontSize: "14px",
                   background: "transparent",
-                  padding: "8px 4px"
+                  padding: "8px 4px",
+                  minHeight: "unset",
+                  lineHeight: "1.5"
                 } 
               }}
             />
