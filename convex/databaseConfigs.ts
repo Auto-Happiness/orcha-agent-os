@@ -10,12 +10,12 @@ import { v } from "convex/values";
 export const listByOrganization = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
+    // Cap at 100 to prevent timeouts. Filter in JS for status flexibility.
     const all = await ctx.db
       .query("databaseConfigs")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
-      .collect();
+      .take(100);
     
-    // Filter manually to handle missing "status" field for old documents
     return all.filter((config: any) => config.status === "ready" || config.status === undefined);
   },
 });
@@ -23,20 +23,19 @@ export const listByOrganization = query({
 /**
  * getByOrganization
  * 
- * Returns the latest "ready" configuration.
+ * Returns the latest "ready" configuration using an efficient .first() lookup.
  */
 export const getByOrganization = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
-    const all = await ctx.db
+    return await ctx.db
       .query("databaseConfigs")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
-      .collect();
-      
-    // Find the first matching "ready" or legacy document
-    return all.find((config: any) => config.status === "ready" || config.status === undefined);
+      .filter((q) => q.or(q.eq(q.field("status"), "ready"), q.eq(q.field("status"), undefined)))
+      .first();
   },
 });
+
 
 /**
  * isConnected

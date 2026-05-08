@@ -11,13 +11,18 @@ export const listBySession = query({
     if (!session) return [];
     // Verify caller belongs to the session's org (single membership check)
     await checkMembership(ctx, session.organizationId);
-    return await ctx.db
+
+    // Return the 100 most recent messages, ordered chronologically for the UI
+    const msgs = await ctx.db
       .query("chatMessages")
       .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
-      .order("asc")
-      .collect();
+      .order("desc")
+      .take(100);
+
+    return msgs.reverse();
   },
 });
+
 
 export const append = mutation({
   args: {

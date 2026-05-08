@@ -1,3 +1,12 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { EventSource } from "eventsource";
+
+// Polyfill EventSource for Node.js environment
+if (typeof global !== 'undefined' && !(global as any).EventSource) {
+  (global as any).EventSource = EventSource as any;
+}
+
 export interface McpTool {
   name: string;
   description?: string;
@@ -87,7 +96,60 @@ export class McpClient {
   /**
    * Fetches the available tools from an MCP server.
    */
-  static async listTools(url: string, credential?: string, authHeader?: string): Promise<McpTool[]> {
+  static async listTools(
+    url: string,
+    credential?: string,
+    authHeader?: string,
+    /** Set true for custom/self-hosted HTTP servers — skips Smithery encoding */
+    isCustomHttp?: boolean,
+  ): Promise<McpTool[]> {
+    // 1. Handle SSE transport if URL indicates it (Native MCP servers)
+    if (url.toLowerCase().includes("/sse")) {
+      try {
+        console.log(`[McpClient] Connecting to SSE server at ${url}...`);
+        const transport = new SSEClientTransport(new URL(url));
+        const client = new Client(
+          { name: "OrchaAgent", version: "1.0.0" },
+          { capabilities: {} }
+        );
+
+        await client.connect(transport);
+        const result = await client.listTools();
+        await client.close();
+
+        return (result.tools as any[]) || [];
+      } catch (e: any) {
+        console.error(`[McpClient] SSE listTools failed at ${url}:`, e.message);
+        return [];
+      }
+    }
+
+    // 2. Plain HTTP for custom/self-hosted servers — standard JSON-RPC 2.0, no Smithery encoding
+    if (isCustomHttp) {
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (credential && credential !== "none") {
+          headers["Authorization"] = `Bearer ${credential}`;
+        }
+        const res = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ jsonrpc: "2.0", method: "tools/list", params: {}, id: Date.now() }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          console.error(`[McpClient] Custom HTTP listTools failed (${res.status}) at ${url}: ${text.slice(0, 200)}`);
+          return [];
+        }
+        const data = await res.json();
+        return data.result?.tools || [];
+      } catch (e: any) {
+        console.error(`[McpClient] Custom HTTP listTools error at ${url}:`, e.message);
+        return [];
+      }
+    }
+
+    // 3. Fallback to Stateless HTTP (Smithery-style)
     let resolvedToken = credential || "";
 
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {
@@ -102,8 +164,6 @@ export class McpClient {
     const finalUrl = buildUrl(url, resolvedToken, authHeader);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-    // If it's NOT handled via ?config= (indicated by buildUrl not having changed the URL based on authHeader),
-    // we send it via Authorization header as a fallback.
     const isEncodedInUrl = finalUrl.includes("config=");
     if (resolvedToken && resolvedToken !== "none" && !isEncodedInUrl) {
       headers["Authorization"] = `Bearer ${resolvedToken}`;
@@ -134,7 +194,65 @@ export class McpClient {
   /**
    * Calls a specific tool on an MCP server.
    */
-  static async callTool(url: string, toolName: string, args: any, credential?: string, authHeader?: string): Promise<any> {
+  static async callTool(
+    url: string,
+    toolName: string,
+    args: any,
+    credential?: string,
+    authHeader?: string,
+    /** Set true for custom/self-hosted HTTP servers — skips Smithery encoding */
+    isCustomHttp?: boolean,
+  ): Promise<any> {
+    // 1. Handle SSE transport if URL indicates it (Native MCP servers)
+    if (url.toLowerCase().includes("/sse")) {
+      try {
+        const transport = new SSEClientTransport(new URL(url));
+        const client = new Client(
+          { name: "OrchaAgent", version: "1.0.0" },
+          { capabilities: {} }
+        );
+
+        await client.connect(transport);
+        const result = await client.callTool({
+          name: toolName,
+          arguments: args,
+        });
+        await client.close();
+        return result;
+      } catch (e: any) {
+        console.error(`[McpClient] SSE callTool failed at ${url}:`, e.message);
+        throw e;
+      }
+    }
+
+    // 2. Plain HTTP for custom/self-hosted servers
+    if (isCustomHttp) {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (credential && credential !== "none") {
+        headers["Authorization"] = `Bearer ${credential}`;
+      }
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: { name: toolName, arguments: args },
+          id: Date.now(),
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Custom MCP tools/call failed (${res.status}): ${text.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(`MCP Error: ${data.error.message || JSON.stringify(data.error)}`);
+      }
+      return data.result;
+    }
+
+    // 3. Fallback to Stateless HTTP (Smithery-style)
     let resolvedToken = credential || "";
 
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {

@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { KeyManager } from "@/lib/key-manager";
 import { getMcpServer } from "@/lib/mcp-registry";
+import { McpClient } from "@/lib/mcp-client";
 import { Id } from "@/convex/_generated/dataModel";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -64,6 +65,28 @@ export async function POST(req: NextRequest) {
 
     console.log(`[MCP Proxy] ${method} → ${mcpUrl} (integration: ${integration})`);
 
+    const isSse = mcpUrl.toLowerCase().includes("/sse");
+    const isCustom = keyRecord.keyType === "custom_mcp";
+    const useCustomHttp = isCustom && !isSse;
+
+    if (method === "tools/list") {
+      const tools = await McpClient.listTools(mcpUrl, bearerToken, undefined, useCustomHttp);
+      return NextResponse.json({ jsonrpc: "2.0", id, result: { tools } });
+    }
+
+    if (method === "tools/call") {
+      const result = await McpClient.callTool(
+        mcpUrl,
+        params.name,
+        params.arguments || {},
+        bearerToken,
+        undefined,
+        useCustomHttp
+      );
+      return NextResponse.json({ jsonrpc: "2.0", id, result });
+    }
+
+    // Fallback for other methods (simple proxy)
     const upstream = await fetch(mcpUrl, {
       method: "POST",
       headers: {

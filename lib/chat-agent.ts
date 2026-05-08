@@ -110,7 +110,21 @@ export async function createChatAgent(context: AgentContext) {
       ? "- Dialect: MySQL. Use backticks for reserved names."
       : "- Dialect: PostgreSQL. Use double quotes for reserved names.";
 
-  const systemPrompt = `You are an expert ${config.type.toUpperCase()} Data Analyst.
+  // System prompt is built AFTER tools are loaded so it can list exact tool names.
+  const buildSystemPrompt = (toolNames: string[]) => {
+    const mcpToolNames = toolNames.filter(t => t !== "execute_sql");
+    const mcpSection = mcpToolNames.length > 0
+      ? `### AVAILABLE MCP TOOLS:
+You have the following external integrations connected via MCP. YOU MUST use these tools when a user asks about them:
+${mcpToolNames.map(n => `- ${n}`).join("\n")}
+`
+      : "### AVAILABLE MCP TOOLS: No external integrations are connected yet.\n";
+
+    return `You are Orcha Agent OS, a powerful AI system with dual capabilities: Data Analysis and Tool Integration.
+
+${mcpSection}
+
+### DATABASE CONTEXT:
 ${schemaDescription}
 ${relationshipDescription}
 Dialect: ${dialectRules}
@@ -118,7 +132,7 @@ Limit results to ${MAX_ROWS} rows.
 
 ### REASONING PHASE (CRITICAL):
 - BEFORE providing any final answer or executing any tools, you MUST provide a brief "Thinking Process" to explain your logic to the user.
-- Start your response with "### 🧠 Reasoning" followed by a few bullet points explaining how you interpret the question and which tables/columns you intend to use.
+- Start your response with "### 🧠 Reasoning" followed by a few bullet points explaining how you interpret the question and which tools/tables you intend to use.
 - Keep the reasoning high-level and clear for a non-technical business user. Do NOT include raw SQL in this section.
 
 - ONLY output a chart if the user explicitly asks to visualize, chart, graph, or plot the data.
@@ -132,11 +146,15 @@ Limit results to ${MAX_ROWS} rows.
 - xKey must be the EXACT column name or alias for the X-axis (or pie labels) as returned by your SQL query.
 - yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query (e.g. "revenue"). Use AS aliases in your SQL to ensure clean keys.
 
-### SCOPE RESTRICTION (CRITICAL):
-- You MUST ONLY assist with:
-  1. Questions related to the provided database schema and data analysis.
-  2. Requests that can be fulfilled using your available MCP tools and integrations (e.g., Slack, Gmail, Google Drive, etc.).
-- If a user asks about any other topic (e.g., general knowledge, jokes, personal advice, or unrelated technical help), you must politely decline and explain that your role is strictly limited to database analysis and managing your connected integrations for this organization.`;
+### SCOPE & CAPABILITIES (CRITICAL):
+- Your mission is STRICTLY limited to:
+  1. Performing data analysis and SQL queries on the provided database schema.
+  2. Fulfilling user requests using your connected MCP tools (integrations).
+- You have UNRESTRICTED access to use any available tool in your toolbox to answer questions or perform actions related to these two areas.
+- IF A USER ASKS ABOUT A SYSTEM OR INTEGRATION, CHECK YOUR AVAILABLE TOOLS LIST ABOVE. Do not claim you cannot access external systems if you have a tool for it.
+- Decline any request that is NOT related to your database or your connected tools (e.g. general knowledge, personal advice, or unrelated technical help).
+`;
+  };
 
   // 7. Initialize Agent
   const tools = {
@@ -177,10 +195,14 @@ Limit results to ${MAX_ROWS} rows.
     ...mcpTools,
   };
 
+  const toolNames = Object.keys(tools);
+  console.log(`[ChatAgent] Loaded tools: ${toolNames.join(", ")}`);
+
   return new ToolLoopAgent({
     model: aiModel,
-    instructions: systemPrompt,
+    instructions: buildSystemPrompt(toolNames),
     tools,
     stopWhen: stepCountIs(10),
   });
 }
+

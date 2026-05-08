@@ -56,7 +56,9 @@ export async function GET(req: NextRequest) {
 
     const entry: any = {
       integration: key.integration,
-      strategy: key.integration === "gmail" ? "Direct REST API" : "Smithery MCP",
+      strategy: key.integration === "gmail" ? "Direct REST API"
+               : key.keyType === "custom_mcp" ? "Custom HTTP MCP"
+               : "Smithery MCP",
       status: "untested",
       tools: [],
       error: null,
@@ -64,7 +66,7 @@ export async function GET(req: NextRequest) {
 
     try {
       const decryptedKey = key.keyValue !== "none"
-        ? KeyManager.decrypt(key.keyValue, orgId)
+        ? (key.storageStrategy === "convex" || !key.storageStrategy ? KeyManager.decrypt(key.keyValue, orgId) : key.keyValue)
         : "none";
 
       if (key.integration === "gmail") {
@@ -82,6 +84,26 @@ export async function GET(req: NextRequest) {
         if (!verifyRes.ok) {
           entry.status = "token_invalid";
           entry.error = await verifyRes.text();
+        }
+      } else if (key.keyType === "custom_mcp") {
+        // Custom self-hosted HTTP MCP server
+        let parsed: { url?: string; token?: string } = {};
+        try { parsed = JSON.parse(decryptedKey); } catch { /* ignore */ }
+        const customUrl = parsed.url || key.mcpUrl;
+        const customToken = parsed.token || "";
+        if (!customUrl) {
+          entry.status = "no_url";
+          entry.error = "No URL found in custom MCP config.";
+        } else {
+          const tools = await McpClient.listTools(customUrl, customToken, undefined, true);
+          entry.url = customUrl;
+          if (tools.length > 0) {
+            entry.status = "connected";
+            entry.tools = tools.map((t: any) => t.name);
+          } else {
+            entry.status = "error";
+            entry.error = "Got 0 tools from custom MCP server.";
+          }
         }
       } else {
         // Test MCP connection

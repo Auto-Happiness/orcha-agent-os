@@ -9,7 +9,17 @@ export const listByOrganization = query({
     return await ctx.db
       .query("integrationKeys")
       .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
-      .collect();
+      .take(50);
+  },
+});
+
+export const get = query({
+  args: { id: v.id("integrationKeys") },
+  handler: async (ctx, args) => {
+    const key = await ctx.db.get(args.id);
+    if (!key) return null;
+    await checkMembership(ctx, key.organizationId);
+    return key;
   },
 });
 
