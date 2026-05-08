@@ -40,6 +40,7 @@ import {
   IconSettings,
   IconChartBar,
   IconLayoutDashboard,
+  IconTool,
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 import { Spotlight, spotlight } from "@mantine/spotlight";
@@ -78,7 +79,13 @@ const NAV_SECTIONS = [
       { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
       { href: "spreadsheet", label: "Reports", icon: IconChartBar, badge: "Experimental", badgeColor: "orange" },
       { href: "command-center", label: "Command Center", icon: IconLayoutDashboard, badge: "New", badgeColor: "blue" },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
       { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badge: null },
+      { href: "marketplace/custom", label: "Custom Tools", icon: IconTool, badge: null },
     ],
   },
 ];
@@ -205,7 +212,9 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   const canRenderChildren = isMember === true || (orgDoc === null && organization === null);
 
   function isActive(href: string) {
-    return pathname === `/${slug}/${href}` || pathname.startsWith(`/${slug}/${href}/`);
+    const target = `/${slug}/${href}`;
+    if (href === "marketplace") return pathname === target;
+    return pathname === target || pathname.startsWith(`${target}/`);
   }
 
   const SIDEBAR_W = collapsed ? 70 : 240;

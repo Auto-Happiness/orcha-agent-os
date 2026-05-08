@@ -14,7 +14,7 @@ export async function loadMcpTools(integrationKeys: any[], orgIdStr: string) {
     const regConfig = mcpRegistry.getMcpServer(key.integration);
     try {
       const decryptedKey = key.keyValue !== "none"
-        ? KeyManager.decrypt(key.keyValue, orgIdStr)
+        ? (key.storageStrategy === "convex" || !key.storageStrategy ? KeyManager.decrypt(key.keyValue, orgIdStr) : key.keyValue)
         : "none";
 
       if (key.integration === "gmail") {
@@ -44,6 +44,38 @@ export async function loadMcpTools(integrationKeys: any[], orgIdStr: string) {
         }
         continue;
       }
+
+      // ── Custom MCP servers ────────────────────────────────────────────
+      // keyValue is stored as JSON: { url: string, token: string }
+      // These are never in the registry, so regConfig is null.
+      if (key.keyType === "custom_mcp") {
+        let parsedConfig: { url?: string; token?: string } = {};
+        try {
+          parsedConfig = JSON.parse(decryptedKey);
+        } catch {
+          console.warn(`[MCP Loader] Could not parse custom_mcp config for ${key.integration}`);
+          continue;
+        }
+        const customUrl = parsedConfig.url || key.mcpUrl;
+        const customToken = parsedConfig.token || "";
+        console.log(`[MCP Loader] Custom MCP "${key.integration}" → url=${customUrl} hasToken=${!!customToken}`);
+        if (!customUrl) continue;
+
+        const tools = await McpClient.listTools(customUrl, customToken, undefined, true);
+        console.log(`[MCP Loader] Custom MCP "${key.integration}" discovered ${tools.length} tools: ${tools.map((t: any) => t.name).join(", ") || "(none)"}`);
+        for (const tool of (tools as any[])) {
+          const namespacedName = `${key.integration}_${tool.name}`;
+          mcpTools[namespacedName] = {
+            description: `[${key.integration}] ${tool.description || ""}`,
+            inputSchema: jsonSchema(tool.inputSchema as any),
+            execute: async (args: any) => {
+              return await McpClient.callTool(customUrl, tool.name, args, customToken, undefined, true);
+            }
+          };
+        }
+        continue;
+      }
+      // ── Registry-backed MCP servers ───────────────────────────────────
 
       const url = regConfig?.url || key.mcpUrl;
       if (!url) continue;

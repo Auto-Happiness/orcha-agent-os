@@ -13,6 +13,16 @@ export const listByOrganization = query({
   },
 });
 
+export const get = query({
+  args: { id: v.id("integrationKeys") },
+  handler: async (ctx, args) => {
+    const key = await ctx.db.get(args.id);
+    if (!key) return null;
+    await checkMembership(ctx, key.organizationId);
+    return key;
+  },
+});
+
 export const getByIntegration = query({
   args: { organizationId: v.id("organizations"), integration: v.string() },
   handler: async (ctx, args) => {

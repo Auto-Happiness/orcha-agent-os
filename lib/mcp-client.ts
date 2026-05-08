@@ -96,7 +96,13 @@ export class McpClient {
   /**
    * Fetches the available tools from an MCP server.
    */
-  static async listTools(url: string, credential?: string, authHeader?: string): Promise<McpTool[]> {
+  static async listTools(
+    url: string,
+    credential?: string,
+    authHeader?: string,
+    /** Set true for custom/self-hosted HTTP servers — skips Smithery encoding */
+    isCustomHttp?: boolean,
+  ): Promise<McpTool[]> {
     // 1. Handle SSE transport if URL indicates it (Native MCP servers)
     if (url.toLowerCase().includes("/sse")) {
       try {
@@ -118,7 +124,32 @@ export class McpClient {
       }
     }
 
-    // 2. Fallback to Stateless HTTP (Smithery-style)
+    // 2. Plain HTTP for custom/self-hosted servers — standard JSON-RPC 2.0, no Smithery encoding
+    if (isCustomHttp) {
+      try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (credential && credential !== "none") {
+          headers["Authorization"] = `Bearer ${credential}`;
+        }
+        const res = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ jsonrpc: "2.0", method: "tools/list", params: {}, id: Date.now() }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          console.error(`[McpClient] Custom HTTP listTools failed (${res.status}) at ${url}: ${text.slice(0, 200)}`);
+          return [];
+        }
+        const data = await res.json();
+        return data.result?.tools || [];
+      } catch (e: any) {
+        console.error(`[McpClient] Custom HTTP listTools error at ${url}:`, e.message);
+        return [];
+      }
+    }
+
+    // 3. Fallback to Stateless HTTP (Smithery-style)
     let resolvedToken = credential || "";
 
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {
@@ -163,7 +194,15 @@ export class McpClient {
   /**
    * Calls a specific tool on an MCP server.
    */
-  static async callTool(url: string, toolName: string, args: any, credential?: string, authHeader?: string): Promise<any> {
+  static async callTool(
+    url: string,
+    toolName: string,
+    args: any,
+    credential?: string,
+    authHeader?: string,
+    /** Set true for custom/self-hosted HTTP servers — skips Smithery encoding */
+    isCustomHttp?: boolean,
+  ): Promise<any> {
     // 1. Handle SSE transport if URL indicates it (Native MCP servers)
     if (url.toLowerCase().includes("/sse")) {
       try {
@@ -186,7 +225,34 @@ export class McpClient {
       }
     }
 
-    // 2. Fallback to Stateless HTTP (Smithery-style)
+    // 2. Plain HTTP for custom/self-hosted servers
+    if (isCustomHttp) {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (credential && credential !== "none") {
+        headers["Authorization"] = `Bearer ${credential}`;
+      }
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: { name: toolName, arguments: args },
+          id: Date.now(),
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Custom MCP tools/call failed (${res.status}): ${text.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(`MCP Error: ${data.error.message || JSON.stringify(data.error)}`);
+      }
+      return data.result;
+    }
+
+    // 3. Fallback to Stateless HTTP (Smithery-style)
     let resolvedToken = credential || "";
 
     if (resolvedToken.trim().startsWith("{") && resolvedToken.includes("access_token")) {
@@ -225,4 +291,3 @@ export class McpClient {
     return data.result;
   }
 }
-
