@@ -14,6 +14,8 @@ Orcha Agent OS is a next-generation platform designed to bridge the gap between 
 
 In the age of LLMs, the biggest challenge isn't just generating SQL; it's understanding the *business meaning* behind the data. Orcha Agent OS provides a **Semantic Bridge** that allows organizations to map their database catalogs into clear business concepts, ensuring that AI agents provide accurate, governed, and insightful answers every time.
 
+https://www.orcha-solutions.com/os/chat.mp4
+
 ## ✨ Key Features
 
 - **🧠 Semantic Bridge**: Map complex schemas to business concepts using a guided wizard.
@@ -30,15 +32,9 @@ In the age of LLMs, the biggest challenge isn't just generating SQL; it's unders
 - **Auth**: [Clerk](https://clerk.dev/)
 - **Graph/Logic**: [React Flow](https://reactflow.dev/)
 - **Protocol**: [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
-- **Data**: Prisma, BullMQ, Redis, PostgreSQL, MySQL
+- **Data**: Prisma, BullMQ, Redis, PostgreSQL, MySQL, MSSQL
+ 
 
-## 🛤️ Roadmap & Coming Soon
-
-We are rapidly expanding the Orcha ecosystem. The following features are currently under development:
-
-- **📊 SSIS AI Reports**: Intelligent translation of legacy SSIS packages into modern, AI-driven reporting insights.
-- **🔄 ETL Workflows**: Drag-and-drop workflow builder for orchestrating complex data pipelines.
-- **🏪 MCP Marketplace**: A community-driven hub for sharing and discovering MCP-ready tools and semantic definitions.
 
 ## 🚦 Getting Started
 
@@ -69,5 +65,3 @@ npm run dev
 ```
 
 ---
-
-*Orcha Agent OS is building the future of agentic data interaction. *
