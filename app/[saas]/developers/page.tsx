@@ -13,39 +13,31 @@ import {
   ActionIcon,
   Modal,
   TextInput,
-  Switch,
-  NumberInput,
   Stack,
   Box,
   Badge,
   Code,
   Tooltip,
-  Divider,
   Center,
   rem,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconKey,
-  IconSettings,
   IconPlus,
   IconTrash,
   IconCopy,
   IconCheck,
   IconCode,
   IconActivity,
-  IconExternalLink,
-  IconBrandGolang,
-  IconBrandPhp,
-  IconBrandJavascript,
-  IconBrandTypescript,
-  IconBrandPython,
-  IconTerminal2,
+  IconSettings,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams } from "next/navigation";
 import { notifications } from "@mantine/notifications";
+import { KeySettingsDrawer } from "@/components/Developers/KeySettingsDrawer";
+import { QuickIntegration } from "@/components/Developers/QuickIntegration";
 
 export default function DevelopersPage() {
   const params = useParams<{ saas: string }>();
@@ -61,8 +53,13 @@ export default function DevelopersPage() {
   const deleteKey = useMutation(api.apiKeys.remove);
   const updateSettings = useMutation(api.developerSettings.update);
 
-  // ─── UI State ───────────────────────────────────────────────
   const [opened, { open, close }] = useDisclosure(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [settingsOpened, setSettingsOpened] = useState(false);
+  const [keyToConfigure, setKeyToConfigure] = useState<any>(null);
+  const [keyToDelete, setKeyToDelete] = useState<any>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [copying, setCopying] = useState<string | null>(null);
 
@@ -86,21 +83,38 @@ export default function DevelopersPage() {
     }
   };
 
-  const handleDeleteKey = async (id: any) => {
+  const handleDeleteClick = (key: any) => {
+    setKeyToDelete(key);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!keyToDelete) return;
+    setIsDeleting(true);
     try {
-      await deleteKey({ id });
+      await deleteKey({ id: keyToDelete._id });
       notifications.show({
-        title: "Key Deleted",
-        message: "The API key has been removed.",
-        color: "blue",
+        title: "Key Revoked",
+        message: "The API key has been permanently deleted.",
+        color: "red",
       });
+      setDeleteModalOpen(false);
+      setKeyToDelete(null);
+      setDeleteConfirmName("");
     } catch (err) {
       notifications.show({
         title: "Error",
         message: "Failed to delete API key.",
         color: "red",
       });
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleSettingsClick = (key: any) => {
+    setKeyToConfigure(key);
+    setSettingsOpened(true);
   };
 
   const handleCopy = (text: string) => {
@@ -113,6 +127,7 @@ export default function DevelopersPage() {
       icon: <IconCheck size={16} />
     });
   };
+
 
   const handleUpdateSettings = async (updates: any) => {
     if (!orgDoc?._id || !settings) return;
@@ -131,33 +146,6 @@ export default function DevelopersPage() {
     }
   };
 
-  // ─── Syntax Highlighting ────────────────────────────────────
-  const HighlightCode = ({ code, lang }: { code: string; lang: string }) => {
-    const highlighted = code
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"(.*?)"/g, '<span style="color: #ce9178">"$1"</span>') // strings
-        .replace(/\b(func|package|import|var|public|class|static|void|using|await|new|return|curl|if|throws|throws|var|await|async|await|def|from|as|print|const|interface|type)\b/g, '<span style="color: #569cd6">$1</span>') // keywords
-        .replace(/\b(http|client|req|resp|payload|messages|organizationId|ch|client|request|payload|response|URL|Header|Body|Main|requests|json|fetch|headers|method|body|reader|value)\b/g, '<span style="color: #9cdcfe">$1</span>') // variables
-        .replace(/\b(POST|Authorization|Bearer|Content-Type)\b/g, '<span style="color: #4ec9b0">$1</span>'); // headers/methods
-
-    return (
-        <Code 
-            block 
-            p="md" 
-            style={{ 
-                background: "rgba(0,0,0,0.5)", 
-                color: "#d4d4d4", 
-                fontSize: rem(11), 
-                fontFamily: "monospace",
-                lineHeight: 1.6,
-                border: "1px solid rgba(255,255,255,0.05)"
-            }}
-            dangerouslySetInnerHTML={{ __html: highlighted }}
-        />
-    );
-  };
 
   if (!orgDoc) return null;
 
@@ -219,9 +207,9 @@ export default function DevelopersPage() {
             }}>
               <Tabs.List>
                 <Tabs.Tab value="keys" leftSection={<IconKey size={16} />}>API Keys</Tabs.Tab>
-                <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>Settings</Tabs.Tab>
-                <Tabs.Tab value="usage" leftSection={<IconActivity size={16} />}>Usage</Tabs.Tab>
+                <Tabs.Tab value="usage" leftSection={<IconActivity size={16} />}>Usage & Telemetry</Tabs.Tab>
               </Tabs.List>
+
 
               {/* ── API Keys Panel ────────────────────────────────────────── */}
               <Tabs.Panel value="keys">
@@ -284,12 +272,21 @@ export default function DevelopersPage() {
                               </Text>
                             </Table.Td>
                             <Table.Td>
-                              <Group justify="flex-end">
-                                <Tooltip label="Delete Key" color="red">
+                              <Group justify="flex-end" gap="xs">
+                                <Tooltip label="Key Settings">
+                                  <ActionIcon
+                                    variant="subtle"
+                                    color="gray"
+                                    onClick={() => handleSettingsClick(key)}
+                                  >
+                                    <IconSettings size={16} />
+                                  </ActionIcon>
+                                </Tooltip>
+                                <Tooltip label="Revoke Key" color="red">
                                   <ActionIcon
                                     variant="subtle"
                                     color="red"
-                                    onClick={() => handleDeleteKey(key._id)}
+                                    onClick={() => handleDeleteClick(key)}
                                   >
                                     <IconTrash size={16} />
                                   </ActionIcon>
@@ -314,334 +311,113 @@ export default function DevelopersPage() {
                     </Table>
                   </Paper>
 
-                  <Box>
-                    <Group gap="xs" mb="sm">
-                      <IconCode size={18} color="#a855f7" />
-                      <Title order={4} c="white">Quick Integration</Title>
-                    </Group>
-                    <Paper
-                      p="xl"
-                      radius="lg"
-                      style={{
-                        background: "rgba(147,51,234,0.03)",
-                        border: "1px solid rgba(147,51,234,0.15)",
-                        position: "relative",
-                        overflow: "hidden"
-                      }}
-                    >
-                      <Box style={{
-                        position: "absolute",
-                        top: -50,
-                        right: -50,
-                        width: 150,
-                        height: 150,
-                        background: "radial-gradient(circle, rgba(147,51,234,0.2) 0%, transparent 70%)",
-                        filter: "blur(20px)"
-                      }} />
-
-                      <Stack gap="md">
-                        <Box>
-                          <Text size="sm" fw={600} c="white" mb={4}>Streaming API (SSE)</Text>
-                          <Text size="xs" c="dimmed" lh={1.5}>
-                            This endpoint uses <strong>Server-Sent Events (SSE)</strong> to stream responses 
-                            in real-time chunks, allowing your application to display 
-                            the agent's response as it is being generated.
-                          </Text>
-                        </Box>
-
-                        <Text size="sm" c="dimmed">Select your language to see integration examples:</Text>
-                        
-                        <Tabs variant="outline" defaultValue="curl" styles={{
-                            tab: { fontSize: rem(11), padding: "6px 16px", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" },
-                            list: { borderBottom: "none", marginBottom: rem(12), gap: rem(8) }
-                        }}>
-                          <Tabs.List>
-                            <Tabs.Tab value="curl" leftSection={<IconTerminal2 size={14} />}>cURL</Tabs.Tab>
-                            <Tabs.Tab value="js" leftSection={<IconBrandJavascript size={14} color="#F7DF1E" />}>JavaScript</Tabs.Tab>
-                            <Tabs.Tab value="ts" leftSection={<IconBrandTypescript size={14} color="#3178C6" />}>TypeScript</Tabs.Tab>
-                            <Tabs.Tab value="python" leftSection={<IconBrandPython size={14} color="#3776AB" />}>Python</Tabs.Tab>
-                            <Tabs.Tab value="go" leftSection={<IconBrandGolang size={14} color="#00ADD8" />}>Golang</Tabs.Tab>
-                            <Tabs.Tab value="java" leftSection={<IconCode size={14} color="#E76F00" />}>Java</Tabs.Tab>
-                            <Tabs.Tab value="php" leftSection={<IconBrandPhp size={14} color="#777BB4" />}>PHP</Tabs.Tab>
-                          </Tabs.List>
-
-                          <Tabs.Panel value="curl">
-                            <HighlightCode 
-                              lang="bash"
-                              code={`curl -X POST https://api.orcha-agent.com/api/chat \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "organizationId": "${orgDoc._id}",
-    "messages": [{"role": "user", "content": "Hello Agent"}]
-  }'`}
-                            />
-                          </Tabs.Panel>
-
-                          <Tabs.Panel value="js">
-                            <HighlightCode 
-                              lang="javascript"
-                              code={`const response = await fetch("https://api.orcha-agent.com/api/chat", {
-  method: "POST",
-  headers: {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    organizationId: "${orgDoc._id}",
-    messages: [{ role: "user", content: "Hello Agent" }]
-  })
-});
-
-const reader = response.body.getReader();
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  console.log(new TextDecoder().decode(value));
-}`}
-                            />
-                          </Tabs.Panel>
-
-                          <Tabs.Panel value="ts">
-                            <HighlightCode 
-                              lang="typescript"
-                              code={`interface ChatRequest {
-  organizationId: string;
-  messages: Array<{ role: string; content: string }>;
-}
-
-const req: ChatRequest = {
-  organizationId: "${orgDoc._id}",
-  messages: [{ role: "user", content: "Hello Agent" }]
-};
-
-const response = await fetch("https://api.orcha-agent.com/api/chat", {
-  method: "POST",
-  headers: {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify(req)
-});`}
-                            />
-                          </Tabs.Panel>
-
-                          <Tabs.Panel value="python">
-                            <HighlightCode 
-                              lang="python"
-                              code={`import requests
-import json
-
-url = "https://api.orcha-agent.com/api/chat"
-headers = {
-    "Authorization": "Bearer YOUR_API_KEY",
-    "Content-Type": "application/json"
-}
-payload = {
-    "organizationId": "${orgDoc._id}",
-    "messages": [{"role": "user", "content": "Hello Agent"}]
-}
-
-response = requests.post(url, headers=headers, json=payload, stream=True)
-
-for line in response.iter_lines():
-    if line:
-        print(line.decode('utf-8'))`}
-                            />
-                          </Tabs.Panel>
-
-                          <Tabs.Panel value="go">
-                            <HighlightCode 
-                              lang="go"
-                              code={`package main
-
-import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-)
-
-func main() {
-	url := "https://api.orcha-agent.com/api/chat"
-	payload := map[string]interface{}{
-		"organizationId": "${orgDoc._id}",
-		"messages": []map[string]string{
-			{"role": "user", "content": "Hello Agent"},
-		},
-	}
-	body, _ := json.Marshal(payload)
-
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
-	req.Header.Set("Authorization", "Bearer YOUR_API_KEY")
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	client.Do(req)
-}`}
-                            />
-                          </Tabs.Panel>
-
-                          <Tabs.Panel value="java">
-                            <HighlightCode 
-                              lang="java"
-                              code={`import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-
-public class Main {
-    public static void main(String[] args) throws Exception {
-        var client = HttpClient.newHttpClient();
-        var request = HttpRequest.newBuilder()
-            .uri(URI.create("https://api.orcha-agent.com/api/chat"))
-            .header("Authorization", "Bearer YOUR_API_KEY")
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString("{\\"organizationId\\":\\"${orgDoc._id}\\", \\"messages\\":[{\\"role\\":\\"user\\", \\"content\\":\\"Hello Agent\\"}]}"))
-            .build();
-
-        client.send(request, HttpResponse.BodyHandlers.ofString());
-    }
-}`}
-                            />
-                          </Tabs.Panel>
-
-                          <Tabs.Panel value="csharp">
-                            <HighlightCode 
-                              lang="csharp"
-                              code={`using System.Net.Http.Json;
-
-using var client = new HttpClient();
-client.DefaultRequestHeaders.Add("Authorization", "Bearer YOUR_API_KEY");
-
-var payload = new {
-    organizationId = "${orgDoc._id}",
-    messages = new[] { new { role = "user", content = "Hello Agent" } }
-};
-
-await client.PostAsJsonAsync("https://api.orcha-agent.com/api/chat", payload);`}
-                            />
-                          </Tabs.Panel>
-
-                          <Tabs.Panel value="php">
-                            <HighlightCode 
-                              lang="php"
-                              code={`<?php
-$ch = curl_init("https://api.orcha-agent.com/api/chat");
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-    "organizationId" => "${orgDoc._id}",
-    "messages" => [["role" => "user", "content" => "Hello Agent"]]
-]));
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    "Authorization: Bearer YOUR_API_KEY",
-    "Content-Type: application/json"
-]);
-
-$response = curl_exec($ch);
-curl_close($ch);`}
-                            />
-                          </Tabs.Panel>
-                        </Tabs>
-
-                        <Button
-                          variant="subtle"
-                          color="violet"
-                          size="xs"
-                          rightSection={<IconExternalLink size={14} />}
-                          component="a"
-                          href="#"
-                          style={{ alignSelf: "flex-start" }}
-                        >
-                          Read Full API Documentation
-                        </Button>
-                      </Stack>
-                    </Paper>
-                  </Box>
+                  <QuickIntegration organizationId={orgDoc._id} />
                 </Stack>
               </Tabs.Panel>
 
-              {/* ── Settings Panel ────────────────────────────────────────── */}
-              <Tabs.Panel value="settings">
-                <Stack gap="xl">
-                  <Box>
-                    <Title order={3} c="white" fw={700}>API Configuration</Title>
-                    <Text size="sm" c="dimmed">Global settings for your organization's API access.</Text>
-                  </Box>
+        {/* ── Delete Confirmation Modal ────────────────────────────────── */}
+        <Modal
+          opened={deleteModalOpen}
+          onClose={() => { setDeleteModalOpen(false); setDeleteConfirmName(""); }}
+          title="Revoke API Key?"
+          centered
+          size="md"
+          radius="lg"
+          overlayProps={{
+            color: "#05010d",
+            opacity: 0.85,
+            blur: 10,
+          }}
+          styles={{
+            content: { background: "#0c0814", border: "1px solid rgba(255,0,0,0.2)", padding: "1rem" },
+            header: { background: "#0c0814", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "1rem" },
+            title: { color: "white" }
+          }}
+        >
+          <Stack gap="xl">
+            <Box p="md" style={{ background: "rgba(255,0,0,0.05)", borderRadius: "8px", border: "1px solid rgba(255,0,0,0.1)" }}>
+              <Stack gap="xs">
+                <Text size="sm" c="red.4" fw={700}>This action cannot be undone.</Text>
+                <Text size="xs" c="dimmed" lh={1.6}>
+                  Revoking the key <b>{keyToDelete?.name}</b> will immediately disable all applications using it. 
+                  Developers will receive a 401 Unauthorized error upon their next request.
+                </Text>
+              </Stack>
+            </Box>
 
-                  <Stack gap="lg" style={{ maxWidth: 600 }}>
-                    <Paper p="lg" radius="md" withBorder style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.05)" }}>
-                      <Group justify="space-between">
-                        <Box>
-                          <Text fw={600} c="white">Public API Access</Text>
-                          <Text size="xs" c="dimmed">Enable or disable API access for the entire organization.</Text>
-                        </Box>
-                        <Switch
-                          color="violet"
-                          size="md"
-                          checked={settings?.isPublicApiEnabled ?? true}
-                          onChange={(e) => handleUpdateSettings({ isPublicApiEnabled: e.currentTarget.checked })}
-                        />
-                      </Group>
-                    </Paper>
+            <Stack gap={8}>
+              <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase", letterSpacing: rem(1) }}>
+                Confirm Key Name
+              </Text>
+              <TextInput
+                placeholder={keyToDelete?.name}
+                styles={{
+                    input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" }
+                }}
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                autoFocus
+              />
+            </Stack>
 
-                    <Paper p="lg" radius="md" withBorder style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.05)" }}>
-                      <Stack gap="md">
-                        <Group justify="space-between">
-                          <Box>
-                            <Text fw={600} c="white">Rate Limiting</Text>
-                            <Text size="xs" c="dimmed">Requests allowed per minute per API key.</Text>
-                          </Box>
-                          <NumberInput
-                            size="sm"
-                            w={100}
-                            min={1}
-                            max={5000}
-                            value={settings?.rateLimitPerMinute ?? 60}
-                            onChange={(val) => handleUpdateSettings({ rateLimitPerMinute: val })}
-                            styles={{ input: { background: "rgba(0,0,0,0.2)", borderColor: "rgba(255,255,255,0.1)", color: "white" } }}
-                          />
-                        </Group>
-                        <Divider color="rgba(255,255,255,0.05)" />
-                        <Box>
-                          <Badge color="violet" variant="light" mb={4}>Organization Tier: Enterprise</Badge>
-                          <Text size="xs" c="dimmed">Your current tier allows up to 5,000 requests per minute.</Text>
-                        </Box>
-                      </Stack>
-                    </Paper>
-                  </Stack>
-                </Stack>
-              </Tabs.Panel>
+            <Group justify="flex-end" gap="md">
+              <Button variant="subtle" color="gray" onClick={() => setDeleteModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                variant="filled"
+                loading={isDeleting}
+                disabled={deleteConfirmName !== keyToDelete?.name}
+                onClick={handleDeleteConfirm}
+                leftSection={<IconTrash size={16} />}
+                style={{ boxShadow: deleteConfirmName === keyToDelete?.name ? "0 0 20px rgba(239, 68, 68, 0.3)" : "none" }}
+              >
+                Revoke Permanently
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
 
-              {/* ── Usage Panel ───────────────────────────────────────────── */}
-              <Tabs.Panel value="usage">
-                <Center py={100}>
-                  <Stack align="center" gap="md">
-                    <Box style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(147,51,234,0.05)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed rgba(147,51,234,0.2)" }}>
-                      <IconActivity size={32} color="rgba(147,51,234,0.4)" />
-                    </Box>
-                    <Box style={{ textAlign: "center" }}>
-                      <Text fw={600} c="white">Usage Metrics Coming Soon</Text>
-                      <Text size="sm" c="dimmed" maw={400}>We are building a comprehensive dashboard to track your API consumption and performance in real-time.</Text>
-                    </Box>
-                  </Stack>
-                </Center>
-              </Tabs.Panel>
-            </Tabs>
+        <Tabs.Panel value="usage">
+          <Center py={100}>
+            <Stack align="center" gap="md">
+              <Box style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(147,51,234,0.05)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed rgba(147,51,234,0.2)" }}>
+                <IconActivity size={32} color="rgba(147,51,234,0.4)" />
+              </Box>
+              <Box style={{ textAlign: "center" }}>
+                <Text fw={600} c="white">Usage Metrics Coming Soon</Text>
+                <Text size="sm" c="dimmed" maw={400}>We are building a comprehensive dashboard to track your API consumption and performance in real-time.</Text>
+              </Box>
+            </Stack>
+          </Center>
+        </Tabs.Panel>
+      </Tabs>
           </Paper>
         </Stack>
 
-        {/* ── Modals ────────────────────────────────────────────────── */}
+        <KeySettingsDrawer
+          opened={settingsOpened}
+          onClose={() => setSettingsOpened(false)}
+          apiKey={keyToConfigure}
+        />
+
         <Modal
           opened={opened}
           onClose={close}
-          title="Generate API Key"
+          title="Generate New API Key"
           centered
-          radius="md"
+          size="sm"
+          radius="lg"
+          overlayProps={{
+            color: "#05010d",
+            opacity: 0.85,
+            blur: 10,
+          }}
           styles={{
-            content: { background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)" },
-            header: { background: "#0d0a1a", borderBottom: "1px solid rgba(147,51,234,0.1)" },
-            title: { fontWeight: 700, color: "white" }
+            content: { background: "#0c0814", border: "1px solid rgba(147,51,234,0.2)", padding: "1rem" },
+            header: { background: "#0c0814", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "1rem" },
+            title: { color: "white" }
           }}
         >
           <Stack>
