@@ -86,6 +86,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badge: null },
       { href: "marketplace/custom", label: "Custom Tools", icon: IconTool, badge: null },
+      { href: "developers", label: "Developers", icon: IconSettings, badge: null },
     ],
   },
 ];

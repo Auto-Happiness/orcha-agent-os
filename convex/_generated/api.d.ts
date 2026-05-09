@@ -9,6 +9,7 @@
  */
 
 import type * as aiKeys from "../aiKeys.js";
+import type * as apiKeys from "../apiKeys.js";
 import type * as auth from "../auth.js";
 import type * as authUtils from "../authUtils.js";
 import type * as bi from "../bi.js";
@@ -16,6 +17,7 @@ import type * as biActions from "../biActions.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as chatSessions from "../chatSessions.js";
 import type * as databaseConfigs from "../databaseConfigs.js";
+import type * as developerSettings from "../developerSettings.js";
 import type * as embeddings from "../embeddings.js";
 import type * as integrationActions from "../integrationActions.js";
 import type * as integrationKeys from "../integrationKeys.js";
@@ -39,6 +41,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   aiKeys: typeof aiKeys;
+  apiKeys: typeof apiKeys;
   auth: typeof auth;
   authUtils: typeof authUtils;
   bi: typeof bi;
@@ -46,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   chatMessages: typeof chatMessages;
   chatSessions: typeof chatSessions;
   databaseConfigs: typeof databaseConfigs;
+  developerSettings: typeof developerSettings;
   embeddings: typeof embeddings;
   integrationActions: typeof integrationActions;
   integrationKeys: typeof integrationKeys;
