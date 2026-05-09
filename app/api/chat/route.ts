@@ -13,21 +13,53 @@ export async function POST(req: NextRequest) {
 
   try {
     const clerkAuth = await auth();
-    const { userId, orgId: clerkOrgId } = clerkAuth;
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await req.json();
     const { messages, organizationId: rawOrgId, configId: rawConfigId, modelId, showResults = true, sessionId } = body;
 
-    const orgIdStr: string = rawOrgId || clerkOrgId || "";
-    if (!orgIdStr) {
-      return NextResponse.json({ error: "Organization context missing." }, { status: 400 });
+    let organizationId: Id<"organizations"> | null = null;
+    let userId: string | null = clerkAuth.userId;
+    let rateLimit = 60;
+
+    // ── Check for API Key Auth ──
+    const authHeader = req.headers.get("Authorization");
+    const xApiKey = req.headers.get("x-api-key");
+    const providedKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : xApiKey;
+
+    if (providedKey) {
+      const apiInfo = await convex.query(api.apiKeys.validate, { key: providedKey });
+      if (!apiInfo) {
+        return NextResponse.json({ error: "Invalid or disabled API key." }, { status: 401 });
+      }
+      organizationId = apiInfo.organizationId;
+      rateLimit = apiInfo.rateLimit;
+      userId = "api-user"; // System user for API requests
+      
+      // Update last used asynchronously
+      convex.mutation(api.apiKeys.updateLastUsed, { key: providedKey }).catch(console.error);
+    } else {
+      // Fallback to Clerk Auth
+      if (!userId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const orgIdStr: string = rawOrgId || clerkAuth.orgId || "";
+      if (!orgIdStr) {
+        return NextResponse.json({ error: "Organization context missing." }, { status: 400 });
+      }
+      organizationId = orgIdStr as Id<"organizations">;
     }
 
-    const organizationId = orgIdStr as Id<"organizations">;
+    if (!organizationId) {
+      return NextResponse.json({ error: "Internal Error: Could not determine organization." }, { status: 500 });
+    }
+
+    // ── Enforce Rate Limiting ──
+    const { checkRateLimit } = await import("@/lib/rate-limiter");
+    const { success, remaining } = await checkRateLimit(organizationId, rateLimit);
+    if (!success) {
+      return NextResponse.json({ error: "Rate limit exceeded. Please try again in a minute." }, { status: 429 });
+    }
+
+    const orgIdStr = organizationId as string;
     const configId = rawConfigId as Id<"databaseConfigs">;
 
     // Attach Clerk JWT

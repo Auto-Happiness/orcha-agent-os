@@ -339,4 +339,26 @@ export default defineSchema({  // ─── Users ──────────
   })
     .index("by_dashboard", ["dashboardId"])
     .index("by_org", ["organizationId"]),
+
+  // ─── Developer Portal: API Keys ─────────────────────────────────────────
+  apiKeys: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    keyHash: v.string(), // For fast lookups
+    encryptedKey: v.string(), // Encrypted using OrgId as requested
+    iv: v.string(), // Initialization vector for decryption
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_hash", ["keyHash"]),
+
+  // ─── Developer Portal: Settings ─────────────────────────────────────────
+  developerSettings: defineTable({
+    organizationId: v.id("organizations"),
+    isPublicApiEnabled: v.boolean(),
+    rateLimitPerMinute: v.number(),
+    updatedAt: v.number(),
+  }).index("by_org", ["organizationId"]),
 });
+

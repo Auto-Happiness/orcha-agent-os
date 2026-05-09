@@ -396,7 +396,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                               Use Table
                             </Button>
                             <Divider label="Columns" labelPosition="center" styles={{ label: { fontSize: '9px', opacity: 0.5 } }} mb={4} />
-                            {model.fields.map(f => (
+                            {model.fields.map((f: any) => (
                               <Group key={f.columnName} justify="space-between" wrap="nowrap" style={{
                                 padding: "4px 8px",
                                 borderRadius: "4px",

@@ -38,6 +38,9 @@ importers:
       '@fortune-sheet/react':
         specifier: ^1.0.4
         version: 1.0.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@mantine/code-highlight':
+        specifier: ^9.1.1
+        version: 9.1.1(@mantine/core@9.0.0(@mantine/hooks@9.0.0(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@mantine/hooks@9.0.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@mantine/core':
         specifier: ^9.0.0
         version: 9.0.0(@mantine/hooks@9.0.0(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1089,6 +1092,14 @@ packages:
 
   '@lezer/lr@1.4.10':
     resolution: {integrity: sha512-rnCpTIBafOx4mRp43xOxDJbFipJm/c0cia/V5TiGlhmMa+wsSdoGmUN3w5Bqrks/09Q/D4tNAmWaT8p6NRi77A==}
+
+  '@mantine/code-highlight@9.1.1':
+    resolution: {integrity: sha512-+NS5RwozXQZacKc1MzKwFf5auueyIPGpi9CTz0VWeefMeKhvtwfG1HUJbQGZa3YLdFTT7MzU6Id9M8vjzBdDPA==}
+    peerDependencies:
+      '@mantine/core': 9.1.1
+      '@mantine/hooks': 9.1.1
+      react: ^19.2.0
+      react-dom: ^19.2.0
 
   '@mantine/core@9.0.0':
     resolution: {integrity: sha512-GUUXlf+4uDpRu5iZ1PFy1NmgG7ttI+1I6VTw3v/b7N1jwOUhARwL1moGjPMjo3Eie3tHdVOCiVMYAvhlQ1GI5Q==}
@@ -6717,6 +6728,14 @@ snapshots:
   '@lezer/lr@1.4.10':
     dependencies:
       '@lezer/common': 1.5.2
+
+  '@mantine/code-highlight@9.1.1(@mantine/core@9.0.0(@mantine/hooks@9.0.0(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@mantine/hooks@9.0.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      '@mantine/core': 9.0.0(@mantine/hooks@9.0.0(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@mantine/hooks': 9.0.0(react@19.2.3)
+      clsx: 2.1.1
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
 
   '@mantine/core@9.0.0(@mantine/hooks@9.0.0(react@19.2.3))(@types/react@19.2.14)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:

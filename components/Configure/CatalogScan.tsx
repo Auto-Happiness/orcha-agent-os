@@ -147,7 +147,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                     <Table.Td colSpan={5} p={0}>
                        <Box p="md" pl={rem(60)}>
                           <Grid>
-                            {model.fields.map((field) => (
+                            {model.fields.map((field: any) => (
                               <Grid.Col span={4} key={field.columnName}>
                                 <Group gap="xs">
                                   <Box 
