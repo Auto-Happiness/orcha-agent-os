@@ -6,13 +6,14 @@ export const listByOrganizationAndUser = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
     // 1. checkMembership already resolves the user and verifies access
-    const { user } = await checkMembership(ctx, args.organizationId);
+    const auth = await checkMembership(ctx, args.organizationId);
+    if (!auth || !auth.user) return [];
     
     // 2. Return recent sessions, capped at 50 to avoid timeouts.
     return await ctx.db
       .query("chatSessions")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", args.organizationId).eq("userId", user._id)
+        q.eq("organizationId", args.organizationId).eq("userId", auth.user!._id)
       )
       .order("desc")
       .take(50);
