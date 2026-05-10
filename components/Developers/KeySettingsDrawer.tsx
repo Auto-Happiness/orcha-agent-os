@@ -305,12 +305,6 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
           </Stack>
         </Box>
 
-        <Box>
-          <Badge color="violet" variant="light">Enterprise Feature</Badge>
-          <Text size="xs" c="dimmed" mt={4}>
-            Advanced security policies are applied instantly to all incoming traffic.
-          </Text>
-        </Box>
 
         <Group justify="flex-end" mt="xl">
           <Button variant="subtle" color="gray" onClick={onClose}>Cancel</Button>
