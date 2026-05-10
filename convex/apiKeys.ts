@@ -20,6 +20,14 @@ function fromHex(hex: string) {
   return bytes;
 }
 
+// Helper to compute SHA-256 hash of a string
+async function hashKey(key: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return toHex(hashBuffer);
+}
+
 // Helper to derive a CryptoKey from the organizationId
 async function getSecretKey(orgId: string) {
   const encoder = new TextEncoder();
@@ -66,13 +74,6 @@ async function decrypt(encryptedText: string, ivHex: string, orgId: string) {
   return new TextDecoder().decode(decryptedBuffer);
 }
 
-async function hashKey(key: string) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(key);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return toHex(hashBuffer);
-}
-
 export const list = query({
   args: { organizationId: v.id("organizations") },
   handler: async (ctx, args) => {
@@ -86,7 +87,9 @@ export const list = query({
     // Decrypt keys for the UI (so we can show prefixes)
     return await Promise.all(keys.map(async k => ({
         ...k,
-        key: await decrypt(k.encryptedKey, k.iv, k.organizationId as string)
+        key: (k.encryptedKey && k.iv) 
+          ? await decrypt(k.encryptedKey, k.iv, k.organizationId as string)
+          : ""
     })));
   },
 });
@@ -125,6 +128,8 @@ export const updateSettings = mutation({
     id: v.id("apiKeys"),
     corsOrigins: v.optional(v.array(v.string())),
     rateLimit: v.optional(v.number()),
+    defaultModelId: v.optional(v.string()),
+    defaultConfigId: v.optional(v.id("databaseConfigs")),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
@@ -138,6 +143,8 @@ export const updateSettings = mutation({
     await ctx.db.patch(args.id, {
       corsOrigins: args.corsOrigins ?? existing.corsOrigins,
       rateLimit: args.rateLimit ?? existing.rateLimit,
+      defaultModelId: args.defaultModelId ?? existing.defaultModelId,
+      defaultConfigId: args.defaultConfigId ?? existing.defaultConfigId,
     });
   },
 });
@@ -204,7 +211,9 @@ export const validate = query({
     return {
         organizationId: apiKey.organizationId,
         rateLimit: apiKey.rateLimit || settings?.rateLimitPerMinute || 60,
-        corsOrigins: apiKey.corsOrigins || []
+        corsOrigins: apiKey.corsOrigins || [],
+        defaultModelId: apiKey.defaultModelId || (apiKey.preferredAiProvider ? `${apiKey.preferredAiProvider}:latest` : undefined),
+        defaultConfigId: apiKey.defaultConfigId
     };
   },
 });
@@ -220,6 +229,63 @@ export const updateLastUsed = mutation({
     if (apiKey) {
       await ctx.db.patch(apiKey._id, { lastUsedAt: Date.now() });
     }
+  },
+});
+
+/**
+ * Record usage and check rate limit.
+ * Returns true if allowed, false if rate limited.
+ */
+export const recordUsageAndCheckRateLimit = mutation({
+  args: { key: v.string() },
+  handler: async (ctx, args) => {
+    const keyHash = await hashKey(args.key);
+    const apiKey = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
+      .unique();
+
+    if (!apiKey) throw new Error("Invalid API Key.");
+
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000;
+
+    // 1. Fetch usage in the last minute
+    const recentUsage = await ctx.db
+      .query("apiKeyUsage")
+      .withIndex("by_key_time", (q) =>
+        q.eq("apiKeyId", apiKey._id).gt("timestamp", oneMinuteAgo)
+      )
+      .collect();
+
+    // 2. Check against limit
+    const limit = apiKey.rateLimit || 60;
+    if (recentUsage.length >= limit) {
+      return { allowed: false, current: recentUsage.length, limit };
+    }
+
+    // 3. Record new usage
+    await ctx.db.insert("apiKeyUsage", {
+      apiKeyId: apiKey._id,
+      timestamp: now,
+    });
+
+    // 4. Update last used as well
+    await ctx.db.patch(apiKey._id, { lastUsedAt: now });
+
+    // 5. Prune old records asynchronously (Optional, but good for performance)
+    // We'll just do it here for simplicity
+    const oldRecords = await ctx.db
+      .query("apiKeyUsage")
+      .withIndex("by_key_time", (q) =>
+        q.eq("apiKeyId", apiKey._id).lt("timestamp", oneMinuteAgo - 60000)
+      )
+      .take(50);
+    for (const old of oldRecords) {
+      await ctx.db.delete(old._id);
+    }
+
+    return { allowed: true, current: recentUsage.length + 1, limit };
   },
 });
 

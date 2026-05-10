@@ -16,14 +16,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { messages, organizationId: rawOrgId, configId: rawConfigId, modelId, showResults = true, sessionId } = body;
 
-    let organizationId: Id<"organizations"> | null = null;
     let userId: string | null = clerkAuth.userId;
+    let organizationId: Id<"organizations"> | undefined = rawOrgId as Id<"organizations">;
     let rateLimit = 60;
+    let defaultModelId: string | undefined = undefined;
+    let defaultConfigId: string | undefined = undefined;
 
     // ── Check for API Key Auth ──
     const authHeader = req.headers.get("Authorization");
     const xApiKey = req.headers.get("x-api-key");
-    const providedKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : xApiKey;
+    const providedKey = (authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : xApiKey) || undefined;
 
     if (providedKey) {
       const apiInfo = await convex.query(api.apiKeys.validate, { key: providedKey });
@@ -33,6 +35,8 @@ export async function POST(req: NextRequest) {
       organizationId = apiInfo.organizationId;
       rateLimit = apiInfo.rateLimit;
       userId = "api-user"; // System user for API requests
+      defaultModelId = apiInfo.defaultModelId;
+      defaultConfigId = apiInfo.defaultConfigId;
 
       // ── CORS Origin Enforcement ──
       const origin = req.headers.get("Origin");
@@ -46,9 +50,15 @@ export async function POST(req: NextRequest) {
           );
         }
       }
-      
-      // Update last used asynchronously
-      convex.mutation(api.apiKeys.updateLastUsed, { key: providedKey }).catch(console.error);
+
+      // ── Rate Limiting Enforcement ──
+      const usage = await convex.mutation(api.apiKeys.recordUsageAndCheckRateLimit, { key: providedKey });
+      if (!usage.allowed) {
+        return NextResponse.json(
+          { error: `Too many requests. Limit is ${usage.limit} per minute.` },
+          { status: 429 }
+        );
+      }
     } else {
       // Fallback to Clerk Auth
       if (!userId) {
@@ -82,7 +92,7 @@ export async function POST(req: NextRequest) {
     // ── ASYNC MODE: Enqueue via BullMQ ──
     if (isAsync) {
       console.log(`[Chat] ASYNC mode active. Enqueueing job for Org ${orgIdStr}`);
-      
+
       // 1. Create message stub in Convex (if sessionId provided)
       let messageId: string | undefined;
       if (sessionId) {
@@ -106,6 +116,9 @@ export async function POST(req: NextRequest) {
           messages,
           userId,
           orgIdStr,
+          apiKey: providedKey,
+          defaultModelId,
+          defaultConfigId,
         },
         messageId,
         clerkToken: token,
@@ -114,24 +127,27 @@ export async function POST(req: NextRequest) {
       // Close the connection (Producer only needs it briefly)
       await worker.close();
 
-      return NextResponse.json({ 
-        success: true, 
-        mode: "async", 
+      return NextResponse.json({
+        success: true,
+        mode: "async",
         jobId: job.id,
-        messageId 
+        messageId
       });
     }
 
     // ── SYNC MODE (Standard) ──
     const agent = await createChatAgent({
       convex,
-      organizationId,
+      organizationId: organizationId as Id<"organizations">,
       configId,
       modelId,
       showResults,
       messages,
-      userId,
+      userId: userId as string,
       orgIdStr,
+      apiKey: providedKey,
+      defaultModelId,
+      defaultConfigId,
     });
 
     const result = await agent.stream({

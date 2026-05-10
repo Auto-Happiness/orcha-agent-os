@@ -6,9 +6,10 @@ import { checkMembership } from "./authUtils";
  * listByOrganization
  */
 export const listByOrganization = query({
-  args: { organizationId: v.id("organizations") },
+  args: { organizationId: v.id("organizations"), apiKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await checkMembership(ctx, args.organizationId);
+    const auth = await checkMembership(ctx, args.organizationId, args.apiKey);
+    if (!auth) return [];
     return await ctx.db
       .query("aiKeys")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
@@ -29,9 +30,11 @@ export const getByProvider = query({
       v.literal("local"),
       v.literal("grok")
     ),
+    apiKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await checkMembership(ctx, args.organizationId);
+    const auth = await checkMembership(ctx, args.organizationId, args.apiKey);
+    if (!auth) return null;
     return await ctx.db
       .query("aiKeys")
       .withIndex("by_org_provider", (q: any) => 

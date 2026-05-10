@@ -344,11 +344,14 @@ export default defineSchema({  // ─── Users ──────────
   apiKeys: defineTable({
     organizationId: v.id("organizations"),
     name: v.string(),
-    keyHash: v.string(), // For fast lookups
-    encryptedKey: v.string(), // Encrypted using OrgId as requested
-    iv: v.string(), // Initialization vector for decryption
+    keyHash: v.optional(v.string()), // For fast lookups
+    encryptedKey: v.optional(v.string()), // Encrypted using OrgId as requested
+    iv: v.optional(v.string()), // Initialization vector for decryption
     corsOrigins: v.optional(v.array(v.string())),
     rateLimit: v.optional(v.number()),
+    defaultConfigId: v.optional(v.id("databaseConfigs")),
+    defaultModelId: v.optional(v.string()),
+    preferredAiProvider: v.optional(v.string()), // Temporary for migration
     createdAt: v.number(),
     lastUsedAt: v.optional(v.number()),
   })
@@ -362,5 +365,11 @@ export default defineSchema({  // ─── Users ──────────
     rateLimitPerMinute: v.number(),
     updatedAt: v.number(),
   }).index("by_org", ["organizationId"]),
+
+  // ─── Developer Portal: API Key Usage (Rate Limiting) ────────────────────
+  apiKeyUsage: defineTable({
+    apiKeyId: v.id("apiKeys"),
+    timestamp: v.number(),
+  }).index("by_key_time", ["apiKeyId", "timestamp"]),
 });
 

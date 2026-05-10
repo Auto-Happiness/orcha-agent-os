@@ -76,11 +76,13 @@ export const generateEmbedding = action({
     text: v.string(),
     provider: v.union(v.literal("gemini"), v.literal("openai"), v.literal("local")),
     model: v.optional(v.string()),
+    sysApiKey: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<EmbeddingResult> => {
     const keyDoc: Doc<"aiKeys"> | null = await ctx.runQuery(api.aiKeys.getByProvider, { 
       organizationId: args.organizationId, 
-      provider: args.provider 
+      provider: args.provider,
+      apiKey: args.sysApiKey
     });
 
     if (!keyDoc && args.provider !== "local") {

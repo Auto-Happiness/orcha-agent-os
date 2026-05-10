@@ -20,16 +20,21 @@ export interface AgentContext {
   messages: UIMessage[];
   userId: string;
   orgIdStr: string;
+  apiKey?: string;
+  defaultModelId?: string;
+  defaultConfigId?: string;
 }
 
 export async function createChatAgent(context: AgentContext) {
-  const { convex, organizationId, configId, modelId, showResults, messages, userId, orgIdStr } = context;
+  const { convex, organizationId, configId: rawConfigId, modelId, showResults, messages, userId, orgIdStr, apiKey, defaultModelId, defaultConfigId } = context;
+
+  const configId = rawConfigId || (defaultConfigId as any);
 
   let config: any;
-  const allConfigs = await convex.query(api.databaseConfigs.listByOrganization, { organizationId });
+  const allConfigs = await convex.query(api.databaseConfigs.listByOrganization, { organizationId, apiKey });
   config = allConfigs.find((c: any) => c._id === configId);
   if (!config) {
-    config = await convex.query(api.databaseConfigs.getByOrganization, { organizationId });
+    config = await convex.query(api.databaseConfigs.getByOrganization, { organizationId, apiKey });
   }
   if (!config) throw new Error("No ready database configuration found.");
 
@@ -42,13 +47,16 @@ export async function createChatAgent(context: AgentContext) {
   }
 
   const [semanticModels, relationships, aiKeys, integrationKeys] = await Promise.all([
-    convex.query(api.semanticModels.listModelsByConfig, { configId: config._id }),
-    convex.query(api.semanticRelationships.listByConfig, { configId: config._id }),
-    convex.query(api.aiKeys.listByOrganization, { organizationId }),
-    convex.query(api.integrationKeys.listByOrganization, { organizationId }),
+    convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey }),
+    convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey }),
+    convex.query(api.aiKeys.listByOrganization, { organizationId, apiKey }),
+    convex.query(api.integrationKeys.listByOrganization, { organizationId, apiKey }),
   ]);
 
-  const selectedModelStr = modelId || "gemini:gemini-1.5-flash";
+  // If a default model is set for the API key, use it.
+  const defaultModel = defaultModelId || "gemini:gemini-1.5-flash";
+
+  const selectedModelStr = modelId || defaultModel;
   const aiModel = resolveModel(selectedModelStr, aiKeys, orgIdStr);
 
   const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
@@ -64,6 +72,7 @@ export async function createChatAgent(context: AgentContext) {
         organizationId: organizationId as any,
         text: lastMessage,
         provider: embedProvider,
+        sysApiKey: apiKey,
       });
 
       const indexName = dimensions === 1536 ? "by_embedding_1536" :
@@ -73,6 +82,7 @@ export async function createChatAgent(context: AgentContext) {
         configId: config._id,
         embedding,
         indexName,
+        apiKey,
       });
 
       if (searchResults.length > 0) {
@@ -110,7 +120,6 @@ export async function createChatAgent(context: AgentContext) {
       ? "- Dialect: MySQL. Use backticks for reserved names."
       : "- Dialect: PostgreSQL. Use double quotes for reserved names.";
 
-  // System prompt is built AFTER tools are loaded so it can list exact tool names.
   const buildSystemPrompt = (toolNames: string[]) => {
     const mcpToolNames = toolNames.filter(t => t !== "execute_sql");
     const mcpSection = mcpToolNames.length > 0
