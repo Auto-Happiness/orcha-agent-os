@@ -120,7 +120,8 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
             label="Requests per minute"
             value={rateLimit}
             onChange={(val) => setRateLimit(Number(val))}
-            min={1}
+            min={10}
+            max={60}
             styles={{
               input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" },
               label: { color: "rgba(255,255,255,0.5)", fontSize: rem(11), marginBottom: 4 }
