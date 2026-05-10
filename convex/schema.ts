@@ -347,6 +347,8 @@ export default defineSchema({  // ─── Users ──────────
     keyHash: v.string(), // For fast lookups
     encryptedKey: v.string(), // Encrypted using OrgId as requested
     iv: v.string(), // Initialization vector for decryption
+    corsOrigins: v.optional(v.array(v.string())),
+    rateLimit: v.optional(v.number()),
     createdAt: v.number(),
     lastUsedAt: v.optional(v.number()),
   })

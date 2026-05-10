@@ -1,36 +1,76 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { checkMembership } from "./authUtils";
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
-const ALGORITHM = "aes-256-cbc";
+const ALGORITHM = "AES-CBC";
 
-// Helper to derive a 32-byte key from the organizationId
-function getSecretKey(orgId: string) {
-  return createHash("sha256").update(orgId).digest();
+// Helper to convert ArrayBuffer to hex string
+function toHex(buffer: ArrayBuffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-function encrypt(text: string, orgId: string) {
-  const iv = randomBytes(16);
-  const cipher = createCipheriv(ALGORITHM, getSecretKey(orgId), iv);
-  let encrypted = cipher.update(text, "utf8", "hex");
-  encrypted += cipher.final("hex");
+// Helper to convert hex string to Uint8Array
+function fromHex(hex: string) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+// Helper to derive a CryptoKey from the organizationId
+async function getSecretKey(orgId: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(orgId);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return await crypto.subtle.importKey(
+    "raw",
+    hashBuffer,
+    { name: ALGORITHM },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encrypt(text: string, orgId: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  const key = await getSecretKey(orgId);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  
+  const encryptedBuffer = await crypto.subtle.encrypt(
+    { name: ALGORITHM, iv },
+    key,
+    data
+  );
+  
   return {
-    encryptedKey: encrypted,
-    iv: iv.toString("hex"),
+    encryptedKey: toHex(encryptedBuffer),
+    iv: toHex(iv.buffer),
   };
 }
 
-function decrypt(encryptedText: string, ivHex: string, orgId: string) {
-  const iv = Buffer.from(ivHex, "hex");
-  const decipher = createDecipheriv(ALGORITHM, getSecretKey(orgId), iv);
-  let decrypted = decipher.update(encryptedText, "hex", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+async function decrypt(encryptedText: string, ivHex: string, orgId: string) {
+  const iv = fromHex(ivHex);
+  const key = await getSecretKey(orgId);
+  const data = fromHex(encryptedText);
+  
+  const decryptedBuffer = await crypto.subtle.decrypt(
+    { name: ALGORITHM, iv },
+    key,
+    data
+  );
+  
+  return new TextDecoder().decode(decryptedBuffer);
 }
 
-function hashKey(key: string) {
-  return createHash("sha256").update(key).digest("hex");
+async function hashKey(key: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return toHex(hashBuffer);
 }
 
 export const list = query({
@@ -44,10 +84,10 @@ export const list = query({
       .collect();
 
     // Decrypt keys for the UI (so we can show prefixes)
-    return keys.map(k => ({
+    return await Promise.all(keys.map(async k => ({
         ...k,
-        key: decrypt(k.encryptedKey, k.iv, k.organizationId as string)
-    }));
+        key: await decrypt(k.encryptedKey, k.iv, k.organizationId as string)
+    })));
   },
 });
 
@@ -60,11 +100,12 @@ export const create = mutation({
     await checkMembership(ctx, args.organizationId);
     
     // Generate raw key
-    const rawKey = `sk_${randomBytes(16).toString("hex")}`;
+    const randomBytes = crypto.getRandomValues(new Uint8Array(16));
+    const rawKey = `sk_${toHex(randomBytes.buffer)}`;
     
     // Encrypt and Hash
-    const { encryptedKey, iv } = encrypt(rawKey, args.organizationId as string);
-    const keyHash = hashKey(rawKey);
+    const { encryptedKey, iv } = await encrypt(rawKey, args.organizationId as string);
+    const keyHash = await hashKey(rawKey);
     
     return await ctx.db.insert("apiKeys", {
       organizationId: args.organizationId,
@@ -72,7 +113,57 @@ export const create = mutation({
       keyHash,
       encryptedKey,
       iv,
+      corsOrigins: [],
+      rateLimit: 60,
       createdAt: Date.now(),
+    });
+  },
+});
+
+export const updateSettings = mutation({
+  args: {
+    id: v.id("apiKeys"),
+    corsOrigins: v.optional(v.array(v.string())),
+    rateLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Key not found");
+    await checkMembership(ctx, existing.organizationId);
+
+    await ctx.db.patch(args.id, {
+      corsOrigins: args.corsOrigins ?? existing.corsOrigins,
+      rateLimit: args.rateLimit ?? existing.rateLimit,
+    });
+  },
+});
+
+export const addOrigin = mutation({
+  args: { id: v.id("apiKeys"), origin: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Key not found");
+    await checkMembership(ctx, existing.organizationId);
+
+    const origins = existing.corsOrigins || [];
+    if (!origins.includes(args.origin)) {
+      await ctx.db.patch(args.id, {
+        corsOrigins: [...origins, args.origin],
+      });
+    }
+  },
+});
+
+export const removeOrigin = mutation({
+  args: { id: v.id("apiKeys"), origin: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Key not found");
+    await checkMembership(ctx, existing.organizationId);
+
+    const origins = existing.corsOrigins || [];
+    await ctx.db.patch(args.id, {
+      corsOrigins: origins.filter((o) => o !== args.origin),
     });
   },
 });
@@ -90,7 +181,7 @@ export const remove = mutation({
 export const validate = query({
   args: { key: v.string() },
   handler: async (ctx, args) => {
-    const keyHash = hashKey(args.key);
+    const keyHash = await hashKey(args.key);
     const apiKey = await ctx.db
       .query("apiKeys")
       .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
@@ -108,7 +199,8 @@ export const validate = query({
 
     return {
         organizationId: apiKey.organizationId,
-        rateLimit: settings?.rateLimitPerMinute || 60
+        rateLimit: apiKey.rateLimit || settings?.rateLimitPerMinute || 60,
+        corsOrigins: apiKey.corsOrigins || []
     };
   },
 });
@@ -116,7 +208,7 @@ export const validate = query({
 export const updateLastUsed = mutation({
   args: { key: v.string() },
   handler: async (ctx, args) => {
-    const keyHash = hashKey(args.key);
+    const keyHash = await hashKey(args.key);
     const apiKey = await ctx.db
       .query("apiKeys")
       .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
@@ -126,3 +218,4 @@ export const updateLastUsed = mutation({
     }
   },
 });
+
