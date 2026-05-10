@@ -237,6 +237,7 @@ export default function DevelopersPage() {
                           <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Key Name</Table.Th>
                           <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Secret Key</Table.Th>
                           <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Created</Table.Th>
+                          <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Rate Limit</Table.Th>
                           <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Last Used</Table.Th>
                           <Table.Th style={{ padding: "16px" }} />
                         </Table.Tr>
@@ -266,6 +267,11 @@ export default function DevelopersPage() {
                             <Table.Td>
                               <Text size="xs" c="dimmed">{new Date(key.createdAt).toLocaleDateString()}</Text>
                             </Table.Td>
+                            <Table.Td>
+                               <Badge variant="dot" color="violet" size="sm">
+                                 {key.rateLimit || settings?.rateLimitPerMinute || 60} req/m
+                               </Badge>
+                             </Table.Td>
                             <Table.Td>
                               <Text size="xs" c="dimmed">
                                 {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleString() : "Never"}

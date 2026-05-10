@@ -33,6 +33,19 @@ export async function POST(req: NextRequest) {
       organizationId = apiInfo.organizationId;
       rateLimit = apiInfo.rateLimit;
       userId = "api-user"; // System user for API requests
+
+      // ── CORS Origin Enforcement ──
+      const origin = req.headers.get("Origin");
+      if (apiInfo.corsOrigins && apiInfo.corsOrigins.length > 0) {
+        // If origins are defined, enforce them. 
+        // Note: We check if the origin is explicitly allowed.
+        if (!origin || !apiInfo.corsOrigins.includes(origin)) {
+          return NextResponse.json(
+            { error: `Forbidden: Origin "${origin || "unknown"}" is not authorized for this API key.` },
+            { status: 403 }
+          );
+        }
+      }
       
       // Update last used asynchronously
       convex.mutation(api.apiKeys.updateLastUsed, { key: providedKey }).catch(console.error);
