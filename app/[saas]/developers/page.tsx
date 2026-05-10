@@ -161,24 +161,15 @@ export default function DevelopersPage() {
           {/* ── Header Section ────────────────────────────────────────── */}
           <Box>
             <Group gap="xs" mb={4}>
-              <Box
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: "4px",
-                  background: "rgba(147,51,234,0.15)",
-                  border: "1px solid rgba(147,51,234,0.3)",
-                }}
-              >
-                <IconCode size={14} color="#a855f7" />
-              </Box>
-              <Text size="xs" fw={700} c="violet.4" style={{ letterSpacing: "0.15em", textTransform: "uppercase" }}>
+              <IconCode size={16} color="var(--mantine-color-violet-4)" />
+              <Text size="xs" fw={700} c="violet.4" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>
                 Developer Engine
               </Text>
             </Group>
-            <Title order={1} fw={900} size={rem(42)} c="white" style={{ letterSpacing: "-0.03em" }}>
+            <Title order={1} fw={800} size="h1" c="white" style={{ letterSpacing: "-0.02em" }}>
               API & Integration
             </Title>
-            <Text c="dimmed" size="lg" mt={4} maw={600}>
+            <Text c="dimmed" size="sm" mt={4}>
               Build powerful workflows by integrating Orcha Agent OS into your existing tech stack.
             </Text>
           </Box>

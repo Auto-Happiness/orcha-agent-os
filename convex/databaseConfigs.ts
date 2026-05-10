@@ -1,5 +1,6 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { checkMembership } from "./authUtils";
 
 /**
  * listByOrganization
@@ -8,8 +9,10 @@ import { v } from "convex/values";
  * Treats missing status as "ready" for backward compatibility.
  */
 export const listByOrganization = query({
-  args: { organizationId: v.id("organizations") },
+  args: { organizationId: v.id("organizations"), apiKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const auth = await checkMembership(ctx, args.organizationId, args.apiKey);
+    if (!auth) return [];
     // Cap at 100 to prevent timeouts. Filter in JS for status flexibility.
     const all = await ctx.db
       .query("databaseConfigs")
@@ -26,8 +29,10 @@ export const listByOrganization = query({
  * Returns the latest "ready" configuration using an efficient .first() lookup.
  */
 export const getByOrganization = query({
-  args: { organizationId: v.id("organizations") },
+  args: { organizationId: v.id("organizations"), apiKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const auth = await checkMembership(ctx, args.organizationId, args.apiKey);
+    if (!auth) return null;
     return await ctx.db
       .query("databaseConfigs")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))

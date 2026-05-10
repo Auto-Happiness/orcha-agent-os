@@ -1,6 +1,7 @@
-import { mutation, query, action } from "./_generated/server";
+import { mutation, query, action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
+import { checkMembership } from "./authUtils";
 
 /**
  * Bulk updates or creates semantic models after a database scan.
@@ -94,8 +95,12 @@ export const bulkUpdate = mutation({
  * Fetch all semantic models for an organization/config.
  */
 export const listModelsByConfig = query({
-  args: { configId: v.id("databaseConfigs") },
+  args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const config = await ctx.db.get(args.configId);
+    if (!config) throw new Error("Config not found");
+    const auth = await checkMembership(ctx, config.organizationId, args.apiKey);
+    if (!auth) return [];
     // Cap at 500 and strip heavy embeddings to avoid 1s Convex timeout.
     // Embeddings are only needed for the actual vector search action.
     const models = await ctx.db
@@ -337,12 +342,28 @@ export const searchRelatedModels = action({
       v.literal("by_embedding_1536")
     ),
     limit: v.optional(v.number()),
+    apiKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Check membership via a query
+    await ctx.runQuery(api.semanticModels.checkConfigAccess, { 
+        configId: args.configId, 
+        apiKey: args.apiKey 
+    });
+
     return await ctx.vectorSearch("semanticModels", args.indexName, {
       vector: args.embedding,
       filter: (q) => q.eq("configId", args.configId),
       limit: args.limit || 10,
     });
+  },
+});
+
+export const checkConfigAccess = query({
+  args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const config = await ctx.db.get(args.configId);
+    if (!config) throw new Error("Config not found");
+    await checkMembership(ctx, config.organizationId, args.apiKey);
   },
 });

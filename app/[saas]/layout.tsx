@@ -78,15 +78,15 @@ const NAV_SECTIONS = [
       { href: "chat", label: "Chat", icon: IconSparkles, badge: null },
       { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
       { href: "spreadsheet", label: "Reports", icon: IconChartBar, badge: "Experimental", badgeColor: "orange" },
-      { href: "command-center", label: "Command Center", icon: IconLayoutDashboard, badge: "New", badgeColor: "blue" },
+      { href: "command-center", label: "Command Center", icon: IconLayoutDashboard, badge: null },
     ],
   },
   {
     label: "Tools",
     items: [
       { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badge: null },
-      { href: "marketplace/custom", label: "Custom Tools", icon: IconTool, badge: null },
-      { href: "developers", label: "Developers", icon: IconSettings, badge: null },
+      { href: "marketplace/custom", label: "Custom Tools", icon: IconTool, badge: "New", badgeColor: "blue" },
+      { href: "developers", label: "Developers", icon: IconSettings, badge: "New", badgeColor: "blue" },
     ],
   },
 ];

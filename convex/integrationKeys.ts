@@ -3,9 +3,10 @@ import { v } from "convex/values";
 import { checkMembership } from "./authUtils";
 
 export const listByOrganization = query({
-  args: { organizationId: v.id("organizations") },
+  args: { organizationId: v.id("organizations"), apiKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    await checkMembership(ctx, args.organizationId);
+    const auth = await checkMembership(ctx, args.organizationId, args.apiKey);
+    if (!auth) return [];
     return await ctx.db
       .query("integrationKeys")
       .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
