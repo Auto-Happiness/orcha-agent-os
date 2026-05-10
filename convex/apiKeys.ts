@@ -131,6 +131,10 @@ export const updateSettings = mutation({
     if (!existing) throw new Error("Key not found");
     await checkMembership(ctx, existing.organizationId);
 
+    if (args.rateLimit !== undefined && (args.rateLimit < 10 || args.rateLimit > 60)) {
+      throw new Error("Rate limit must be between 10 and 60 requests per minute.");
+    }
+
     await ctx.db.patch(args.id, {
       corsOrigins: args.corsOrigins ?? existing.corsOrigins,
       rateLimit: args.rateLimit ?? existing.rateLimit,
