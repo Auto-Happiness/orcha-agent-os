@@ -1,5 +1,6 @@
 import { UIMessage, jsonSchema, ToolLoopAgent, stepCountIs, convertToModelMessages } from "ai";
 import { resolveModel } from "./model-resolver";
+import { pruneColumns, getPruningModelId } from "./column-pruner";
 import { DbExecutor } from "./db-executor";
 import { api } from "@/convex/_generated/api";
 
@@ -89,8 +90,20 @@ export async function createChatAgent(context: AgentContext) {
         const matchedIds = new Set(searchResults.map((r: any) => r._id));
         filteredModels = semanticModels.filter((m: any) => matchedIds.has(m._id));
       }
+
+      // --- TWO-STAGE COLUMN PRUNING ---
+      const pruningModelId = getPruningModelId(selectedModelStr);
+      const pruningModel = resolveModel(pruningModelId, aiKeys, orgIdStr);
+
+      filteredModels = await pruneColumns(
+        lastMessage,
+        filteredModels,
+        relationships,
+        pruningModel
+      );
+
     } catch (err) {
-      console.error("[Agent] RAG search failed:", err);
+      console.error("[Agent] RAG/Pruning failed:", err);
     }
   }
 
