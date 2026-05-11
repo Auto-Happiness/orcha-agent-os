@@ -367,3 +367,11 @@ export const checkConfigAccess = query({
     await checkMembership(ctx, config.organizationId, args.apiKey);
   },
 });
+
+export const getById = internalQuery({
+  args: { modelId: v.id("semanticModels") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.modelId);
+  },
+});
+

@@ -181,6 +181,42 @@ export const internalUpdateMemoryProvider = internalMutation({
   },
 });
 
+/**
+ * updateIndexingStatus
+ */
+export const updateIndexingStatus = internalMutation({
+  args: {
+    configId: v.id("databaseConfigs"),
+    status: v.union(v.literal("idle"), v.literal("processing"), v.literal("completed")),
+    total: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const patch: any = { indexingStatus: args.status, updatedAt: Date.now() };
+    if (args.total !== undefined) patch.indexingTotal = args.total;
+    if (args.status === "processing") patch.indexingProgress = 0;
+    await ctx.db.patch(args.configId, patch);
+  },
+});
+
+/**
+ * incrementIndexingProgress
+ */
+export const incrementIndexingProgress = internalMutation({
+  args: {
+    configId: v.id("databaseConfigs"),
+    increment: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const config = await ctx.db.get(args.configId);
+    if (!config) return;
+    const current = config.indexingProgress || 0;
+    await ctx.db.patch(args.configId, {
+      indexingProgress: current + args.increment,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const getById = query({
   args: { configId: v.id("databaseConfigs") },
   handler: async (ctx, args) => {

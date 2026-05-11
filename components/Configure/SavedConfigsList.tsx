@@ -24,7 +24,8 @@ import {
   Select,
   Skeleton, 
   Center, 
-  Loader
+  Loader,
+  Progress
 } from "@mantine/core";
 import { 
   IconSearch, 
@@ -38,7 +39,8 @@ import {
   IconBrandMongodb,
   IconSql,
   IconServer,
-  IconTableFilled
+  IconTableFilled,
+  IconCircleCheck
 } from "@tabler/icons-react";
 import { inputStyles, selectStyles } from "@/lib/styles";
 
@@ -257,12 +259,29 @@ export function SavedConfigsList() {
                     <Group gap={rem(48)}>
                       {/* Provider Details */}
                       <Group gap={40}>
-                         <Stack gap={0} w={120}>
+                         <Stack gap={0} w={150}>
                             <Group gap="xs">
                                <EngineIcon size={14} color="#9333ea" />
                                <Text size="11px" fw={500} c="white" style={{ textTransform: "capitalize" }}>{config.type}</Text>
                             </Group>
-                            <Text size="10px" c="dimmed">Active Semantic Bridge</Text>
+                            {config.indexingStatus === "processing" ? (
+                               <Stack gap={2} mt={4}>
+                                  <Progress 
+                                    value={((config.indexingProgress || 0) / (config.indexingTotal || 1)) * 100} 
+                                    size="xs" 
+                                    color="violet" 
+                                    animated 
+                                  />
+                                  <Text size="9px" c="dimmed">Indexing: {config.indexingProgress || 0}/{config.indexingTotal || 0}</Text>
+                               </Stack>
+                            ) : config.indexingStatus === "completed" ? (
+                               <Group gap={4} mt={2}>
+                                  <IconCircleCheck size={10} color="#22c55e" />
+                                  <Text size="10px" c="#22c55e" fw={500}>Semantic Ready</Text>
+                                </Group>
+                            ) : (
+                               <Text size="10px" c="dimmed">Active Semantic Bridge</Text>
+                            )}
                          </Stack>
                          <Text size="xs" c="dimmed">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(config.updatedAt)}</Text>
                       </Group>
