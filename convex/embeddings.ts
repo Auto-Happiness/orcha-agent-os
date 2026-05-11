@@ -1,7 +1,38 @@
+"use node";
+
 import { action, internalMutation, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import { KeyManager } from "../lib/key-manager";
+
+/**
+ * Helper to determine if a key is encrypted and decrypt it if necessary.
+ */
+function decryptKeyIfNeeded(key: string, organizationId: string): string {
+  const parts = key.split(":");
+  if (parts.length !== 3) return key;
+
+  const [ivHex, authTagHex, encryptedHex] = parts;
+  const hexRe = /^[0-9a-f]+$/i;
+
+  const isEncrypted =
+    ivHex.length === 32 &&
+    authTagHex.length === 32 &&
+    encryptedHex.length > 0 &&
+    hexRe.test(ivHex) &&
+    hexRe.test(authTagHex) &&
+    hexRe.test(encryptedHex);
+
+  if (!isEncrypted) return key;
+
+  try {
+    return KeyManager.decrypt(key, organizationId);
+  } catch (err) {
+    console.error("[Embeddings] Decryption failed, using raw key:", err);
+    return key;
+  }
+}
 
 interface EmbeddingResult {
   embedding: number[];
@@ -89,11 +120,13 @@ export const generateEmbedding = action({
       throw new Error(`API Key for ${args.provider} not found in organization.`);
     }
 
+    const rawKey = keyDoc ? decryptKeyIfNeeded(keyDoc.keyValue, args.organizationId) : undefined;
+
     return await fetchEmbedding(
       args.organizationId,
       args.text,
       args.provider,
-      keyDoc?.keyValue,
+      rawKey,
       args.model
     );
   },
@@ -141,6 +174,9 @@ export const indexConfigSchema = action({
       throw new Error(`No API key available for provider ${provider}`);
     }
 
+    // Decrypt if necessary
+    const rawApiKey = resolvedApiKey ? decryptKeyIfNeeded(resolvedApiKey, args.organizationId) : undefined;
+
     // 3. Lock Memory Provider and initialize indexing state
     await ctx.runMutation(internal.databaseConfigs.internalUpdateMemoryProvider, {
       configId: args.configId,
@@ -160,7 +196,7 @@ export const indexConfigSchema = action({
       configId: args.configId,
       modelIds,
       provider: provider as any,
-      apiKey: resolvedApiKey!,
+      apiKey: rawApiKey!,
       batchSize: 5,
     });
 
@@ -203,7 +239,7 @@ export const processEmbeddingBatch = internalAction({
           apiKey,
         );
 
-        await ctx.runMutation(internal.embeddings.updateModelEmbedding, {
+        await ctx.runMutation(internal.semanticModels.updateModelEmbedding, {
           id: modelId,
           embedding,
           dimensions,
@@ -235,26 +271,3 @@ export const processEmbeddingBatch = internalAction({
   }
 });
 
-/**
- * Internal mutation to save the vector into the correct field based on dimensions.
- */
-export const updateModelEmbedding = internalMutation({
-  args: {
-    id: v.id("semanticModels"),
-    embedding: v.array(v.float64()),
-    dimensions: v.number(),
-  },
-  handler: async (ctx, args): Promise<void> => {
-    const update: any = { updatedAt: Date.now() };
-    
-    if (args.dimensions === 768) update.embedding_768 = args.embedding;
-    else if (args.dimensions === 1024) update.embedding_1024 = args.embedding;
-    else if (args.dimensions === 1536) update.embedding_1536 = args.embedding;
-    else {
-      console.warn(`[Embeddings] Unsupported dimension count: ${args.dimensions}`);
-      return;
-    }
-
-    await ctx.db.patch(args.id, update);
-  },
-});

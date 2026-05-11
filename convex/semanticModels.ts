@@ -1,4 +1,4 @@
-import { mutation, query, action, internalQuery } from "./_generated/server";
+import { mutation, query, action, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
 import { checkMembership } from "./authUtils";
@@ -363,11 +363,19 @@ export const searchRelatedModels = action({
         apiKey: args.apiKey 
     });
 
-    return await ctx.vectorSearch("semanticModels", args.indexName, {
-      vector: args.embedding,
-      filter: (q) => q.eq("configId", args.configId),
-      limit: args.limit || 10,
-    });
+    try {
+      return await ctx.vectorSearch("semanticModels", args.indexName, {
+        vector: args.embedding,
+        filter: (q) => q.eq("configId", args.configId),
+        limit: args.limit || 10,
+      });
+    } catch (err: any) {
+      if (err.message?.includes("bootstrapping")) {
+        console.warn("[VectorSearch] Index is bootstrapping, returning empty results.");
+        return [];
+      }
+      throw err;
+    }
   },
 });
 
@@ -387,3 +395,26 @@ export const getById = internalQuery({
   },
 });
 
+/**
+ * Internal mutation to save the vector into the correct field based on dimensions.
+ */
+export const updateModelEmbedding = internalMutation({
+  args: {
+    id: v.id("semanticModels"),
+    embedding: v.array(v.float64()),
+    dimensions: v.number(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const update: any = { updatedAt: Date.now() };
+    
+    if (args.dimensions === 768) update.embedding_768 = args.embedding;
+    else if (args.dimensions === 1024) update.embedding_1024 = args.embedding;
+    else if (args.dimensions === 1536) update.embedding_1536 = args.embedding;
+    else {
+      console.warn(`[Embeddings] Unsupported dimension count: ${args.dimensions}`);
+      return;
+    }
+
+    await ctx.db.patch(args.id, update);
+  },
+});
