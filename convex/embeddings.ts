@@ -100,49 +100,40 @@ export const generateEmbedding = action({
 });
 
 /**
- * Orchestrator: Indexes all tables for a specific database configuration.
+ * Orchestrator: Indexes all tables for a specific database configuration using a background queue.
  */
 export const indexConfigSchema = action({
   args: {
     organizationId: v.id("organizations"),
     configId: v.id("databaseConfigs"),
     provider: v.union(v.literal("gemini"), v.literal("openai"), v.literal("local")),
-    apiKey: v.optional(v.string()), // Pre-decrypted by the server (Convex can't use node:crypto)
+    apiKey: v.optional(v.string()), 
   },
-  handler: async (ctx, args): Promise<{ success: boolean; processed: number; providerUsed?: string }> => {
-    console.log(`[Embeddings] Starting indexing for config ${args.configId} (Org: ${args.organizationId})`);
+  handler: async (ctx, args): Promise<{ success: boolean; total: number; providerUsed?: string }> => {
+    console.log(`[Embeddings] Orchestrating background indexing for config ${args.configId}`);
     
-    // 1. Retry loop to wait for models to be persisted (Consistency Check)
+    // 1. Wait for models to be persisted
     let models: any[] = [];
     for (let i = 0; i < 5; i++) {
        models = await ctx.runQuery(api.semanticModels.listModelsByConfig, { configId: args.configId });
        if (models.length > 0) break;
-       console.log(`[Embeddings] No models found yet (attempt ${i + 1}), waiting 2s...`);
        await new Promise(r => setTimeout(r, 2000));
     }
 
-    if (models.length === 0) {
-      console.warn(`[Embeddings] Aborting: Still no models found for config ${args.configId}`);
-      return { success: false, processed: 0 };
-    }
+    if (models.length === 0) return { success: false, total: 0 };
     
-    // 2. Resolve key — use pre-decrypted key passed from server if available
+    // 2. Resolve provider and key
     let provider = args.provider;
     let resolvedApiKey = args.apiKey;
 
     if (!resolvedApiKey && provider !== "local") {
-      // Fallback: look up from DB (only useful if called directly without server pre-decrypt)
-      console.log(`[Embeddings] No apiKey passed — attempting internal key lookup...`);
       const allKeys = await ctx.runQuery(internal.aiKeys.internalListByOrganization, { 
         organizationId: args.organizationId 
       });
-      console.log(`[Embeddings] Found ${allKeys.length} total keys for org.`);
       const fallback = allKeys.find(k => k.provider === "openai" || k.provider === "gemini");
       if (fallback) {
         provider = fallback.provider as any;
-        // Note: keyValue here will likely be encrypted — this path is a last resort
         resolvedApiKey = fallback.keyValue;
-        console.warn(`[Embeddings] WARNING: Using raw (possibly encrypted) keyValue as fallback.`);
       }
     }
 
@@ -150,42 +141,98 @@ export const indexConfigSchema = action({
       throw new Error(`No API key available for provider ${provider}`);
     }
 
-    // ── NEW: Record this provider as the canonical Memory Provider for this config ──
-    console.log(`[Embeddings] Locking memoryProvider to ${provider} for config ${args.configId}`);
+    // 3. Lock Memory Provider and initialize indexing state
     await ctx.runMutation(internal.databaseConfigs.internalUpdateMemoryProvider, {
       configId: args.configId,
       provider: provider as any,
     });
+    
+    await ctx.runMutation(internal.databaseConfigs.updateIndexingStatus, {
+      configId: args.configId,
+      status: "processing",
+      total: models.length,
+    });
 
-    console.log(`[Embeddings] Proceeding to index ${models.length} tables using ${provider}...`);
+    // 4. Dispatch the first batch
+    const modelIds = models.map(m => m._id);
+    await ctx.scheduler.runAfter(0, internal.embeddings.processEmbeddingBatch, {
+      organizationId: args.organizationId,
+      configId: args.configId,
+      modelIds,
+      provider: provider as any,
+      apiKey: resolvedApiKey!,
+      batchSize: 5,
+    });
 
-    let successCount = 0;
-    for (const model of models) {
+    console.log(`[Embeddings] Background indexing dispatched for ${models.length} tables.`);
+    return { success: true, total: models.length, providerUsed: provider };
+  },
+});
+
+/**
+ * Background Queue Worker: Processes a small batch of tables and schedules the next batch.
+ */
+export const processEmbeddingBatch = internalAction({
+  args: {
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    modelIds: v.array(v.id("semanticModels")),
+    provider: v.union(v.literal("gemini"), v.literal("openai"), v.literal("local")),
+    apiKey: v.string(),
+    batchSize: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { modelIds, batchSize, organizationId, provider, apiKey, configId } = args;
+    const toProcess = modelIds.slice(0, batchSize);
+    const remaining = modelIds.slice(batchSize);
+
+    console.log(`[Embeddings] Processing batch: ${toProcess.length} tables. Remaining: ${remaining.length}`);
+
+    for (const modelId of toProcess) {
+      const model = await ctx.runQuery(internal.semanticModels.getById, { modelId });
+      if (!model) continue;
+
       const columnNames = model.fields.map((f: any) => f.displayName || f.columnName).join(", ");
       const textToEmbed = `Table: ${model.tableName}. Columns: ${columnNames}. Description: ${model.description || ""}`;
 
       try {
         const { embedding, dimensions } = await fetchEmbedding(
-          args.organizationId,
+          organizationId,
           textToEmbed,
           provider as any,
-          resolvedApiKey,
+          apiKey,
         );
 
         await ctx.runMutation(internal.embeddings.updateModelEmbedding, {
-          id: model._id,
+          id: modelId,
           embedding,
           dimensions,
         });
-        successCount++;
       } catch (err: any) {
-        console.error(`[Embeddings] CRITICAL: Failed to index table ${model.tableName}. Error: ${err.message || err}`);
+        console.error(`[Embeddings] Failed to index table ${model.tableName}: ${err.message}`);
       }
     }
 
-    console.log(`[Embeddings] COMPLETED: Successfully indexed ${successCount}/${models.length} tables.`);
-    return { success: true, processed: successCount, providerUsed: provider };
-  },
+    // Increment progress in the DB
+    await ctx.runMutation(internal.databaseConfigs.incrementIndexingProgress, {
+      configId: args.configId,
+      increment: toProcess.length,
+    });
+
+    if (remaining.length > 0) {
+      // Schedule next batch with a 2s delay to avoid provider rate limits
+      await ctx.scheduler.runAfter(2000, internal.embeddings.processEmbeddingBatch, {
+        ...args,
+        modelIds: remaining,
+      });
+    } else {
+      console.log(`[Embeddings] Background indexing COMPLETE for config ${configId}`);
+      await ctx.runMutation(internal.databaseConfigs.updateIndexingStatus, {
+        configId: args.configId,
+        status: "completed",
+      });
+    }
+  }
 });
 
 /**

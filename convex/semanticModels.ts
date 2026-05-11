@@ -27,17 +27,18 @@ export const bulkUpdate = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // 1. First, check if organization exists and user has access (TODO: full RBAC)
-    
     const now = Date.now();
 
+    // 1. Fetch all existing models for this config once to avoid O(N^2) reads
+    const existingModels = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+
+    const tableNameToModel = new Map(existingModels.map((m) => [m.tableName, m]));
+
     for (const table of args.tables) {
-      // 2. See if existing semantic model exists for this table
-      const existing = await ctx.db
-        .query("semanticModels")
-        .withIndex("by_config", (q) => q.eq("configId", args.configId))
-        .filter((q) => q.eq(q.field("tableName"), table.name))
-        .unique();
+      const existing = tableNameToModel.get(table.name);
 
       const fields = table.columns.map((col) => {
         // Map common column types to dimension/measure
@@ -65,15 +66,12 @@ export const bulkUpdate = mutation({
       });
 
       if (existing) {
-        // 3. Update existing model, preserving custom displayNames if they existed?
-        // For the first "Bridge" scan, we'll just merge fields
         await ctx.db.patch(existing._id, {
           fields,
           isView: table.isView ?? false,
           updatedAt: now,
         });
       } else {
-        // 4. Create new semantic model
         await ctx.db.insert("semanticModels", {
           organizationId: args.organizationId,
           configId: args.configId,
@@ -172,6 +170,19 @@ export const bulkCreateRelationships = mutation({
       .collect();
 
     const tableToModel = new Map(models.map(m => [m.tableName, m]));
+
+    // 2. Fetch all existing relationships to avoid O(N*M) reads inside the loop
+    const existingRels = await ctx.db
+      .query("semanticRelationships")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+
+    const relKeySet = new Set(
+      existingRels.map(
+        (r) => `${r.fromModelId}|${r.fromColumn}|${r.toModelId}|${r.toColumn}`
+      )
+    );
+
     const created = [];
 
     for (const fk of args.foreignKeys) {
@@ -180,21 +191,9 @@ export const bulkCreateRelationships = mutation({
 
       if (!fromModel || !toModel) continue;
 
-      // 2. Check for duplicates
-      const existing = await ctx.db
-        .query("semanticRelationships")
-        .withIndex("by_config", (q) => q.eq("configId", args.configId))
-        .filter((q) =>
-          q.and(
-            q.eq(q.field("fromModelId"), fromModel._id),
-            q.eq(q.field("fromColumn"), fk.fromColumn),
-            q.eq(q.field("toModelId"), toModel._id),
-            q.eq(q.field("toColumn"), fk.toColumn)
-          )
-        )
-        .unique();
-
-      if (existing) continue;
+      // Check for duplicates in memory
+      const key = `${fromModel._id}|${fk.fromColumn}|${toModel._id}|${fk.toColumn}`;
+      if (relKeySet.has(key)) continue;
 
       // 3. Insert new relationship
       const relId = await ctx.db.insert("semanticRelationships", {
@@ -213,6 +212,9 @@ export const bulkCreateRelationships = mutation({
         id: relId,
         name: `${fk.fromTable}.${fk.fromColumn} → ${fk.toTable}.${fk.toColumn}`,
       });
+      
+      // Add to set to prevent duplicates within the same batch if necessary
+      relKeySet.add(key);
     }
 
     return { success: true, created, count: created.length };
@@ -234,6 +236,18 @@ export const suggestRelationships = mutation({
       .withIndex("by_config", (q) => q.eq("configId", args.configId))
       .collect();
 
+    // Fetch existing relationships once
+    const existingRels = await ctx.db
+      .query("semanticRelationships")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+
+    const relKeySet = new Set(
+      existingRels.map(
+        (r) => `${r.fromModelId}|${r.toModelId}`
+      )
+    );
+
     const suggestions = [];
 
     for (const model of models) {
@@ -252,13 +266,8 @@ export const suggestRelationships = mutation({
             const targetPk = target.fields.find(f => f.isPrimary);
             
             if (targetPk) {
-              const existing = await ctx.db
-                .query("semanticRelationships")
-                .withIndex("by_from", (q) => q.eq("fromModelId", target._id))
-                .filter((q) => q.eq(q.field("toModelId"), model._id))
-                .unique();
-
-              if (!existing) {
+              // Check for existing relationship (simplified check for suggestions)
+              if (!relKeySet.has(`${target._id}|${model._id}`)) {
                 const relId = await ctx.db.insert("semanticRelationships", {
                   organizationId: args.organizationId,
                   configId: args.configId,
@@ -271,6 +280,9 @@ export const suggestRelationships = mutation({
                   createdAt: Date.now(),
                 });
                 suggestions.push({ id: relId, name: `${target.tableName} -> ${model.tableName}` });
+                
+                // Add to set to avoid duplicate suggestions in this run
+                relKeySet.add(`${target._id}|${model._id}`);
               }
             }
           }
@@ -367,3 +379,11 @@ export const checkConfigAccess = query({
     await checkMembership(ctx, config.organizationId, args.apiKey);
   },
 });
+
+export const getById = internalQuery({
+  args: { modelId: v.id("semanticModels") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.modelId);
+  },
+});
+
