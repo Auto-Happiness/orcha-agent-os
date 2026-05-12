@@ -20,16 +20,19 @@ import {
   Center,
   Tooltip,
   Tabs,
-  SegmentedControl
+  SegmentedControl,
+  Loader,
 } from "@mantine/core";
+import { useIntersection } from "@mantine/hooks";
 import { 
   IconTable, 
   IconPlus,
   IconFingerprint,
   IconSettings,
-  IconChartDots
+  IconChartDots,
+  IconSearch
 } from "@tabler/icons-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
@@ -58,6 +61,38 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
     if (!data.selectedTables || data.selectedTables.length === 0) return allModels;
     return allModels.filter((m: any) => data.selectedTables?.includes(m.tableName));
   }, [allModels, data.selectedTables]);
+
+  // Sidebar Search & Infinite Scroll
+  const [sidebarSearch, setSidebarSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(20);
+  
+  const filteredModels = useMemo(() => {
+    return models.filter(m => 
+      m.displayName.toLowerCase().includes(sidebarSearch.toLowerCase()) || 
+      m.tableName.toLowerCase().includes(sidebarSearch.toLowerCase())
+    );
+  }, [models, sidebarSearch]);
+
+  const paginatedModels = useMemo(() => {
+    return filteredModels.slice(0, visibleCount);
+  }, [filteredModels, visibleCount]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { ref: sentinelRef, entry } = useIntersection({
+    root: containerRef.current,
+    threshold: 0.1,
+  });
+
+  useEffect(() => {
+    if (entry?.isIntersecting && visibleCount < filteredModels.length) {
+      setVisibleCount(prev => prev + 20);
+    }
+  }, [entry, filteredModels.length]);
+
+  // Reset scroll on search
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [sidebarSearch]);
 
   const updateModel = useMutation(api.semanticModels.updateModel);
   const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
@@ -171,10 +206,26 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
           </Card>
 
           <Box>
-            <Text size="xs" fw={700} c="dimmed" px="xs" mb={8} style={{ textTransform: "uppercase", letterSpacing: rem(1) }}>Selected Models</Text>
-            <ScrollArea h={500} offsetScrollbars>
+            <Group justify="space-between" px="xs" mb={8}>
+              <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase", letterSpacing: rem(1) }}>Selected Models</Text>
+              <Text size="10px" c="violet.4" fw={600}>{filteredModels.length}</Text>
+            </Group>
+            
+            <TextInput 
+              placeholder="Filter models..." 
+              size="xs"
+              mb="md"
+              leftSection={<IconSearch size={14} />}
+              value={sidebarSearch}
+              onChange={(e) => {
+                setSidebarSearch(e.currentTarget.value);
+              }}
+              styles={{ input: { background: "rgba(0,0,0,0.2)", borderColor: "rgba(147,51,234,0.1)" } }}
+            />
+
+            <ScrollArea h={500} offsetScrollbars viewportRef={containerRef}>
               <Stack gap="xs" pr="xs">
-                {models.map(m => (
+                {paginatedModels.map(m => (
                   <Paper
                     key={m._id}
                     p="sm"
@@ -197,6 +248,15 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                     </Group>
                   </Paper>
                 ))}
+                
+                {/* Sentinel for Infinite Scroll */}
+                {visibleCount < filteredModels.length && (
+                  <Box ref={sentinelRef} h={20} py="md">
+                    <Center>
+                      <Loader size="xs" color="violet" />
+                    </Center>
+                  </Box>
+                )}
               </Stack>
             </ScrollArea>
           </Box>

@@ -13,12 +13,16 @@ import {
   rem,
   Paper,
   ActionIcon,
-  Grid
+  Grid,
+  Pagination,
+  TextInput,
+  Select,
 } from "@mantine/core";
 import { 
   IconTable, 
   IconChevronDown, 
-  IconChevronRight, 
+  IconChevronRight,
+  IconSearch,
 } from "@tabler/icons-react";
 import React, { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
@@ -33,6 +37,27 @@ export function CatalogScan({ configId }: CatalogScanProps) {
   const models = useQuery(api.semanticModels.listModelsByConfig, { configId: configId as any });
   const { data, updateData } = useCreationWizard();
   const [openedTables, setOpenedTables] = useState<Record<string, boolean>>({});
+  
+  // Pagination & Search State
+  const [search, setSearch] = useState("");
+  const [activePage, setActivePage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<string | null>("15");
+
+  const filteredModels = React.useMemo(() => {
+    if (!models) return [];
+    return models.filter(m => 
+      m.tableName.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [models, search]);
+
+  const pageSize = parseInt(itemsPerPage || "15");
+  const totalPages = Math.ceil(filteredModels.length / pageSize);
+  const paginatedModels = filteredModels.slice((activePage - 1) * pageSize, activePage * pageSize);
+
+  // Reset page when search or pageSize changes
+  useEffect(() => {
+    setActivePage(1);
+  }, [search, itemsPerPage]);
 
   const toggleTable = (tableName: string) => {
     setOpenedTables(prev => ({ ...prev, [tableName]: !prev[tableName] }));
@@ -73,12 +98,22 @@ export function CatalogScan({ configId }: CatalogScanProps) {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
+      <Group justify="space-between" align="flex-end">
         <Stack gap={0}>
-          <Text fw={600} size="sm" c="white">Detected Tables ({models.length})</Text>
+          <Text fw={600} size="sm" c="white">Detected Tables ({filteredModels.length}{search && ` / ${models.length}`})</Text>
           <Text size="11px" c="dimmed">Select the tables you want to include in your semantic layer.</Text>
         </Stack>
-        <Badge variant="dot" color="violet">{data.selectedTables?.length || 0} selected</Badge>
+        <Group gap="xs">
+          <TextInput 
+            placeholder="Search tables..." 
+            size="xs" 
+            leftSection={<IconSearch size={14} />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            styles={{ input: { background: "rgba(0,0,0,0.2)", borderColor: "rgba(147,51,234,0.1)" } }}
+          />
+          <Badge variant="dot" color="violet">{data.selectedTables?.length || 0} selected</Badge>
+        </Group>
       </Group>
 
       <Paper withBorder style={{ 
@@ -106,7 +141,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {models.map((model) => (
+              {paginatedModels.map((model) => (
                 <React.Fragment key={model._id}>
                   <Table.Tr 
                     style={{ borderColor: "rgba(147,51,234,0.05)", cursor: "pointer" }}
@@ -173,6 +208,29 @@ export function CatalogScan({ configId }: CatalogScanProps) {
           </Table>
         </ScrollArea>
       </Paper>
+
+      <Group justify="space-between" mt="md">
+        <Group gap="xs">
+          <Text size="xs" c="dimmed">Show</Text>
+          <Select 
+            size="xs" 
+            w={70}
+            data={["15", "30", "50", "100"]}
+            value={itemsPerPage}
+            onChange={setItemsPerPage}
+            styles={{ input: { background: "rgba(0,0,0,0.2)", borderColor: "rgba(147,51,234,0.1)" } }}
+          />
+          <Text size="xs" c="dimmed">per page</Text>
+        </Group>
+        <Pagination 
+          total={totalPages} 
+          value={activePage} 
+          onChange={setActivePage} 
+          color="violet" 
+          size="sm"
+          radius="md"
+        />
+      </Group>
     </Stack>
   );
 }
