@@ -18,11 +18,6 @@ import {
   Divider,
   Stepper,
   rem,
-  Loader,
-  Modal,
-  Progress,
-  ActionIcon,
-  Alert,
 } from "@mantine/core";
 import {
   IconChevronLeft,
@@ -34,35 +29,14 @@ import {
   IconSettingsCheck,
   IconAlertTriangle,
   IconBrain,
-  IconLoader2,
-  IconX,
 } from "@tabler/icons-react";
-import dynamic from "next/dynamic";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { DatabaseConfig } from "@/components/Configure/DatabaseConfig";
 import { LLMConfig } from "@/components/Configure/LLMConfig";
 import { WizardDetailsStep } from "@/components/Configure/WizardDetailsStep";
+import { CatalogScan } from "@/components/Configure/CatalogScan";
+import { SemanticBridge } from "@/components/Configure/SemanticBridge";
 import { MemoryConfig } from "@/components/Configure/MemoryConfig";
-
-const CatalogScan = dynamic(() => import("@/components/Configure/CatalogScan").then(m => m.CatalogScan), {
-  loading: () => (
-    <Stack align="center" py="3rem">
-      <Loader color="violet" size="lg" type="dots" />
-      <Text size="sm" c="dimmed">Initializing catalog discovery...</Text>
-    </Stack>
-  ),
-  ssr: false
-});
-
-const SemanticBridge = dynamic(() => import("@/components/Configure/SemanticBridge").then(m => m.SemanticBridge), {
-  loading: () => (
-    <Stack align="center" py="3rem">
-      <Loader color="violet" size="lg" type="dots" />
-      <Text size="sm" c="dimmed">Preparing semantic modeling environment...</Text>
-    </Stack>
-  ),
-  ssr: false
-});
 
 export default function NewConfigurationPage() {
   const { saas } = useParams();
@@ -71,7 +45,6 @@ export default function NewConfigurationPage() {
   const stepParam = searchParams.get("step");
   const { step, setStep, reset, data, updateData } = useCreationWizard();
   const finalizeConfiguration = useMutation(api.databaseConfigs.finalizeConfiguration);
-  const [showScanConfirm, setShowScanConfirm] = useState(false);
 
   // Identity & Persistence
   const { user } = useUser();
@@ -81,29 +54,11 @@ export default function NewConfigurationPage() {
   const syncOrg = useMutation(api.webhooks.syncOrganization);
   const syncUser = useMutation(api.users.storeUser);
   const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
-  const cancelIndexing = useAction(api.embeddings.cancelIndexing);
-  const config = useQuery(api.databaseConfigs.getById, data.configId ? { configId: data.configId as any } : "skip");
 
   // AI & Semantic Logic
-  const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
+  const suggestRelationships = useAction(api.semanticModels.suggestRelationships);
   const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
   const indexConfigSchema = useAction(api.embeddings.indexConfigSchema);
-  
-  const isIndexing = config?.indexingStatus === "processing";
-  const progress = config?.indexingTotal ? Math.round(((config?.indexingProgress || 0) / config.indexingTotal) * 100) : 0;
-
-  // ─── Browser Exit Warning ───
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isIndexing) {
-        e.preventDefault();
-        e.returnValue = "Indexing is still in progress. Closing this tab won't stop the background task. Would you like to cancel it first?";
-        return e.returnValue;
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isIndexing]);
 
   // Auth & Keys for validation
   const { isAuthenticated } = useConvexAuth();
@@ -270,7 +225,6 @@ export default function NewConfigurationPage() {
       });
     } finally {
       setInitializing(false);
-      setShowScanConfirm(false);
     }
   };
 
@@ -281,49 +235,6 @@ export default function NewConfigurationPage() {
   return (
     <Container size="xl" py="4rem">
       <Stack gap="3rem">
-        {/* Indexing Progress Sticky Header */}
-        {isIndexing && (
-          <Box style={{ 
-            position: "fixed", 
-            top: 20, 
-            right: 20, 
-            zIndex: 1000, 
-            width: 350,
-            pointerEvents: "auto"
-          }}>
-            <Paper withBorder p="md" shadow="xl" radius="md" style={{ background: "rgba(26, 27, 30, 0.95)", backdropFilter: "blur(8px)", borderColor: "rgba(147,51,234,0.3)" }}>
-              <Stack gap="xs">
-                <Group justify="space-between">
-                  <Group gap="xs">
-                    <IconLoader2 size={16} className="animate-spin" color="#a855f7" />
-                    <Text size="xs" fw={700} c="white">VECTOR INDEXING ACTIVE</Text>
-                  </Group>
-                  <Tooltip label="Cancel Indexing & Stop Queue">
-                    <ActionIcon 
-                      variant="subtle" 
-                      color="red" 
-                      size="sm" 
-                      onClick={() => {
-                        if (data.configId) {
-                          cancelIndexing({ configId: data.configId as any });
-                          notifications.show({ title: "Indexing Stopped", message: "Background queue has been terminated.", color: "red", icon: <IconX size={14} /> });
-                        }
-                      }}
-                    >
-                      <IconX size={14} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-                <Progress value={progress} color="violet" size="sm" striped animated />
-                <Group justify="space-between">
-                  <Text size="10px" c="dimmed">Processed {config?.indexingProgress} of {config?.indexingTotal} tables</Text>
-                  <Text size="10px" fw={700} c="violet">{progress}%</Text>
-                </Group>
-              </Stack>
-            </Paper>
-          </Box>
-        )}
-
         {/* Navigation Back */}
         <Group>
           <Button
@@ -375,59 +286,10 @@ export default function NewConfigurationPage() {
               <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
 
               <Group justify="flex-end">
-                <Button color="violet" size="md" onClick={() => setShowScanConfirm(true)} loading={initializing} rightSection={<IconArrowRight size={16} />}>
+                <Button color="violet" size="md" onClick={handleInitializeConnection} loading={initializing} rightSection={<IconArrowRight size={16} />}>
                   Connect and Scan Schema
                 </Button>
               </Group>
-
-              {/* Confirmation Modal for Token Usage */}
-              <Modal 
-                opened={showScanConfirm} 
-                onClose={() => setShowScanConfirm(false)} 
-                title="Initialize Semantic Scan"
-                centered
-                radius="md"
-                styles={{
-                  content: { background: "#1a1b1e", border: "1px solid rgba(147,51,234,0.2)" },
-                  header: { background: "#1a1b1e" },
-                  title: { color: "white", fontWeight: 700 }
-                }}
-              >
-                <Stack gap="md">
-                  <Text size="sm" c="dimmed">
-                    Orcha will now establish a secure tunnel to your data source and begin building your 
-                    <Text span c="violet" fw={600}> Semantic Bridge</Text> and 
-                    <Text span c="blue" fw={600}> Vector Memory</Text>.
-                  </Text>
-                  
-                  <Box p="sm" bg="rgba(240,140,0,0.1)" style={{ borderLeft: "4px solid #f08c00", borderRadius: "4px" }}>
-                    <Group gap="xs">
-                      <IconAlertTriangle size={16} color="#f08c00" />
-                      <Text size="xs" fw={600} c="orange.4">Credit Usage Warning</Text>
-                    </Group>
-                    <Text size="xs" c="orange.2" mt={4}>
-                      This process involves automated LLM enrichment and vector indexing which will consume 
-                      API tokens from your configured providers (Gemini, OpenAI, or Local).
-                    </Text>
-                  </Box>
-
-                  <Text size="xs" c="dimmed" fs="italic">
-                    Proceed only if you are ready to initialize this environment's intelligent layer.
-                  </Text>
-
-                  <Group justify="flex-end" mt="md">
-                    <Button variant="subtle" color="gray" onClick={() => setShowScanConfirm(false)}>Cancel</Button>
-                    <Button 
-                      color="violet" 
-                      onClick={handleInitializeConnection} 
-                      loading={initializing}
-                      leftSection={<IconShieldCheck size={16} />}
-                    >
-                      Initialize & Index
-                    </Button>
-                  </Group>
-                </Stack>
-              </Modal>
             </Stack>
           </Stepper.Step>
 

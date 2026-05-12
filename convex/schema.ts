@@ -6,12 +6,12 @@ import { v } from "convex/values";
 // evaluation timeout when compiling the schema in constrained environments.
 
 const SemanticFieldValidator = v.object({
-  columnName: v.string(),  
-  displayName: v.string(), 
+  columnName: v.string(),
+  displayName: v.string(),
   description: v.optional(v.string()),
-  type: v.string(),        
-  aggregation: v.optional(v.string()), 
-  expression: v.optional(v.string()),  
+  type: v.string(),
+  aggregation: v.optional(v.string()),
+  expression: v.optional(v.string()),
   isPrimary: v.optional(v.boolean()),
   isHidden: v.optional(v.boolean()),
 });
@@ -23,7 +23,7 @@ const SpreadsheetSheetValidator = v.object({
   celldata: v.array(v.object({
     r: v.number(),
     c: v.number(),
-    v: v.any(), 
+    v: v.any(),
   })),
   columnlen: v.optional(v.any()),
   rowlen: v.optional(v.any()),
@@ -38,11 +38,11 @@ const SpreadsheetSheetValidator = v.object({
 });
 
 const WidgetMappingValidator = v.object({
-  labelKey: v.string(), 
-  valueKeys: v.array(v.string()), 
+  labelKey: v.string(),
+  valueKeys: v.array(v.string()),
   color: v.optional(v.string()),
   palette: v.optional(v.array(v.string())),
-  seriesColors: v.optional(v.record(v.string(), v.string())), 
+  seriesColors: v.optional(v.record(v.string(), v.string())),
   aggregation: v.optional(v.string()),
 });
 
@@ -326,18 +326,18 @@ export default defineSchema({  // ─── Users ──────────
     type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
     title: v.string(),
     description: v.optional(v.string()),
-    
+
     // Data Hook (The 'Chartio' logic)
     queryId: v.optional(v.id("savedQueries")), // Reference to the SQL query
-    
+
     // Mapping: which query columns map to which chart axis
     mapping: v.optional(WidgetMappingValidator),
-    
+
     // Layout: Full pixel-grid control (react-grid-layout)
     layout: v.optional(WidgetLayoutValidator),
     order: v.number(),
     size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
-    
+
     createdAt: v.number(),
   })
     .index("by_dashboard", ["dashboardId"])
@@ -375,4 +375,3 @@ export default defineSchema({  // ─── Users ──────────
     timestamp: v.number(),
   }).index("by_key_time", ["apiKeyId", "timestamp"]),
 });
-

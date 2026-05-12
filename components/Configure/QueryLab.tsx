@@ -69,7 +69,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>("schema");
 
-  const semanticModels = useQuery(api.semanticModels.listModelsByConfig, currentConfig?._id ? { configId: currentConfig._id } : "skip");
+  const semanticModels = useQuery(api.semanticModels.listModelSummariesByConfig, currentConfig?._id ? { configId: currentConfig._id } : "skip");
 
   const insertAtCursor = (text: string) => {
     setSql(prev => prev + text);
