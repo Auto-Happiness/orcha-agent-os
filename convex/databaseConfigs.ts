@@ -1,4 +1,4 @@
-import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { checkMembership } from "./authUtils";
 
@@ -18,7 +18,7 @@ export const listByOrganization = query({
       .query("databaseConfigs")
       .withIndex("by_org", (q: any) => q.eq("organizationId", args.organizationId))
       .take(100);
-    
+
     return all.filter((config: any) => config.status === "ready" || config.status === undefined);
   },
 });
@@ -67,7 +67,7 @@ export const createOrUpdate = mutation({
     configId: v.optional(v.id("databaseConfigs")),
     organizationId: v.id("organizations"),
     type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb"), v.literal("sqlite")),
-    encryptedUri: v.string(), 
+    encryptedUri: v.string(),
     updatedBy: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -82,7 +82,7 @@ export const createOrUpdate = mutation({
     if (!existing) {
       existing = await ctx.db
         .query("databaseConfigs")
-        .withIndex("by_org_type", (q: any) => 
+        .withIndex("by_org_type", (q: any) =>
           q.eq("organizationId", args.organizationId).eq("type", args.type)
         )
         .first();
@@ -100,7 +100,7 @@ export const createOrUpdate = mutation({
       return await ctx.db.insert("databaseConfigs", {
         organizationId: args.organizationId,
         type: args.type,
-        status: "draft", 
+        status: "draft",
         encryptedUri: args.encryptedUri,
         name: `New ${args.type.charAt(0).toUpperCase() + args.type.slice(1)} Environment`,
         updatedBy: args.updatedBy,
@@ -131,7 +131,7 @@ export const finalizeConfiguration = mutation({
     const { configId, ...updates } = args;
     await ctx.db.patch(configId, {
       ...updates,
-      status: "ready", 
+      status: "ready",
       updatedAt: Date.now(),
     });
     return { success: true };
@@ -218,13 +218,6 @@ export const incrementIndexingProgress = internalMutation({
 });
 
 export const getById = query({
-  args: { configId: v.id("databaseConfigs") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.configId);
-  },
-});
-
-export const internalGetConfig = internalQuery({
   args: { configId: v.id("databaseConfigs") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.configId);

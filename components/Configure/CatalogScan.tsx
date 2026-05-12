@@ -1,28 +1,24 @@
 "use client";
 
-import { 
-  Stack, 
-  Group, 
-  Text, 
-  Box, 
-  Checkbox, 
-  Table, 
-  Badge, 
+import {
+  Stack,
+  Group,
+  Text,
+  Box,
+  Checkbox,
+  Table,
+  Badge,
   ScrollArea,
   Loader,
   rem,
   Paper,
   ActionIcon,
-  Grid,
-  Pagination,
-  TextInput,
-  Select,
+  Grid
 } from "@mantine/core";
-import { 
-  IconTable, 
-  IconChevronDown, 
+import {
+  IconTable,
+  IconChevronDown,
   IconChevronRight,
-  IconSearch,
 } from "@tabler/icons-react";
 import React, { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
@@ -34,30 +30,9 @@ interface CatalogScanProps {
 }
 
 export function CatalogScan({ configId }: CatalogScanProps) {
-  const models = useQuery(api.semanticModels.listModelsByConfig, { configId: configId as any });
+  const models = useQuery(api.semanticModels.listModelSummariesByConfig, { configId: configId as any });
   const { data, updateData } = useCreationWizard();
   const [openedTables, setOpenedTables] = useState<Record<string, boolean>>({});
-  
-  // Pagination & Search State
-  const [search, setSearch] = useState("");
-  const [activePage, setActivePage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<string | null>("15");
-
-  const filteredModels = React.useMemo(() => {
-    if (!models) return [];
-    return models.filter(m => 
-      m.tableName.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [models, search]);
-
-  const pageSize = parseInt(itemsPerPage || "15");
-  const totalPages = Math.ceil(filteredModels.length / pageSize);
-  const paginatedModels = filteredModels.slice((activePage - 1) * pageSize, activePage * pageSize);
-
-  // Reset page when search or pageSize changes
-  useEffect(() => {
-    setActivePage(1);
-  }, [search, itemsPerPage]);
 
   const toggleTable = (tableName: string) => {
     setOpenedTables(prev => ({ ...prev, [tableName]: !prev[tableName] }));
@@ -98,26 +73,16 @@ export function CatalogScan({ configId }: CatalogScanProps) {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-end">
+      <Group justify="space-between">
         <Stack gap={0}>
-          <Text fw={600} size="sm" c="white">Detected Tables ({filteredModels.length}{search && ` / ${models.length}`})</Text>
+          <Text fw={600} size="sm" c="white">Detected Tables ({models.length})</Text>
           <Text size="11px" c="dimmed">Select the tables you want to include in your semantic layer.</Text>
         </Stack>
-        <Group gap="xs">
-          <TextInput 
-            placeholder="Search tables..." 
-            size="xs" 
-            leftSection={<IconSearch size={14} />}
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            styles={{ input: { background: "rgba(0,0,0,0.2)", borderColor: "rgba(147,51,234,0.1)" } }}
-          />
-          <Badge variant="dot" color="violet">{data.selectedTables?.length || 0} selected</Badge>
-        </Group>
+        <Badge variant="dot" color="violet">{data.selectedTables?.length || 0} selected</Badge>
       </Group>
 
-      <Paper withBorder style={{ 
-        background: "rgba(255,255,255,0.01)", 
+      <Paper withBorder style={{
+        background: "rgba(255,255,255,0.01)",
         borderColor: "rgba(147,51,234,0.12)",
         overflow: "hidden"
       }} radius="md">
@@ -126,9 +91,9 @@ export function CatalogScan({ configId }: CatalogScanProps) {
             <Table.Thead style={{ background: "rgba(0,0,0,0.2)", position: "sticky", top: 0, zIndex: 10 }}>
               <Table.Tr style={{ borderColor: "rgba(147,51,234,0.1)" }}>
                 <Table.Th w={40}>
-                  <Checkbox 
-                    size="xs" 
-                    color="violet" 
+                  <Checkbox
+                    size="xs"
+                    color="violet"
                     checked={(data.selectedTables?.length || 0) === models.length && models.length > 0}
                     indeterminate={(data.selectedTables?.length || 0) > 0 && (data.selectedTables?.length || 0) < models.length}
                     onChange={(e) => handleSelectAll(e.currentTarget.checked)}
@@ -141,15 +106,15 @@ export function CatalogScan({ configId }: CatalogScanProps) {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {paginatedModels.map((model) => (
+              {models.map((model) => (
                 <React.Fragment key={model._id}>
-                  <Table.Tr 
+                  <Table.Tr
                     style={{ borderColor: "rgba(147,51,234,0.05)", cursor: "pointer" }}
                   >
                     <Table.Td>
-                      <Checkbox 
-                        size="xs" 
-                        color="violet" 
+                      <Checkbox
+                        size="xs"
+                        color="violet"
                         checked={data.selectedTables?.includes(model.tableName)}
                         onChange={() => handleToggleSelect(model.tableName)}
                         onClick={(e) => e.stopPropagation()}
@@ -168,11 +133,11 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                       <Badge size="xs" variant="light" color="gray">BASE_TABLE</Badge>
                     </Table.Td>
                     <Table.Td ta="right">
-                      <ActionIcon 
-                         variant="transparent" 
-                         color="dimmed" 
-                         size="sm"
-                         onClick={() => toggleTable(model.tableName)}
+                      <ActionIcon
+                        variant="transparent"
+                        color="dimmed"
+                        size="sm"
+                        onClick={() => toggleTable(model.tableName)}
                       >
                         {openedTables[model.tableName] ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                       </ActionIcon>
@@ -180,26 +145,26 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                   </Table.Tr>
                   <Table.Tr style={{ display: openedTables[model.tableName] ? "table-row" : "none", background: "rgba(0,0,0,0.15)" }}>
                     <Table.Td colSpan={5} p={0}>
-                       <Box p="md" pl={rem(60)}>
-                          <Grid>
-                            {model.fields.map((field: any) => (
-                              <Grid.Col span={4} key={field.columnName}>
-                                <Group gap="xs">
-                                  <Box 
-                                    w={6} 
-                                    h={6} 
-                                    style={{ 
-                                      borderRadius: "50%", 
-                                      background: field.type === "measure" ? "#a855f7" : "#3b82f6" 
-                                    }} 
-                                  />
-                                  <Text size="xs" c="dimmed" ff="monospace">{field.columnName}</Text>
-                                  <Text size="10px" c="gray.6">{field.type.toUpperCase()}</Text>
-                                </Group>
-                              </Grid.Col>
-                            ))}
-                          </Grid>
-                       </Box>
+                      <Box p="md" pl={rem(60)}>
+                        <Grid>
+                          {model.fields.map((field: any) => (
+                            <Grid.Col span={4} key={field.columnName}>
+                              <Group gap="xs">
+                                <Box
+                                  w={6}
+                                  h={6}
+                                  style={{
+                                    borderRadius: "50%",
+                                    background: field.type === "measure" ? "#a855f7" : "#3b82f6"
+                                  }}
+                                />
+                                <Text size="xs" c="dimmed" ff="monospace">{field.columnName}</Text>
+                                <Text size="10px" c="gray.6">{field.type.toUpperCase()}</Text>
+                              </Group>
+                            </Grid.Col>
+                          ))}
+                        </Grid>
+                      </Box>
                     </Table.Td>
                   </Table.Tr>
                 </React.Fragment>
@@ -208,30 +173,6 @@ export function CatalogScan({ configId }: CatalogScanProps) {
           </Table>
         </ScrollArea>
       </Paper>
-
-      <Group justify="space-between" mt="md">
-        <Group gap="xs">
-          <Text size="xs" c="dimmed">Show</Text>
-          <Select 
-            size="xs" 
-            w={70}
-            data={["15", "30", "50", "100"]}
-            value={itemsPerPage}
-            onChange={setItemsPerPage}
-            styles={{ input: { background: "rgba(0,0,0,0.2)", borderColor: "rgba(147,51,234,0.1)" } }}
-          />
-          <Text size="xs" c="dimmed">per page</Text>
-        </Group>
-        <Pagination 
-          total={totalPages} 
-          value={activePage} 
-          onChange={setActivePage} 
-          color="violet" 
-          size="sm"
-          radius="md"
-        />
-      </Group>
     </Stack>
   );
 }
-

@@ -110,8 +110,8 @@ export const generateEmbedding = action({
     sysApiKey: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<EmbeddingResult> => {
-    const keyDoc: Doc<"aiKeys"> | null = await ctx.runQuery(api.aiKeys.getByProvider, { 
-      organizationId: args.organizationId, 
+    const keyDoc: Doc<"aiKeys"> | null = await ctx.runQuery(api.aiKeys.getByProvider, {
+      organizationId: args.organizationId,
       provider: args.provider,
       apiKey: args.sysApiKey
     });
@@ -140,30 +140,30 @@ export const indexConfigSchema = action({
     organizationId: v.id("organizations"),
     configId: v.id("databaseConfigs"),
     provider: v.union(v.literal("gemini"), v.literal("openai"), v.literal("local")),
-    apiKey: v.optional(v.string()), 
+    apiKey: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ success: boolean; total: number; providerUsed?: string }> => {
     console.log(`[Embeddings] Orchestrating background indexing for config ${args.configId}`);
-    
+
     // 1. Wait for models to be persisted
     let models: any[] = [];
     for (let i = 0; i < 5; i++) {
-       models = await ctx.runQuery(api.semanticModels.listModelsByConfig, { configId: args.configId });
-       if (models.length > 0) break;
-       await new Promise(r => setTimeout(r, 2000));
+      models = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId });
+      if (models.length > 0) break;
+      await new Promise(r => setTimeout(r, 2000));
     }
 
     if (models.length === 0) return { success: false, total: 0 };
-    
+
     // 2. Resolve provider and key
     let provider = args.provider;
     let resolvedApiKey = args.apiKey;
 
     if (!resolvedApiKey && provider !== "local") {
-      const allKeys = await ctx.runQuery(internal.aiKeys.internalListByOrganization, { 
-        organizationId: args.organizationId 
+      const allKeys = await ctx.runQuery(internal.aiKeys.internalListByOrganization, {
+        organizationId: args.organizationId
       });
-      const fallback = allKeys.find(k => k.provider === "openai" || k.provider === "gemini");
+      const fallback = allKeys.find((k: any) => k.provider === "openai" || k.provider === "gemini");
       if (fallback) {
         provider = fallback.provider as any;
         resolvedApiKey = fallback.keyValue;
@@ -182,7 +182,7 @@ export const indexConfigSchema = action({
       configId: args.configId,
       provider: provider as any,
     });
-    
+
     await ctx.runMutation(internal.databaseConfigs.updateIndexingStatus, {
       configId: args.configId,
       status: "processing",
@@ -219,14 +219,6 @@ export const processEmbeddingBatch = internalAction({
   },
   handler: async (ctx, args) => {
     const { modelIds, batchSize, organizationId, provider, apiKey, configId } = args;
-    
-    // ─── CANCELLATION CHECK ───
-    const config = await ctx.runQuery(internal.databaseConfigs.internalGetConfig, { configId });
-    if (config?.indexingStatus === "cancelled") {
-      console.log(`[Embeddings] Indexing CANCELED for config ${configId}. Stopping queue.`);
-      return;
-    }
-
     const toProcess = modelIds.slice(0, batchSize);
     const remaining = modelIds.slice(batchSize);
 
@@ -295,11 +287,10 @@ export const cancelIndexing = action({
 
     // Best Practice: Wipe partially generated embeddings
     console.log(`[Embeddings] Wiping partial embeddings for cancelled config ${args.configId}`);
-    await ctx.runMutation(internal.semanticModels.clearEmbeddingsForConfig, {
+    await ctx.runAction(internal.semanticModels.clearEmbeddingsForConfig, {
       configId: args.configId,
     });
 
     return { success: true };
   },
 });
-
