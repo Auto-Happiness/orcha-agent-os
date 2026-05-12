@@ -219,6 +219,14 @@ export const processEmbeddingBatch = internalAction({
   },
   handler: async (ctx, args) => {
     const { modelIds, batchSize, organizationId, provider, apiKey, configId } = args;
+    
+    // ─── CANCELLATION CHECK ───
+    const config = await ctx.runQuery(internal.databaseConfigs.internalGetConfig, { configId });
+    if (config?.indexingStatus === "cancelled") {
+      console.log(`[Embeddings] Indexing CANCELED for config ${configId}. Stopping queue.`);
+      return;
+    }
+
     const toProcess = modelIds.slice(0, batchSize);
     const remaining = modelIds.slice(batchSize);
 
@@ -269,5 +277,29 @@ export const processEmbeddingBatch = internalAction({
       });
     }
   }
+});
+
+/**
+ * Public Mutation to stop the indexing process.
+ */
+export const cancelIndexing = action({
+  args: {
+    configId: v.id("databaseConfigs"),
+  },
+  handler: async (ctx, args) => {
+    console.log(`[Embeddings] Requesting cancellation for config ${args.configId}`);
+    await ctx.runMutation(internal.databaseConfigs.updateIndexingStatus, {
+      configId: args.configId,
+      status: "cancelled",
+    });
+
+    // Best Practice: Wipe partially generated embeddings
+    console.log(`[Embeddings] Wiping partial embeddings for cancelled config ${args.configId}`);
+    await ctx.runMutation(internal.semanticModels.clearEmbeddingsForConfig, {
+      configId: args.configId,
+    });
+
+    return { success: true };
+  },
 });
 

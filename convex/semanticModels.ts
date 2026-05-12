@@ -418,3 +418,28 @@ export const updateModelEmbedding = internalMutation({
     await ctx.db.patch(args.id, update);
   },
 });
+
+/**
+ * Clears all embeddings for a specific config when indexing is cancelled.
+ * This is a best practice to prevent stale or partial vector data from 
+ * corrupting future semantic searches.
+ */
+export const clearEmbeddingsForConfig = internalMutation({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    const models = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+    
+    // Clear all embedding fields to reset the state
+    for (const model of models) {
+      await ctx.db.patch(model._id, {
+        embedding_768: undefined,
+        embedding_1024: undefined,
+        embedding_1536: undefined,
+        updatedAt: Date.now(),
+      });
+    }
+  }
+});

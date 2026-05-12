@@ -1,4 +1,4 @@
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { checkMembership } from "./authUtils";
 
@@ -187,7 +187,7 @@ export const internalUpdateMemoryProvider = internalMutation({
 export const updateIndexingStatus = internalMutation({
   args: {
     configId: v.id("databaseConfigs"),
-    status: v.union(v.literal("idle"), v.literal("processing"), v.literal("completed")),
+    status: v.union(v.literal("idle"), v.literal("processing"), v.literal("completed"), v.literal("cancelled")),
     total: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -218,6 +218,13 @@ export const incrementIndexingProgress = internalMutation({
 });
 
 export const getById = query({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.configId);
+  },
+});
+
+export const internalGetConfig = internalQuery({
   args: { configId: v.id("databaseConfigs") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.configId);
