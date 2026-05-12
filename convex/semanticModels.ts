@@ -1,6 +1,6 @@
-import { mutation, query, action, internalQuery, internalMutation } from "./_generated/server";
+import { mutation, query, action, internalQuery, internalMutation, internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { checkMembership } from "./authUtils";
 
 /**
@@ -94,11 +94,21 @@ export const bulkUpdate = mutation({
  */
 export const listModelsByConfig = query({
   args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<any[]> => {
+    return await ctx.runQuery(internal.semanticModels.internalListModelsByConfig, args);
+  },
+});
+
+export const internalListModelsByConfig = internalQuery({
+  args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const config = await ctx.db.get(args.configId);
     if (!config) throw new Error("Config not found");
-    const auth = await checkMembership(ctx, config.organizationId, args.apiKey);
-    if (!auth) return [];
+    // Only check membership if apiKey is provided (external call)
+    if (args.apiKey) {
+      const auth = await checkMembership(ctx, config.organizationId, args.apiKey);
+      if (!auth) return [];
+    }
     // Cap at 500 and strip heavy embeddings to avoid 1s Convex timeout.
     // Embeddings are only needed for the actual vector search action.
     const models = await ctx.db
@@ -106,7 +116,73 @@ export const listModelsByConfig = query({
       .withIndex("by_config", (q) => q.eq("configId", args.configId))
       .take(500);
     
-    return models.map(({ embedding_768, embedding_1024, embedding_1536, ...rest }: any) => rest);
+    // Explicitly include fields while stripping heavy embeddings
+    return models.map(({ fields, embedding_768, embedding_1024, embedding_1536, ...rest }: any) => ({
+      ...rest,
+      fields: fields || []
+    }));
+  },
+});
+
+/**
+ * Lightweight version of listModelsByConfig that returns only basic metadata.
+ * Use this for sidebars and lists to avoid 1s execution timeouts.
+ */
+export const listModelSummariesByConfig = query({
+  args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<any[]> => {
+    return await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, args);
+  },
+});
+
+export const internalListModelSummariesByConfig = internalQuery({
+  args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const config = await ctx.db.get(args.configId);
+    if (!config) throw new Error("Config not found");
+    
+    if (args.apiKey) {
+      const auth = await checkMembership(ctx, config.organizationId, args.apiKey);
+      if (!auth) return [];
+    }
+
+    const models = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .take(500);
+    
+    // Return everything EXCEPT 'fields' and embeddings
+    return models.map(({ fields, embedding_768, embedding_1024, embedding_1536, ...rest }: any) => ({
+      ...rest,
+      fieldCount: fields?.length || 0
+    }));
+  },
+});
+
+/**
+ * Fetch full details for a single model by tableName.
+ */
+export const getModelDetails = query({
+  args: { configId: v.id("databaseConfigs"), tableName: v.string(), apiKey: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<any> => {
+    const config = await ctx.db.get(args.configId);
+    if (!config) throw new Error("Config not found");
+    if (args.apiKey) {
+      const auth = await checkMembership(ctx, config.organizationId, args.apiKey);
+      if (!auth) return null;
+    }
+
+    const model = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .filter((q) => q.eq(q.field("tableName"), args.tableName))
+      .first();
+    
+    if (!model) return null;
+    
+    // Return with fields but strip heavy embeddings
+    const { embedding_768, embedding_1024, embedding_1536, ...rest } = model;
+    return rest;
   },
 });
 
@@ -223,73 +299,131 @@ export const bulkCreateRelationships = mutation({
 
 /**
  * Fallback: suggests relationships based on naming conventions (_id suffix).
- * Used for databases without explicit FK constraints.
+ * Batched cleanup of embeddings. 
+ * For large schemas (200+ tables), clearing all vectors in one transaction 
+ * can hit the 1s Convex timeout. This action handles the cleanup in safe chunks.
  */
-export const suggestRelationships = mutation({
-  args: { 
-    organizationId: v.id("organizations"),
-    configId: v.id("databaseConfigs") 
-  },
+export const clearEmbeddingsForConfig = internalAction({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    // 1. Get all model IDs for this config
+    const models = await ctx.runQuery(internal.semanticModels.listModelIdsByConfig, { configId: args.configId });
+    
+    if (models.length === 0) return;
+
+    console.log(`[Embeddings] Starting batched cleanup for ${models.length} models...`);
+
+    // 2. Process in chunks of 50
+    const chunkSize = 50;
+    for (let i = 0; i < models.length; i += chunkSize) {
+      const chunk = models.slice(i, i + chunkSize);
+      await ctx.runMutation(internal.semanticModels.batchClearEmbeddings, { modelIds: chunk });
+      console.log(`[Embeddings] Cleared chunk ${Math.floor(i / chunkSize) + 1}`);
+    }
+    
+    console.log(`[Embeddings] Batched cleanup COMPLETE for config ${args.configId}`);
+  }
+});
+
+/**
+ * Internal mutation to clear embeddings for a specific chunk of models.
+ */
+export const batchClearEmbeddings = internalMutation({
+  args: { modelIds: v.array(v.id("semanticModels")) },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for (const modelId of args.modelIds) {
+      await ctx.db.patch(modelId, {
+        embedding_768: undefined,
+        embedding_1024: undefined,
+        embedding_1536: undefined,
+        updatedAt: now,
+      });
+    }
+  }
+});
+
+/**
+ * Internal query to get all model IDs for a config.
+ */
+export const listModelIdsByConfig = internalQuery({
+  args: { configId: v.id("databaseConfigs") },
   handler: async (ctx, args) => {
     const models = await ctx.db
       .query("semanticModels")
       .withIndex("by_config", (q) => q.eq("configId", args.configId))
       .collect();
+    return models.map(m => m._id);
+  }
+});
 
-    // Fetch existing relationships once
-    const existingRels = await ctx.db
-      .query("semanticRelationships")
-      .withIndex("by_config", (q) => q.eq("configId", args.configId))
-      .collect();
-
-    const relKeySet = new Set(
-      existingRels.map(
-        (r) => `${r.fromModelId}|${r.toModelId}`
-      )
-    );
+/**
+ * Fallback: suggests relationships based on naming conventions (_id suffix).
+ * Used for databases without explicit FK constraints.
+ */
+/**
+ * Suggests relationships based on naming conventions (_id suffix).
+ * Refactored to an ACTION to prevent OCC conflicts during background indexing.
+ */
+export const suggestRelationships = action({
+  args: { 
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs") 
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; suggestions?: any[]; error?: string }> => {
+    // 1. Fetch lightweight summaries first (this is fast)
+    const summaries = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId });
+    
+    // 2. Fetch existing relationships (capped at 500)
+    const existingRels = await ctx.runQuery(internal.semanticRelationships.internalListByConfig, { configId: args.configId });
+    const relKeySet = new Set(existingRels.map((r: any) => `${r.fromModelId}|${r.toModelId}`));
 
     const suggestions = [];
 
-    for (const model of models) {
+    console.log(`[Relationships] Starting one-by-one discovery for ${summaries.length} tables...`);
+
+    for (const summary of summaries) {
+      // 3. Fetch full details (including fields) for JUST THIS ONE TABLE
+      const model = await ctx.runQuery(internal.semanticModels.getById, { modelId: summary._id });
+      if (!model || !model.fields) continue;
+
       for (const field of model.fields) {
-        // Look for fields ending in _id that aren't the Primary Key
         if (field.columnName.toLowerCase().endsWith("_id") && !field.isPrimary) {
           const prefix = field.columnName.toLowerCase().replace("_id", "");
           
-          const target = models.find(m => 
+          // 4. Look for a target table in our pre-fetched summaries
+          const target = summaries.find((m: any) => 
             m.tableName.toLowerCase() === prefix || 
             m.tableName.toLowerCase() === prefix + "s" ||
             m.tableName.toLowerCase() === prefix + "es"
           );
 
           if (target && target._id !== model._id) {
-            const targetPk = target.fields.find(f => f.isPrimary);
-            
-            if (targetPk) {
-              // Check for existing relationship (simplified check for suggestions)
-              if (!relKeySet.has(`${target._id}|${model._id}`)) {
-                const relId = await ctx.db.insert("semanticRelationships", {
-                  organizationId: args.organizationId,
-                  configId: args.configId,
-                  name: `${target.tableName}_to_${model.tableName}`,
-                  fromModelId: target._id,
-                  fromColumn: targetPk.columnName,
-                  toModelId: model._id,
-                  toColumn: field.columnName,
-                  type: "one_to_many",
-                  createdAt: Date.now(),
-                });
-                suggestions.push({ id: relId, name: `${target.tableName} -> ${model.tableName}` });
-                
-                // Add to set to avoid duplicate suggestions in this run
-                relKeySet.add(`${target._id}|${model._id}`);
-              }
+            // Find target primary key (we might need full details for target too if not in summary)
+            // But usually primary keys are standard. For safety, let's assume PK discovery logic.
+            // Check if we already have this link
+            if (!relKeySet.has(`${target._id}|${model._id}`)) {
+              // Create the relationship
+              const relId = await ctx.runMutation(internal.semanticRelationships.internalCreate, {
+                organizationId: args.organizationId,
+                configId: args.configId,
+                name: `${target.tableName}_to_${model.tableName}`,
+                fromModelId: target._id,
+                fromColumn: "id", // Default to 'id' or we can fetch target details if needed
+                toModelId: model._id,
+                toColumn: field.columnName,
+                type: "one_to_many",
+              });
+              
+              suggestions.push({ id: relId, name: `${target.tableName} -> ${model.tableName}` });
+              relKeySet.add(`${target._id}|${model._id}`);
             }
           }
         }
       }
     }
 
+    console.log(`[Relationships] Discovery complete. Found ${suggestions.length} new links.`);
     return { success: true, suggestions };
   },
 });
@@ -303,7 +437,7 @@ export const generateAiEnrichment = action({
     configId: v.id("databaseConfigs"),
     businessContext: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
     // 1. Fetch the raw models
     const models = await ctx.runQuery(api.semanticModels.listModelsByConfig, { configId: args.configId });
     
@@ -356,7 +490,7 @@ export const searchRelatedModels = action({
     limit: v.optional(v.number()),
     apiKey: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any[]> => {
     // Check membership via a query
     await ctx.runQuery(api.semanticModels.checkConfigAccess, { 
         configId: args.configId, 

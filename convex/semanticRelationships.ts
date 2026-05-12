@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { query, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { checkMembership } from "./authUtils";
 
@@ -16,6 +16,41 @@ export const listByConfig = query({
     return await ctx.db
       .query("semanticRelationships")
       .withIndex("by_config", (q) => q.eq("configId", args.configId))
-      .collect();
+      .take(500);
+  },
+});
+
+/**
+ * Internal query for background workers.
+ */
+export const internalListByConfig = internalQuery({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("semanticRelationships")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .take(500);
+  },
+});
+
+/**
+ * Internal mutation to create a relationship without full auth check.
+ */
+export const internalCreate = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    name: v.string(),
+    fromModelId: v.id("semanticModels"),
+    fromColumn: v.string(),
+    toModelId: v.id("semanticModels"),
+    toColumn: v.string(),
+    type: v.union(v.literal("one_to_one"), v.literal("one_to_many"), v.literal("many_to_one")),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("semanticRelationships", {
+      ...args,
+      createdAt: Date.now(),
+    });
   },
 });

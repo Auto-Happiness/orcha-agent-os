@@ -131,7 +131,7 @@ export default defineSchema({  // ─── Users ──────────
     memoryProvider: v.optional(v.union(v.literal("openai"), v.literal("gemini"), v.literal("local"))),
     indexingTotal: v.optional(v.number()),
     indexingProgress: v.optional(v.number()),
-    indexingStatus: v.optional(v.union(v.literal("idle"), v.literal("processing"), v.literal("completed"))),
+    indexingStatus: v.optional(v.union(v.literal("idle"), v.literal("processing"), v.literal("completed"), v.literal("cancelled"))),
     updatedBy: v.id("users"),
     updatedAt: v.number(),
   }).index("by_org", ["organizationId"])

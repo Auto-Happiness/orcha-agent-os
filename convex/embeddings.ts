@@ -148,7 +148,7 @@ export const indexConfigSchema = action({
     // 1. Wait for models to be persisted
     let models: any[] = [];
     for (let i = 0; i < 5; i++) {
-       models = await ctx.runQuery(api.semanticModels.listModelsByConfig, { configId: args.configId });
+       models = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId });
        if (models.length > 0) break;
        await new Promise(r => setTimeout(r, 2000));
     }
@@ -163,7 +163,7 @@ export const indexConfigSchema = action({
       const allKeys = await ctx.runQuery(internal.aiKeys.internalListByOrganization, { 
         organizationId: args.organizationId 
       });
-      const fallback = allKeys.find(k => k.provider === "openai" || k.provider === "gemini");
+      const fallback = allKeys.find((k: any) => k.provider === "openai" || k.provider === "gemini");
       if (fallback) {
         provider = fallback.provider as any;
         resolvedApiKey = fallback.keyValue;
@@ -271,3 +271,26 @@ export const processEmbeddingBatch = internalAction({
   }
 });
 
+/**
+ * Public Mutation to stop the indexing process.
+ */
+export const cancelIndexing = action({
+  args: {
+    configId: v.id("databaseConfigs"),
+  },
+  handler: async (ctx, args) => {
+    console.log(`[Embeddings] Requesting cancellation for config ${args.configId}`);
+    await ctx.runMutation(internal.databaseConfigs.updateIndexingStatus, {
+      configId: args.configId,
+      status: "cancelled",
+    });
+
+    // Best Practice: Wipe partially generated embeddings
+    console.log(`[Embeddings] Wiping partial embeddings for cancelled config ${args.configId}`);
+    await ctx.runAction(internal.semanticModels.clearEmbeddingsForConfig, {
+      configId: args.configId,
+    });
+
+    return { success: true };
+  },
+});

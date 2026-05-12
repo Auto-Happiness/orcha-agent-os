@@ -187,7 +187,7 @@ export const internalUpdateMemoryProvider = internalMutation({
 export const updateIndexingStatus = internalMutation({
   args: {
     configId: v.id("databaseConfigs"),
-    status: v.union(v.literal("idle"), v.literal("processing"), v.literal("completed")),
+    status: v.union(v.literal("idle"), v.literal("processing"), v.literal("completed"), v.literal("cancelled")),
     total: v.optional(v.number()),
   },
   handler: async (ctx, args) => {

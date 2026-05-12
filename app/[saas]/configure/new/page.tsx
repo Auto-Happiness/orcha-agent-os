@@ -56,7 +56,7 @@ export default function NewConfigurationPage() {
   const saveConfig = useMutation(api.databaseConfigs.createOrUpdate);
 
   // AI & Semantic Logic
-  const suggestRelationships = useMutation(api.semanticModels.suggestRelationships);
+  const suggestRelationships = useAction(api.semanticModels.suggestRelationships);
   const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
   const indexConfigSchema = useAction(api.embeddings.indexConfigSchema);
 

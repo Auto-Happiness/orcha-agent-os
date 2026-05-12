@@ -30,7 +30,7 @@ interface CatalogScanProps {
 }
 
 export function CatalogScan({ configId }: CatalogScanProps) {
-  const models = useQuery(api.semanticModels.listModelsByConfig, { configId: configId as any });
+  const models = useQuery(api.semanticModels.listModelSummariesByConfig, { configId: configId as any });
   const { data, updateData } = useCreationWizard();
   const [openedTables, setOpenedTables] = useState<Record<string, boolean>>({});
 
