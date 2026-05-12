@@ -124,38 +124,45 @@ export const internalListModelsByConfig = internalQuery({
   },
 });
 
-/**
- * Lightweight version of listModelsByConfig that returns only basic metadata.
- * Use this for sidebars and lists to avoid 1s execution timeouts.
- */
 export const listModelSummariesByConfig = query({
-  args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
-  handler: async (ctx, args): Promise<any[]> => {
+  args: { 
+    configId: v.id("databaseConfigs"), 
+    apiKey: v.optional(v.string()),
+    paginationOpts: v.any() // paginationOpts comes from usePaginatedQuery
+  },
+  handler: async (ctx, args): Promise<any> => {
     return await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, args);
   },
 });
 
 export const internalListModelSummariesByConfig = internalQuery({
-  args: { configId: v.id("databaseConfigs"), apiKey: v.optional(v.string()) },
+  args: { 
+    configId: v.id("databaseConfigs"), 
+    apiKey: v.optional(v.string()),
+    paginationOpts: v.any()
+  },
   handler: async (ctx, args) => {
     const config = await ctx.db.get(args.configId);
     if (!config) throw new Error("Config not found");
 
     if (args.apiKey) {
       const auth = await checkMembership(ctx, config.organizationId, args.apiKey);
-      if (!auth) return [];
+      if (!auth) return { page: [], isDone: true, continueCursor: "" };
     }
 
-    const models = await ctx.db
+    const paginated = await ctx.db
       .query("semanticModels")
       .withIndex("by_config", (q) => q.eq("configId", args.configId))
-      .take(500);
+      .paginate(args.paginationOpts);
 
     // Return everything EXCEPT 'fields' and embeddings
-    return models.map(({ fields, embedding_768, embedding_1024, embedding_1536, ...rest }: any) => ({
-      ...rest,
-      fieldCount: fields?.length || 0
-    }));
+    return {
+      ...paginated,
+      page: paginated.page.map(({ fields, embedding_768, embedding_1024, embedding_1536, ...rest }: any) => ({
+        ...rest,
+        fieldCount: fields?.length || 0
+      }))
+    };
   },
 });
 
@@ -372,7 +379,7 @@ export const suggestRelationships = action({
   },
   handler: async (ctx, args): Promise<{ success: boolean; suggestions?: any[]; error?: string }> => {
     // 1. Fetch lightweight summaries first (this is fast)
-    const summaries = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId });
+    const summaries = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId, paginationOpts: { numItems: 1000, cursor: null } });
 
     // 2. Fetch existing relationships (capped at 500)
     const existingRels = await ctx.runQuery(internal.semanticRelationships.internalListByConfig, { configId: args.configId });
@@ -380,9 +387,9 @@ export const suggestRelationships = action({
 
     const suggestions = [];
 
-    console.log(`[Relationships] Starting one-by-one discovery for ${summaries.length} tables...`);
+    console.log(`[Relationships] Starting one-by-one discovery for ${summaries.page.length} tables...`);
 
-    for (const summary of summaries) {
+    for (const summary of summaries.page) {
       // 3. Fetch full details (including fields) for JUST THIS ONE TABLE
       const model = await ctx.runQuery(internal.semanticModels.getById, { modelId: summary._id });
       if (!model || !model.fields) continue;
@@ -392,7 +399,7 @@ export const suggestRelationships = action({
           const prefix = field.columnName.toLowerCase().replace("_id", "");
 
           // 4. Look for a target table in our pre-fetched summaries
-          const target = summaries.find((m: any) =>
+          const target = summaries.page.find((m: any) =>
             m.tableName.toLowerCase() === prefix ||
             m.tableName.toLowerCase() === prefix + "s" ||
             m.tableName.toLowerCase() === prefix + "es"
@@ -550,5 +557,102 @@ export const updateModelEmbedding = internalMutation({
     }
 
     await ctx.db.patch(args.id, update);
+  },
+});
+/**
+ * Stage 2 of O(1) Semantic Retrieval:
+ * Given a set of matched model IDs, this query resolves 1st-degree foreign key connections,
+ * and fetches the full schemas (without embeddings) for all relevant tables.
+ */
+export const getRelatedModelsContext = internalQuery({
+  args: { configId: v.id("databaseConfigs"), matchedIds: v.array(v.id("semanticModels")) },
+  handler: async (ctx, args): Promise<{ models: any[], relationships: any[] }> => {
+    const matchedSet = new Set(args.matchedIds);
+    const requiredIds = new Set(args.matchedIds);
+
+    // 1. Fetch all relationships for this config
+    const relationships = await ctx.db
+      .query("semanticRelationships")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+
+    // 2. Resolve 1st-degree connections
+    const relevantRelationships = [];
+    for (const rel of relationships) {
+      if (matchedSet.has(rel.fromModelId) || matchedSet.has(rel.toModelId)) {
+        requiredIds.add(rel.fromModelId);
+        requiredIds.add(rel.toModelId);
+        relevantRelationships.push(rel);
+      }
+    }
+
+    // 3. Fetch full schemas for the required tables
+    const models = [];
+    for (const modelId of requiredIds) {
+      const model = await ctx.db.get(modelId);
+      if (model) {
+        // Strip heavy embeddings before returning to Edge function
+        const { embedding_768, embedding_1024, embedding_1536, ...rest } = model;
+        models.push(rest);
+      }
+    }
+
+    return { models, relationships: relevantRelationships };
+  },
+});
+
+/**
+ * Stage 1 of O(1) Semantic Retrieval:
+ * This action performs the vector search (top 10), then calls the internal query
+ * to resolve foreign keys and fetch the clean schema.
+ */
+export const retrieveSchemaContext = action({
+  args: {
+    configId: v.id("databaseConfigs"),
+    embedding: v.array(v.float64()),
+    indexName: v.union(
+      v.literal("by_embedding_768"),
+      v.literal("by_embedding_1024"),
+      v.literal("by_embedding_1536")
+    ),
+    limit: v.optional(v.number()),
+    apiKey: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ models: any[], relationships: any[] }> => {
+    // Check membership
+    await ctx.runQuery(api.semanticModels.checkConfigAccess, {
+      configId: args.configId,
+      apiKey: args.apiKey
+    });
+
+    try {
+      // 1. Vector Search
+      const searchResults = await ctx.vectorSearch("semanticModels", args.indexName, {
+        vector: args.embedding,
+        filter: (q) => q.eq("configId", args.configId),
+        limit: args.limit || 15,
+      });
+
+      if (searchResults.length === 0) {
+        return { models: [], relationships: [] };
+      }
+
+      const matchedIds = searchResults.map((r) => r._id);
+
+      // 2. Fetch dependencies and schemas via internal query
+      const context = await ctx.runQuery(internal.semanticModels.getRelatedModelsContext, {
+        configId: args.configId,
+        matchedIds,
+      });
+
+      return context;
+
+    } catch (err: any) {
+      if (err.message?.includes("bootstrapping")) {
+        console.warn("[VectorSearch] Index is bootstrapping, returning empty context.");
+        return { models: [], relationships: [] };
+      }
+      throw err;
+    }
   },
 });

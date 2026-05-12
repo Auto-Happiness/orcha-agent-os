@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Grid,
   Stack,
@@ -32,7 +32,8 @@ import {
   IconTrash
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, usePaginatedQuery } from "convex/react";
+import { useIntersection } from "@mantine/hooks";
 import { api } from "@/convex/_generated/api";
 import { inputStyles } from "@/lib/styles";
 import dynamic from "next/dynamic";
@@ -69,7 +70,23 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>("schema");
 
-  const semanticModels = useQuery(api.semanticModels.listModelSummariesByConfig, currentConfig?._id ? { configId: currentConfig._id } : "skip");
+  const { results: semanticModels, status: modelsStatus, loadMore: loadMoreModels } = usePaginatedQuery(
+    api.semanticModels.listModelSummariesByConfig, 
+    currentConfig?._id ? { configId: currentConfig._id } : "skip",
+    { initialNumItems: 50 }
+  );
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { ref: sentinelRef, entry } = useIntersection({
+    root: containerRef.current,
+    threshold: 0.1,
+  });
+
+  useEffect(() => {
+    if (entry?.isIntersecting && modelsStatus === "CanLoadMore") {
+      loadMoreModels(50);
+    }
+  }, [entry, modelsStatus]);
 
   const insertAtCursor = (text: string) => {
     setSql(prev => prev + text);
@@ -368,7 +385,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                   leftSection={<IconSearch size={12} />}
                 />
 
-                <ScrollArea h={600}>
+                <ScrollArea h={600} offsetScrollbars viewportRef={containerRef}>
                   <Accordion variant="separated" styles={{
                     item: { border: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)", marginBottom: "4px" },
                     control: { padding: "8px 12px" },
@@ -396,7 +413,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                               Use Table
                             </Button>
                             <Divider label="Columns" labelPosition="center" styles={{ label: { fontSize: '9px', opacity: 0.5 } }} mb={4} />
-                            {model.fields.map((f: any) => (
+                            {(model.fields || []).map((f: any) => (
                               <Group key={f.columnName} justify="space-between" wrap="nowrap" style={{
                                 padding: "4px 8px",
                                 borderRadius: "4px",
@@ -411,6 +428,11 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                         </Accordion.Panel>
                       </Accordion.Item>
                     ))}
+                    {modelsStatus === "CanLoadMore" && (
+                      <Center py="md" ref={sentinelRef}>
+                        <Loader size="xs" color="violet" />
+                      </Center>
+                    )}
                   </Accordion>
                 </ScrollArea>
               </Stack>

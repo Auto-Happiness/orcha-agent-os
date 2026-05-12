@@ -30,8 +30,9 @@ import {
   IconSettings,
   IconChartDots
 } from "@tabler/icons-react";
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useQuery, useMutation, useAction, usePaginatedQuery } from "convex/react";
+import { useIntersection } from "@mantine/hooks";
 import { api } from "@/convex/_generated/api";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 import { notifications } from "@mantine/notifications";
@@ -46,12 +47,30 @@ interface SemanticBridgeProps {
 export function SemanticBridge({ configId }: SemanticBridgeProps) {
   const { saas } = useParams();
   const activeOrg = useQuery(api.organizations.getSafeBySlug, { slug: saas as string });
-  const modelsSummaries = useQuery(api.semanticModels.listModelSummariesByConfig, { configId: configId as any });
+  const { results: modelsSummaries, status: modelsStatus, loadMore: loadMoreModels } = usePaginatedQuery(
+    api.semanticModels.listModelSummariesByConfig, 
+    { configId: configId as any },
+    { initialNumItems: 50 }
+  );
+  
   const [sidebarSearch, setSidebarSearch] = useState("");
   const relationships = useQuery(api.semanticRelationships.listByConfig, { configId: configId as any });
   const { data, updateData } = useCreationWizard();
 
   const [viewMode, setViewMode] = useState<string>("list");
+
+  // Infinite Scroll Sentinel
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { ref: sentinelRef, entry } = useIntersection({
+    root: containerRef.current,
+    threshold: 0.1,
+  });
+
+  useEffect(() => {
+    if (entry?.isIntersecting && modelsStatus === "CanLoadMore") {
+      loadMoreModels(50);
+    }
+  }, [entry, modelsStatus]);
 
   // Only show models that were selected in the previous step
   // If in edit mode (data.selectedTables is empty), show all models for this config
@@ -182,7 +201,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
 
               <Box>
                 <Text size="xs" fw={700} c="dimmed" px="xs" mb={8} style={{ textTransform: "uppercase", letterSpacing: rem(1) }}>Selected Models</Text>
-                <ScrollArea h={500} offsetScrollbars>
+                <ScrollArea h={500} offsetScrollbars viewportRef={containerRef}>
                   <Stack gap="xs" pr="xs">
                     {models.map(m => (
                       <Paper
@@ -207,6 +226,13 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                         </Group>
                       </Paper>
                     ))}
+
+                    {/* Infinite Scroll Sentinel */}
+                    {modelsStatus === "CanLoadMore" && (
+                      <Center py="md" ref={sentinelRef}>
+                        <Loader size="xs" color="violet" />
+                      </Center>
+                    )}
                   </Stack>
                 </ScrollArea>
               </Box>

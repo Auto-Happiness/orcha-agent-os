@@ -148,7 +148,8 @@ export const indexConfigSchema = action({
     // 1. Wait for models to be persisted
     let models: any[] = [];
     for (let i = 0; i < 5; i++) {
-      models = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId });
+      const res = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId, paginationOpts: { numItems: 1000, cursor: null } });
+      models = res.page;
       if (models.length > 0) break;
       await new Promise(r => setTimeout(r, 2000));
     }

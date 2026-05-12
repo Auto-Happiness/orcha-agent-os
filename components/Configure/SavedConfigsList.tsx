@@ -29,6 +29,7 @@ import {
   Modal,
   Alert
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   IconSearch,
   IconFilter,
@@ -83,6 +84,13 @@ export function SavedConfigsList() {
     if (aiKeys === undefined) return;
 
     if (aiKeys.length === 0) {
+      notifications.show({
+        title: "Intelligence Layer Required",
+        message: "Please add an LLM API key (OpenAI, Gemini, or Local) in settings to begin creating your environment.",
+        color: "violet",
+        icon: <IconAlertCircle size={18} />,
+        autoClose: 5000,
+      });
       setShowKeyWarning(true);
       return;
     }
@@ -135,14 +143,21 @@ export function SavedConfigsList() {
           <IconDatabase size={48} color="rgba(147,51,234,0.3)" />
           <Text fw={600} c="white">No active environments found</Text>
           <Text size="xs" c="dimmed" mb="md">Connect your first database to start building your semantic bridge.</Text>
-          <Button
-            onClick={handleNewConfig}
-            variant="light"
-            color="violet"
-            leftSection={<IconPlus size={16} />}
+          <Tooltip 
+            label="Please add an API key in organization settings to create an environment" 
+            disabled={aiKeys && aiKeys.length > 0}
+            position="bottom"
+            withArrow
           >
-            Create Environment
-          </Button>
+            <Button
+              onClick={handleNewConfig}
+              variant="light"
+              color="violet"
+              leftSection={<IconPlus size={16} />}
+            >
+              Create Environment
+            </Button>
+          </Tooltip>
         </Stack>
       </Paper>
     );
@@ -191,14 +206,21 @@ export function SavedConfigsList() {
           />
         </Group>
 
-        <Button
-          onClick={handleNewConfig}
-          variant="light"
-          color="violet"
-          leftSection={<IconPlus size={16} />}
+        <Tooltip 
+          label="API Key Required" 
+          disabled={aiKeys && aiKeys.length > 0}
+          position="left"
+          withArrow
         >
-          New Configuration
-        </Button>
+          <Button
+            onClick={handleNewConfig}
+            variant="light"
+            color="violet"
+            leftSection={<IconPlus size={16} />}
+          >
+            New Configuration
+          </Button>
+        </Tooltip>
       </Group>
 
       <Paper withBorder style={{
