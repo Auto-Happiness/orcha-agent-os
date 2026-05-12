@@ -20,8 +20,9 @@ import {
   IconChevronDown,
   IconChevronRight,
 } from "@tabler/icons-react";
-import React, { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
+import React, { useState, useEffect, useRef } from "react";
+import { useQuery, usePaginatedQuery } from "convex/react";
+import { useIntersection } from "@mantine/hooks";
 import { api } from "@/convex/_generated/api";
 import { useCreationWizard } from "@/lib/store/useCreationWizard";
 
@@ -30,9 +31,26 @@ interface CatalogScanProps {
 }
 
 export function CatalogScan({ configId }: CatalogScanProps) {
-  const models = useQuery(api.semanticModels.listModelSummariesByConfig, { configId: configId as any });
+  const { results: models, status: modelsStatus, loadMore: loadMoreModels } = usePaginatedQuery(
+    api.semanticModels.listModelSummariesByConfig, 
+    { configId: configId as any },
+    { initialNumItems: 100 }
+  );
+
   const { data, updateData } = useCreationWizard();
   const [openedTables, setOpenedTables] = useState<Record<string, boolean>>({});
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { ref: sentinelRef, entry } = useIntersection({
+    root: containerRef.current,
+    threshold: 0.1,
+  });
+
+  useEffect(() => {
+    if (entry?.isIntersecting && modelsStatus === "CanLoadMore") {
+      loadMoreModels(100);
+    }
+  }, [entry, modelsStatus]);
 
   const toggleTable = (tableName: string) => {
     setOpenedTables(prev => ({ ...prev, [tableName]: !prev[tableName] }));
@@ -86,7 +104,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
         borderColor: "rgba(147,51,234,0.12)",
         overflow: "hidden"
       }} radius="md">
-        <ScrollArea h={500}>
+        <ScrollArea h={600} offsetScrollbars viewportRef={containerRef}>
           <Table verticalSpacing="sm" highlightOnHover>
             <Table.Thead style={{ background: "rgba(0,0,0,0.2)", position: "sticky", top: 0, zIndex: 10 }}>
               <Table.Tr style={{ borderColor: "rgba(147,51,234,0.1)" }}>
@@ -127,7 +145,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                       </Group>
                     </Table.Td>
                     <Table.Td onClick={() => toggleTable(model.tableName)}>
-                      <Text size="xs" c="dimmed">{model.fields.length} columns</Text>
+                      <Text size="xs" c="dimmed">{model.fieldCount || 0} columns</Text>
                     </Table.Td>
                     <Table.Td onClick={() => toggleTable(model.tableName)}>
                       <Badge size="xs" variant="light" color="gray">BASE_TABLE</Badge>
@@ -147,7 +165,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                     <Table.Td colSpan={5} p={0}>
                       <Box p="md" pl={rem(60)}>
                         <Grid>
-                          {model.fields.map((field: any) => (
+                          {(model.fields || []).map((field: any) => (
                             <Grid.Col span={4} key={field.columnName}>
                               <Group gap="xs">
                                 <Box
@@ -169,6 +187,13 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                   </Table.Tr>
                 </React.Fragment>
               ))}
+              {modelsStatus === "CanLoadMore" && (
+                <Table.Tr>
+                  <Table.Td colSpan={5} ta="center" py="md" ref={sentinelRef}>
+                    <Loader size="sm" color="violet" />
+                  </Table.Td>
+                </Table.Tr>
+              )}
             </Table.Tbody>
           </Table>
         </ScrollArea>

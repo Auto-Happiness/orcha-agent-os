@@ -47,9 +47,7 @@ export async function createChatAgent(context: AgentContext) {
     throw new Error("Failed to parse database configuration.");
   }
 
-  const [semanticModels, relationships, aiKeys, integrationKeys] = await Promise.all([
-    convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey }),
-    convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey }),
+  const [aiKeys, integrationKeys] = await Promise.all([
     convex.query(api.aiKeys.listByOrganization, { organizationId, apiKey }),
     convex.query(api.integrationKeys.listByOrganization, { organizationId, apiKey }),
   ]);
@@ -63,33 +61,35 @@ export async function createChatAgent(context: AgentContext) {
   const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
   const mcpTools = await loadMcpTools(integrationKeys, orgIdStr);
 
-  let filteredModels = semanticModels;
-  if (semanticModels.length > 10) {
-    try {
-      const lastMessage = (messages[messages.length - 1] as any)?.content || "";
-      let embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
+  let filteredModels: any[] = [];
+  let relationships: any[] = [];
+  const lastMessage = (messages[messages.length - 1] as any)?.content || "";
 
-      const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
-        organizationId: organizationId as any,
-        text: lastMessage,
-        provider: embedProvider,
-        sysApiKey: apiKey,
-      });
+  try {
+    let embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
 
-      const indexName = dimensions === 1536 ? "by_embedding_1536" :
-        dimensions === 1024 ? "by_embedding_1024" : "by_embedding_768";
+    const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
+      organizationId: organizationId as any,
+      text: lastMessage,
+      provider: embedProvider,
+      sysApiKey: apiKey,
+    });
 
-      const searchResults = await convex.action(api.semanticModels.searchRelatedModels, {
-        configId: config._id,
-        embedding,
-        indexName,
-        apiKey,
-      });
+    const indexName = dimensions === 1536 ? "by_embedding_1536" :
+      dimensions === 1024 ? "by_embedding_1024" : "by_embedding_768";
 
-      if (searchResults.length > 0) {
-        const matchedIds = new Set(searchResults.map((r: any) => r._id));
-        filteredModels = semanticModels.filter((m: any) => matchedIds.has(m._id));
-      }
+    // O(1) Semantic Retrieval
+    const context = await convex.action(api.semanticModels.retrieveSchemaContext, {
+      configId: config._id,
+      embedding,
+      indexName,
+      limit: 10, // Top 10 to match WrenAI
+      apiKey,
+    });
+
+    if (context.models && context.models.length > 0) {
+      filteredModels = context.models;
+      relationships = context.relationships;
 
       // --- TWO-STAGE COLUMN PRUNING ---
       const pruningModelId = getPruningModelId(selectedModelStr);
@@ -101,10 +101,20 @@ export async function createChatAgent(context: AgentContext) {
         relationships,
         pruningModel
       );
-
-    } catch (err) {
-      console.error("[Agent] RAG/Pruning failed:", err);
     }
+  } catch (err) {
+    console.error("[Agent] O(1) RAG/Pruning failed:", err);
+  }
+
+  // Fallback for databases without embeddings or very small databases
+  if (!filteredModels || filteredModels.length === 0) {
+    console.warn("[Agent] Falling back to mass fetch (listModelsByConfig)");
+    const [allModels, allRels] = await Promise.all([
+      convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey }),
+      convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey }),
+    ]);
+    filteredModels = allModels;
+    relationships = allRels;
   }
 
   // 6. Build Prompt
@@ -121,8 +131,8 @@ export async function createChatAgent(context: AgentContext) {
 
   const relationshipDescription = relationships?.length > 0
     ? "### Relationships:\n" + relationships.map((rel: any) => {
-      const from = semanticModels.find((m: any) => m._id === rel.fromModelId);
-      const to = semanticModels.find((m: any) => m._id === rel.toModelId);
+      const from = filteredModels.find((m: any) => m._id === rel.fromModelId);
+      const to = filteredModels.find((m: any) => m._id === rel.toModelId);
       return `- ${from?.tableName ?? "?"}.${rel.fromColumn} → ${to?.tableName ?? "?"}.${rel.toColumn} (${rel.type})`;
     }).join("\n")
     : "";

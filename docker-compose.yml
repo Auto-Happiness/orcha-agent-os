@@ -64,20 +64,6 @@ services:
       backend:
         condition: service_healthy
 
-  toolbox:
-    image: us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest
-    container_name: genai-toolbox
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./tools.yaml:/app/tools.yaml
-    environment:
-      - DB_HOST=${DB_HOST:-localhost}
-      - DB_NAME=${DB_NAME:-my_db}
-      - DB_USER=${DB_USER:-user}
-      - DB_PASSWORD=${DB_PASSWORD:-pass}
-    command: ["--config", "/app/tools.yaml", "--address", "0.0.0.0"]
-
   redis:
     image: redis:alpine
     container_name: bridge-redis
@@ -89,33 +75,33 @@ services:
       timeout: 3s
       retries: 5
 
-  ui:
-    build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile.ui
-      args:
-        - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
-        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
-      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
-    depends_on:
-      - backend
+  # ui:
+  #   build:
+  #     context: .
+  #     dockerfile: dockerfiles/Dockerfile.ui
+  #     args:
+  #       - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
+  #       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
+  #     - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+  #     - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+  #   depends_on:
+  #     - backend
 
-  worker:
-    build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile.worker
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
-    depends_on:
-      - redis
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: dockerfiles/Dockerfile.worker
+  #   environment:
+  #     - REDIS_URL=redis://redis:6379
+  #     - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
+  #     - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+  #     - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+  #   depends_on:
+  #     - redis
 
 volumes:
   data:
