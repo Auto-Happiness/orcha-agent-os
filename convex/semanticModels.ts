@@ -155,7 +155,6 @@ export const internalListModelSummariesByConfig = internalQuery({
       .withIndex("by_config", (q) => q.eq("configId", args.configId))
       .paginate(args.paginationOpts);
 
-    // Return everything EXCEPT 'fields' and embeddings
     return {
       ...paginated,
       page: paginated.page.map(({ fields, embedding_768, embedding_1024, embedding_1536, ...rest }: any) => ({
@@ -163,6 +162,25 @@ export const internalListModelSummariesByConfig = internalQuery({
         fieldCount: fields?.length || 0
       }))
     };
+  },
+});
+
+/**
+ * Internal query to fetch only table names and column names for relationship discovery.
+ * Optimized for 1000+ tables to avoid timeouts.
+ */
+export const listModelColumnNamesByConfig = internalQuery({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    const models = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+    return models.map((m: any) => ({
+      _id: m._id,
+      tableName: m.tableName,
+      columnNames: (m.fields || []).map((f: any) => f.columnName)
+    }));
   },
 });
 
@@ -378,56 +396,61 @@ export const suggestRelationships = action({
     configId: v.id("databaseConfigs")
   },
   handler: async (ctx, args): Promise<{ success: boolean; suggestions?: any[]; error?: string }> => {
-    // 1. Fetch lightweight summaries first (this is fast)
-    const summaries = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId, paginationOpts: { numItems: 1000, cursor: null } });
+    // 1. Fetch lightweight column names for ALL tables in ONE query (O(1) query complexity)
+    const modelColumns = await ctx.runQuery(internal.semanticModels.listModelColumnNamesByConfig, { configId: args.configId });
+
+    // Pre-build O(1) lookup Map for target tables to eliminate O(N^2) search
+    const tableLookup = new Map();
+    for (const m of modelColumns) {
+      tableLookup.set(m.tableName.toLowerCase(), m);
+    }
 
     // 2. Fetch existing relationships (capped at 500)
     const existingRels = await ctx.runQuery(internal.semanticRelationships.internalListByConfig, { configId: args.configId });
     const relKeySet = new Set(existingRels.map((r: any) => `${r.fromModelId}|${r.toModelId}`));
 
     const suggestions = [];
+    const batchRelationships: any[] = [];
 
-    console.log(`[Relationships] Starting one-by-one discovery for ${summaries.page.length} tables...`);
+    console.log(`[Relationships] Starting discovery across ${modelColumns.length} tables...`);
 
-    for (const summary of summaries.page) {
-      // 3. Fetch full details (including fields) for JUST THIS ONE TABLE
-      const model = await ctx.runQuery(internal.semanticModels.getById, { modelId: summary._id });
-      if (!model || !model.fields) continue;
+    for (const model of modelColumns) {
+      for (const columnName of model.columnNames) {
+        const lowerCol = columnName.toLowerCase();
+        if (lowerCol.endsWith("_id") && lowerCol !== "id") {
+          const prefix = lowerCol.replace("_id", "");
 
-      for (const field of model.fields) {
-        if (field.columnName.toLowerCase().endsWith("_id") && !field.isPrimary) {
-          const prefix = field.columnName.toLowerCase().replace("_id", "");
-
-          // 4. Look for a target table in our pre-fetched summaries
-          const target = summaries.page.find((m: any) =>
-            m.tableName.toLowerCase() === prefix ||
-            m.tableName.toLowerCase() === prefix + "s" ||
-            m.tableName.toLowerCase() === prefix + "es"
-          );
+          // 3. O(1) lookup
+          const target = tableLookup.get(prefix) || 
+                         tableLookup.get(prefix + "s") || 
+                         tableLookup.get(prefix + "es");
 
           if (target && target._id !== model._id) {
-            // Find target primary key (we might need full details for target too if not in summary)
-            // But usually primary keys are standard. For safety, let's assume PK discovery logic.
             // Check if we already have this link
             if (!relKeySet.has(`${target._id}|${model._id}`)) {
-              // Create the relationship
-              const relId = await ctx.runMutation(internal.semanticRelationships.internalCreate, {
+              // 4. Queue for batch creation
+              batchRelationships.push({
                 organizationId: args.organizationId,
                 configId: args.configId,
                 name: `${target.tableName}_to_${model.tableName}`,
                 fromModelId: target._id,
-                fromColumn: "id", // Default to 'id' or we can fetch target details if needed
+                fromColumn: "id", // Default to 'id'
                 toModelId: model._id,
-                toColumn: field.columnName,
+                toColumn: columnName,
                 type: "one_to_many",
               });
 
-              suggestions.push({ id: relId, name: `${target.tableName} -> ${model.tableName}` });
+              suggestions.push({ id: `pending_${batchRelationships.length}`, name: `${target.tableName} -> ${model.tableName}` });
               relKeySet.add(`${target._id}|${model._id}`);
             }
           }
         }
       }
+    }
+
+    // 5. Bulk insert all new relationships in a single database transaction
+    if (batchRelationships.length > 0) {
+       await ctx.runMutation(internal.semanticRelationships.internalCreateBatch, { relationships: batchRelationships });
     }
 
     console.log(`[Relationships] Discovery complete. Found ${suggestions.length} new links.`);

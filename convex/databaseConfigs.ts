@@ -78,15 +78,8 @@ export const createOrUpdate = mutation({
       existing = await ctx.db.get(args.configId);
     }
 
-    // 2. If no valid ID, try to find by organization + type
-    if (!existing) {
-      existing = await ctx.db
-        .query("databaseConfigs")
-        .withIndex("by_org_type", (q: any) =>
-          q.eq("organizationId", args.organizationId).eq("type", args.type)
-        )
-        .first();
-    }
+    // 2. If no valid ID, we will create a new one.
+    // (Removed auto-lookup by type to support multiple environments of the same type)
 
     if (existing) {
       await ctx.db.patch(existing._id, {

@@ -54,3 +54,33 @@ export const internalCreate = internalMutation({
     });
   },
 });
+/**
+ * Internal mutation to create multiple relationships in a single transaction.
+ * Optimized for large-scale schema discovery.
+ */
+export const internalCreateBatch = internalMutation({
+  args: {
+    relationships: v.array(v.object({
+      organizationId: v.id("organizations"),
+      configId: v.id("databaseConfigs"),
+      name: v.string(),
+      fromModelId: v.id("semanticModels"),
+      fromColumn: v.string(),
+      toModelId: v.id("semanticModels"),
+      toColumn: v.string(),
+      type: v.union(v.literal("one_to_one"), v.literal("one_to_many"), v.literal("many_to_one")),
+    }))
+  },
+  handler: async (ctx, args) => {
+    const ids = [];
+    const now = Date.now();
+    for (const rel of args.relationships) {
+      const id = await ctx.db.insert("semanticRelationships", {
+        ...rel,
+        createdAt: now,
+      });
+      ids.push(id);
+    }
+    return ids;
+  },
+});
