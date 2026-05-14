@@ -125,8 +125,8 @@ export const internalListModelsByConfig = internalQuery({
 });
 
 export const listModelSummariesByConfig = query({
-  args: { 
-    configId: v.id("databaseConfigs"), 
+  args: {
+    configId: v.id("databaseConfigs"),
     apiKey: v.optional(v.string()),
     paginationOpts: v.any() // paginationOpts comes from usePaginatedQuery
   },
@@ -136,8 +136,8 @@ export const listModelSummariesByConfig = query({
 });
 
 export const internalListModelSummariesByConfig = internalQuery({
-  args: { 
-    configId: v.id("databaseConfigs"), 
+  args: {
+    configId: v.id("databaseConfigs"),
     apiKey: v.optional(v.string()),
     paginationOpts: v.any()
   },
@@ -165,10 +165,7 @@ export const internalListModelSummariesByConfig = internalQuery({
   },
 });
 
-/**
- * Internal query to fetch only table names and column names for relationship discovery.
- * Optimized for 1000+ tables to avoid timeouts.
- */
+
 export const listModelColumnNamesByConfig = internalQuery({
   args: { configId: v.id("databaseConfigs") },
   handler: async (ctx, args) => {
@@ -322,12 +319,7 @@ export const bulkCreateRelationships = mutation({
   },
 });
 
-/**
- * Fallback: suggests relationships based on naming conventions (_id suffix).
- * Batched cleanup of embeddings. 
- * For large schemas (200+ tables), clearing all vectors in one transaction 
- * can hit the 1s Convex timeout. This action handles the cleanup in safe chunks.
- */
+
 export const clearEmbeddingsForConfig = internalAction({
   args: { configId: v.id("databaseConfigs") },
   handler: async (ctx, args) => {
@@ -396,16 +388,13 @@ export const suggestRelationships = action({
     configId: v.id("databaseConfigs")
   },
   handler: async (ctx, args): Promise<{ success: boolean; suggestions?: any[]; error?: string }> => {
-    // 1. Fetch lightweight column names for ALL tables in ONE query (O(1) query complexity)
     const modelColumns = await ctx.runQuery(internal.semanticModels.listModelColumnNamesByConfig, { configId: args.configId });
 
-    // Pre-build O(1) lookup Map for target tables to eliminate O(N^2) search
     const tableLookup = new Map();
     for (const m of modelColumns) {
       tableLookup.set(m.tableName.toLowerCase(), m);
     }
 
-    // 2. Fetch existing relationships (capped at 500)
     const existingRels = await ctx.runQuery(internal.semanticRelationships.internalListByConfig, { configId: args.configId });
     const relKeySet = new Set(existingRels.map((r: any) => `${r.fromModelId}|${r.toModelId}`));
 
@@ -420,15 +409,12 @@ export const suggestRelationships = action({
         if (lowerCol.endsWith("_id") && lowerCol !== "id") {
           const prefix = lowerCol.replace("_id", "");
 
-          // 3. O(1) lookup
-          const target = tableLookup.get(prefix) || 
-                         tableLookup.get(prefix + "s") || 
-                         tableLookup.get(prefix + "es");
+          const target = tableLookup.get(prefix) ||
+            tableLookup.get(prefix + "s") ||
+            tableLookup.get(prefix + "es");
 
           if (target && target._id !== model._id) {
-            // Check if we already have this link
             if (!relKeySet.has(`${target._id}|${model._id}`)) {
-              // 4. Queue for batch creation
               batchRelationships.push({
                 organizationId: args.organizationId,
                 configId: args.configId,
@@ -448,9 +434,8 @@ export const suggestRelationships = action({
       }
     }
 
-    // 5. Bulk insert all new relationships in a single database transaction
     if (batchRelationships.length > 0) {
-       await ctx.runMutation(internal.semanticRelationships.internalCreateBatch, { relationships: batchRelationships });
+      await ctx.runMutation(internal.semanticRelationships.internalCreateBatch, { relationships: batchRelationships });
     }
 
     console.log(`[Relationships] Discovery complete. Found ${suggestions.length} new links.`);
@@ -468,7 +453,6 @@ export const generateAiEnrichment = action({
     businessContext: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
-    // 1. Fetch the raw models
     const models = await ctx.runQuery(api.semanticModels.listModelsByConfig, { configId: args.configId });
 
     if (!models || models.length === 0) return { success: false, error: "No models found" };
@@ -481,7 +465,6 @@ export const generateAiEnrichment = action({
       const enrichedFields = model.fields.map((f: any) => {
         const name = f.columnName.toLowerCase();
 
-        // Simple "AI-like" heuristic for the demo
         let displayName = f.displayName;
         if (name === "id") displayName = `${model.tableName.slice(0, -1)} ID`;
         if (name.includes("price") || name.includes("amount") || name.includes("total")) {

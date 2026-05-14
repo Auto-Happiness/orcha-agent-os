@@ -1,4 +1,4 @@
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { checkMembership } from "./authUtils";
 
@@ -216,3 +216,10 @@ export const getById = query({
     return await ctx.db.get(args.configId);
   },
 });
+
+export const internalGetById = internalQuery({
+  args: { configId: v.id("databaseConfigs") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.configId);
+  },
+});
