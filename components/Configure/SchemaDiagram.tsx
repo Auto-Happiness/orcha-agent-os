@@ -124,7 +124,6 @@ const TableNode = ({ data }: { data: any }) => {
   );
 };
 
-// --- Custom Edge (Wren AI Look) ---
 const RelationshipEdge = ({
   id,
   sourceX,
