@@ -2,6 +2,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 
 /**
+ * TODO : fix hallucination it's being strict to simple words like what's on the menu since it's a food database it should understand that we're talking about food and so on
  * ORCHA INTENT CLASSIFIER
 
  * Intents:
@@ -35,7 +36,7 @@ export async function classifyIntent(
     ? `AVAILABLE TABLES: ${tableNames.join(", ")}`
     : "No tables available.";
 
-  const businessRules = businessContext 
+  const businessRules = businessContext
     ? `### LIBRARIAN'S COMMON SENSE CONTEXT:
 ${businessContext}
 
@@ -63,9 +64,9 @@ Be decisive. Even if names don't match exactly, pick the tables that seem semant
       prompt: `User message: "${message}"`,
     });
 
-    return { 
-      intent: result.object.intent, 
-      suggestedTables: result.object.suggestedTables || [] 
+    return {
+      intent: result.object.intent,
+      suggestedTables: result.object.suggestedTables || []
     };
   } catch (err) {
     console.warn("[IntentClassifier] Failed, defaulting to TEXT_TO_SQL:", err);
