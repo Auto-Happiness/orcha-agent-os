@@ -11,7 +11,10 @@ import { KeyManager } from "../lib/key-manager";
  */
 function decryptKeyIfNeeded(key: string, organizationId: string): string {
   const parts = key.split(":");
-  if (parts.length !== 3) return key;
+  if (parts.length !== 3) {
+    console.log("[Embeddings] Key is not in 3-part encrypted format, using as-is.");
+    return key;
+  }
 
   const [ivHex, authTagHex, encryptedHex] = parts;
   const hexRe = /^[0-9a-f]+$/i;
@@ -24,15 +27,23 @@ function decryptKeyIfNeeded(key: string, organizationId: string): string {
     hexRe.test(authTagHex) &&
     hexRe.test(encryptedHex);
 
-  if (!isEncrypted) return key;
+  if (!isEncrypted) {
+    console.log("[Embeddings] Key has colons but failed encryption heuristic, using as-is.");
+    return key;
+  }
 
   try {
+    if (!process.env.ENCRYPTION_KEY) {
+      console.error("[Embeddings] ENCRYPTION_KEY environment variable is missing in Convex!");
+      return key;
+    }
     return KeyManager.decrypt(key, organizationId);
   } catch (err) {
     console.error("[Embeddings] Decryption failed, using raw key:", err);
     return key;
   }
 }
+
 
 interface EmbeddingResult {
   embedding: number[];
@@ -132,9 +143,7 @@ export const generateEmbedding = action({
   },
 });
 
-/**
- * Orchestrator: Indexes all tables for a specific database configuration using a background queue.
- */
+
 export const indexConfigSchema = action({
   args: {
     organizationId: v.id("organizations"),
@@ -145,7 +154,12 @@ export const indexConfigSchema = action({
   handler: async (ctx, args): Promise<{ success: boolean; total: number; providerUsed?: string }> => {
     console.log(`[Embeddings] Orchestrating background indexing for config ${args.configId}`);
 
-    // 1. Wait for models to be persisted
+    const config = await ctx.runQuery(internal.databaseConfigs.internalGetById, { configId: args.configId });
+    if (config?.indexingStatus === "processing") {
+      console.log(`[Embeddings] Indexing already in progress for config ${args.configId}`);
+      return { success: false, total: config.indexingTotal || 0, providerUsed: config.memoryProvider };
+    }
+
     let models: any[] = [];
     for (let i = 0; i < 5; i++) {
       const res = await ctx.runQuery(internal.semanticModels.internalListModelSummariesByConfig, { configId: args.configId, paginationOpts: { numItems: 1000, cursor: null } });
@@ -156,7 +170,6 @@ export const indexConfigSchema = action({
 
     if (models.length === 0) return { success: false, total: 0 };
 
-    // 2. Resolve provider and key
     let provider = args.provider;
     let resolvedApiKey = args.apiKey;
 
@@ -175,10 +188,8 @@ export const indexConfigSchema = action({
       throw new Error(`No API key available for provider ${provider}`);
     }
 
-    // Decrypt if necessary
     const rawApiKey = resolvedApiKey ? decryptKeyIfNeeded(resolvedApiKey, args.organizationId) : undefined;
 
-    // 3. Lock Memory Provider and initialize indexing state
     await ctx.runMutation(internal.databaseConfigs.internalUpdateMemoryProvider, {
       configId: args.configId,
       provider: provider as any,
@@ -190,7 +201,6 @@ export const indexConfigSchema = action({
       total: models.length,
     });
 
-    // 4. Dispatch the first batch
     const modelIds = models.map(m => m._id);
     await ctx.scheduler.runAfter(0, internal.embeddings.processEmbeddingBatch, {
       organizationId: args.organizationId,
@@ -206,9 +216,7 @@ export const indexConfigSchema = action({
   },
 });
 
-/**
- * Background Queue Worker: Processes a small batch of tables and schedules the next batch.
- */
+
 export const processEmbeddingBatch = internalAction({
   args: {
     organizationId: v.id("organizations"),
@@ -220,10 +228,19 @@ export const processEmbeddingBatch = internalAction({
   },
   handler: async (ctx, args) => {
     const { modelIds, batchSize, organizationId, provider, apiKey, configId } = args;
+
+    const config = await ctx.runQuery(internal.databaseConfigs.internalGetById, { configId });
+    if (!config || config.indexingStatus !== "processing") {
+      console.log(`[Embeddings] Indexing stopped or cancelled for config ${configId}. Halting worker.`);
+      return;
+    }
+
     const toProcess = modelIds.slice(0, batchSize);
     const remaining = modelIds.slice(batchSize);
 
     console.log(`[Embeddings] Processing batch: ${toProcess.length} tables. Remaining: ${remaining.length}`);
+
+    let successCount = 0;
 
     for (const modelId of toProcess) {
       const model = await ctx.runQuery(internal.semanticModels.getById, { modelId });
@@ -245,20 +262,23 @@ export const processEmbeddingBatch = internalAction({
           embedding,
           dimensions,
         });
+        successCount++;
       } catch (err: any) {
         console.error(`[Embeddings] Failed to index table ${model.tableName}: ${err.message}`);
       }
     }
 
-    // Increment progress in the DB
+    // Increment progress in the DB regardless of success to prevent progress bar getting stuck
     await ctx.runMutation(internal.databaseConfigs.incrementIndexingProgress, {
       configId: args.configId,
       increment: toProcess.length,
     });
 
     if (remaining.length > 0) {
-      // Schedule next batch with a 2s delay to avoid provider rate limits
-      await ctx.scheduler.runAfter(2000, internal.embeddings.processEmbeddingBatch, {
+      // Schedule next batch. Backoff to 5s if we hit errors (likely rate limits), else 2s.
+      const hasErrors = successCount < toProcess.length;
+      const delay = hasErrors ? 5000 : 2000;
+      await ctx.scheduler.runAfter(delay, internal.embeddings.processEmbeddingBatch, {
         ...args,
         modelIds: remaining,
       });
