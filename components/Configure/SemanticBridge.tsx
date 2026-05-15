@@ -21,14 +21,16 @@ import {
   Tooltip,
   Tabs,
   SegmentedControl,
-  Loader
+  Loader,
+  Textarea
 } from "@mantine/core";
 import {
   IconTable,
   IconPlus,
   IconFingerprint,
   IconSettings,
-  IconChartDots
+  IconChartDots,
+  IconActivity
 } from "@tabler/icons-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction, usePaginatedQuery } from "convex/react";
@@ -247,8 +249,14 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
               <Stack gap="xl">
                 <Box>
                   <Group justify="space-between" align="flex-start">
-                    <Stack gap={4}>
-                      <Title order={4} c="white">{selectedModel.displayName}</Title>
+                    <Stack gap={4} style={{ flex: 1 }}>
+                      <TextInput
+                        size="sm"
+                        placeholder="Table Display Name"
+                        defaultValue={selectedModel.displayName}
+                        onBlur={(e) => updateModel({ id: selectedModel._id, displayName: e.currentTarget.value })}
+                        styles={{ input: { background: "transparent", border: "none", padding: 0, fontWeight: 700, fontSize: rem(20), color: "white" } }}
+                      />
                       <Text size="xs" c="dimmed">Source: <span style={{ fontFamily: "monospace" }}>{selectedModel.tableName}</span></Text>
                     </Stack>
                     <Group>
@@ -266,6 +274,33 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                     </Group>
                   </Group>
                 </Box>
+
+                <Grid grow>
+                  <Grid.Col span={6}>
+                    <Textarea
+                      label="Business Description"
+                      placeholder="What is this table used for?"
+                      defaultValue={selectedModel.description}
+                      onBlur={(e) => updateModel({ id: selectedModel._id, description: e.currentTarget.value })}
+                      minRows={2}
+                      maxLength={30}
+                      styles={{ input: { background: "rgba(255,255,255,0.02)" } }}
+                    />
+                  </Grid.Col>
+                  <Grid.Col span={6}>
+                    <Textarea
+                      label="Business Logic / Caveats"
+                      placeholder="e.g. 'Only includes data since 2021'"
+                      defaultValue={selectedModel.remarks}
+                      onBlur={(e) => updateModel({ id: selectedModel._id, remarks: e.currentTarget.value })}
+                      minRows={2}
+                      maxLength={30}
+                      styles={{ input: { background: "rgba(255,255,255,0.02)" } }}
+                    />
+                  </Grid.Col>
+                </Grid>
+
+                <Divider label="Field Definitions" labelPosition="center" />
 
                 <ScrollArea h={600} pr="md">
                   <Stack gap="md">
@@ -298,22 +333,22 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                             <Grid.Col span={2}>
                               <Select
                                 size="xs"
-                                label="Type"
+                                label="Semantic Type"
                                 data={[
                                   { value: 'dimension', label: 'Dimension' },
                                   { value: 'measure', label: 'Measure' },
                                 ]}
-                                value={field.type}
-                                onChange={(val) => handleFieldUpdate(idx, { type: val!, aggregation: val === 'measure' ? 'sum' : undefined })}
+                                value={field.fieldType || (field.type === 'measure' ? 'measure' : 'dimension')}
+                                onChange={(val) => handleFieldUpdate(idx, { fieldType: val!, defaultAggregation: val === 'measure' ? 'sum' : undefined })}
                                 styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) } }}
                               />
                             </Grid.Col>
 
                             <Grid.Col span={2}>
-                              {field.type === 'measure' && (
+                              { (field.fieldType === 'measure' || field.type === 'measure') ? (
                                 <Select
                                   size="xs"
-                                  label="Aggregation"
+                                  label="Default Agg"
                                   data={[
                                     { value: 'sum', label: 'Sum' },
                                     { value: 'avg', label: 'Average' },
@@ -321,8 +356,17 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                                     { value: 'max', label: 'Max' },
                                     { value: 'min', label: 'Min' },
                                   ]}
-                                  value={field.aggregation || 'sum'}
-                                  onChange={(val) => handleFieldUpdate(idx, { aggregation: val! })}
+                                  value={field.defaultAggregation || field.aggregation || 'sum'}
+                                  onChange={(val) => handleFieldUpdate(idx, { defaultAggregation: val! })}
+                                  styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) } }}
+                                />
+                              ) : (
+                                <TextInput
+                                  size="xs"
+                                  label="Data Type"
+                                  placeholder="e.g. currency"
+                                  defaultValue={field.dataType}
+                                  onBlur={(e) => handleFieldUpdate(idx, { dataType: e.currentTarget.value })}
                                   styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) } }}
                                 />
                               )}
@@ -331,16 +375,27 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                             <Grid.Col span={3}>
                               <TextInput
                                 size="xs"
-                                label="Calculated Expression"
-                                placeholder="e.g. price * quantity"
-                                defaultValue={field.expression}
-                                onBlur={(e) => handleFieldUpdate(idx, { expression: e.currentTarget.value })}
+                                label="Business Logic / Remarks"
+                                placeholder="Notes for AI..."
+                                defaultValue={field.remarks}
+                                onBlur={(e) => handleFieldUpdate(idx, { remarks: e.currentTarget.value })}
+                                maxLength={30}
                                 styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) }, label: { fontSize: rem(10), color: "rgba(255,255,255,0.3)" } }}
                               />
                             </Grid.Col>
 
                             <Grid.Col span={1} ta="right">
                               <Group gap={4} justify="flex-end">
+                                <Tooltip label={field.isTimeDimension ? "Time Series Active" : "Mark as Time Series"}>
+                                  <ActionIcon
+                                    variant={field.isTimeDimension ? "filled" : "subtle"}
+                                    color="cyan"
+                                    size="sm"
+                                    onClick={() => handleFieldUpdate(idx, { isTimeDimension: !field.isTimeDimension })}
+                                  >
+                                    <IconActivity size={14} />
+                                  </ActionIcon>
+                                </Tooltip>
                                 <Tooltip label={field.isPrimary ? "Primary Key" : "Mark as PK"}>
                                   <ActionIcon
                                     variant={field.isPrimary ? "filled" : "subtle"}
