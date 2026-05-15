@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
   try {
     const clerkAuth = await auth();
     const body = await req.json();
-    const { messages, organizationId: rawOrgId, configId: rawConfigId, modelId, showResults = true, sessionId } = body;
+    const { messages, organizationId: rawOrgId, configId: rawConfigId, configIds: rawConfigIds, modelId, showResults = true, sessionId } = body;
+    const configIds = (rawConfigIds as string[]) || (rawConfigId ? [rawConfigId as string] : []);
 
     let userId: string | null = clerkAuth.userId;
     let organizationId: Id<"organizations"> | undefined = rawOrgId as Id<"organizations">;
@@ -110,7 +111,8 @@ export async function POST(req: NextRequest) {
       const job = await worker.addJob({
         context: {
           organizationId,
-          configId,
+          configId: configIds[0],
+          configIds,
           modelId,
           showResults,
           messages,
@@ -139,7 +141,8 @@ export async function POST(req: NextRequest) {
     const agent = await createChatAgent({
       convex,
       organizationId: organizationId as Id<"organizations">,
-      configId,
+      configId: configIds[0],
+      configIds,
       modelId,
       showResults,
       messages,

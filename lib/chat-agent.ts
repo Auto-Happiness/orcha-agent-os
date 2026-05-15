@@ -16,7 +16,8 @@ function isSafeSQL(sql: string): boolean {
 export interface AgentContext {
   convex: any;
   organizationId: string;
-  configId: string;
+  configId?: string;
+  configIds?: string[];
   modelId: string;
   showResults: boolean;
   messages: UIMessage[];
@@ -28,9 +29,14 @@ export interface AgentContext {
 }
 
 export async function createChatAgent(context: AgentContext) {
-  const { convex, organizationId, configId: rawConfigId, modelId, showResults, messages, userId, orgIdStr, apiKey, defaultModelId, defaultConfigId } = context;
+  const { convex, organizationId, configId: rawConfigId, configIds: rawConfigIds, modelId, showResults, messages, userId, orgIdStr, apiKey, defaultModelId, defaultConfigId } = context;
 
-  const configId = rawConfigId || (defaultConfigId as any);
+  // If multiple IDs provided, the first one is the "primary" context
+  const activeConfigIds = rawConfigIds && rawConfigIds.length > 0
+    ? rawConfigIds
+    : (rawConfigId ? [rawConfigId] : (defaultConfigId ? [defaultConfigId] : []));
+
+  const configId = activeConfigIds[0];
 
   let config: any;
   const allConfigs = await convex.query(api.databaseConfigs.listByOrganization, { organizationId, apiKey });
@@ -46,6 +52,21 @@ export async function createChatAgent(context: AgentContext) {
     if (dbConfig.port) dbConfig.port = parseInt(dbConfig.port, 10);
   } catch {
     throw new Error("Failed to parse database configuration.");
+  }
+
+  // Build a connection config map for the selected databases (for federation)
+  const allOrgConfigs = allConfigs || [];
+  const dbConfigMap = new Map<string, any>();
+  const activeIdsSet = new Set(activeConfigIds);
+
+  for (const c of allOrgConfigs) {
+    if (!activeIdsSet.has(c._id)) continue; // Filter to only selected databases
+    try {
+      const parsed = { ...JSON.parse(c.encryptedUri), type: c.type };
+      if (parsed.port) parsed.port = parseInt(parsed.port, 10);
+      const alias = c.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      dbConfigMap.set(alias, parsed);
+    } catch { /* skip malformed configs */ }
   }
 
   const [aiKeys, integrationKeys] = await Promise.all([
@@ -64,7 +85,7 @@ export async function createChatAgent(context: AgentContext) {
   let mcpTools: any = {};
   const lastMessage = (messages[messages.length - 1] as any)?.content || "";
 
-  // --- INTENT CLASSIFICATION (WrenAI pattern) ---
+  // --- INTENT CLASSIFICATION  ---
   // 1. Get a quick list of table names to help the classifier
   const allModels = await convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey });
   const tableNames = allModels.map((m: any) => m.displayName || m.tableName);
@@ -121,7 +142,7 @@ export async function createChatAgent(context: AgentContext) {
         const tName = (m.tableName || "").toLowerCase();
         return lowerSuggestions.includes(dName) || lowerSuggestions.includes(tName);
       });
-      
+
       // Stage 1: Add suggested models
       const newModelIds = new Set(filteredModels.map(m => m._id));
       for (const sm of suggestedModels) {
@@ -136,7 +157,7 @@ export async function createChatAgent(context: AgentContext) {
       // Pull in 1st-degree relationships for any table we've found so far
       const allRels = await convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey });
       const expandedIds = new Set(filteredModels.map(m => m._id));
-      
+
       for (const rel of allRels) {
         if (expandedIds.has(rel.fromModelId) || expandedIds.has(rel.toModelId)) {
           // Add both sides of the relationship
@@ -165,7 +186,7 @@ export async function createChatAgent(context: AgentContext) {
   // Fallback for databases without embeddings or very small databases
   if (messageIntent === "TEXT_TO_SQL" && (!filteredModels || filteredModels.length === 0)) {
     console.warn("[Agent] RAG returned no results. Running Instant Fuzzy Matcher...");
-    
+
     // Fuzzy match: Look for query keywords in table names
     const queryWords = lastMessage.toLowerCase().split(/\s+/);
     const fuzzyMatches = allModels.filter((m: any) => {
@@ -212,11 +233,30 @@ export async function createChatAgent(context: AgentContext) {
       ? "- Dialect: MySQL. Use backticks `table` for reserved names."
       : "- Dialect: PostgreSQL. Use double quotes \"table\" for reserved names.";
 
+  // Build a federated catalog for the prompt (only for selected databases)
+  const allOrgModels = await convex.query(api.semanticModels.listAllModelsInOrg, { organizationId, apiKey });
+  const federatedCatalog = allOrgConfigs
+    .filter((c: any) => activeIdsSet.has(c._id))
+    .map((c: any) => {
+      const alias = c.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const dbTables = allOrgModels
+        .filter((m: any) => m.configId === c._id)
+        .map((m: any) => m.tableName)
+        .join(", ");
+
+      return `- [${c.type.toUpperCase()}] alias: **${alias}** (Tables: ${dbTables || "none detected"})`;
+    }).join("\n");
+
   const federatedRule = `
 ### FEDERATED QUERY RULE:
-- If you need to JOIN data across DIFFERENT databases, you MUST use the federated syntax: 'schema_name.table_name'.
-- Example: 'SELECT * FROM shopify_db.orders JOIN mssql_inventory.stock ON ...'
-- ONLY use this if the user asks a cross-database question. Otherwise, stay in the NATIVE dialect of the current database.
+- You have access to MULTIPLE databases in this organization.
+- To JOIN across databases, use the alias prefix: alias.table_name
+- Example: SELECT i.name, o.quantity FROM items_db.items i JOIN orders_db.orders o ON i.sku = o.item_sku
+- Use the 'execute_federated_sql' tool for any query that spans more than one database.
+- Use the standard 'execute_sql' tool for single-database queries only.
+
+### CONNECTED DATABASES (Federation Catalog):
+${federatedCatalog || "No additional databases connected."}
 `;
 
   const buildSystemPrompt = (toolNames: string[]) => {
@@ -306,6 +346,43 @@ ${federatedRule}
           };
         } catch (err: any) {
           return { success: false, error: err.message || "Failed to execute SQL." };
+        }
+      },
+    },
+    execute_federated_sql: {
+      description: `Executes a SQL query that JOINs data across MULTIPLE databases using alias.table syntax. Use this ONLY when the user needs data from more than one connected database. Do NOT use chartConfig unless the user explicitly asked for a visualization.`,
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          sql: { type: "string", description: "Federated SQL query using alias.table syntax (e.g. items_db.items JOIN orders_db.orders)" },
+          chartConfig: {
+            type: "object",
+            description: "CRITICAL: Provide this ONLY if the user explicitly asked for a visualization.",
+            properties: {
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie"] },
+              title: { type: "string" },
+              xKey: { type: "string" },
+              yKey: { type: "string" }
+            },
+            required: ["chartType", "title", "xKey", "yKey"]
+          }
+        },
+        required: ["sql"],
+      }),
+      execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
+        if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
+        try {
+          console.log("[Agent] Executing FEDERATED query across", dbConfigMap.size, "databases");
+          const rows = await OrchaFusion.executeMulti(sql, dbConfigMap);
+          return {
+            success: true,
+            data: rows.slice(0, MAX_ROWS),
+            chartConfig,
+            federated: true,
+            sourceDatabases: Array.from(dbConfigMap.keys()),
+          };
+        } catch (err: any) {
+          return { success: false, error: err.message || "Federated query failed." };
         }
       },
     },

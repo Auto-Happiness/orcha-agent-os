@@ -165,6 +165,25 @@ export const internalListModelSummariesByConfig = internalQuery({
   },
 });
 
+export const listAllModelsInOrg = query({
+  args: { organizationId: v.id("organizations"), apiKey: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const auth = await checkMembership(ctx, args.organizationId, args.apiKey);
+    if (!auth) return [];
+
+    const models = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    return models.map((m: any) => ({
+      configId: m.configId,
+      tableName: m.tableName,
+      displayName: m.displayName,
+    }));
+  },
+});
+
 
 export const listModelColumnNamesByConfig = internalQuery({
   args: { configId: v.id("databaseConfigs") },

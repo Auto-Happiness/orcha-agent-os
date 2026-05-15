@@ -11,59 +11,52 @@ import { DbExecutor } from "../db-executor";
  */
 export class OrchaFusion {
   private static db: Database | null = null;
-  private static isEngineDisabled = false;
+  private static conn: any = null; // Singleton connection
+  private static attachedDatabases = new Map<string, string>();
   private static extensionsLoaded: Record<string, boolean> = {};
 
-  /** Initialize DuckDB once. Extensions are loaded lazily per type. */
-  private static async getDb(): Promise<Database> {
-    if (this.isEngineDisabled) throw new Error("OrchaFusion engine is disabled");
-
+  /** Initialize DuckDB and a singleton connection once. */
+  private static async getConn(): Promise<any> {
     if (!this.db) {
       try {
         console.log("[OrchaFusion] Starting engine...");
-        const { Database: DuckDB } = require("duckdb");
-        this.db = new DuckDB(":memory:");
-      } catch (err) {
-        this.isEngineDisabled = true;
-        throw err;
+        const DuckDBMod = eval('require("duckdb")');
+        const DuckDB = DuckDBMod.Database;
+        const dbInstance = new DuckDB(":memory:");
+        this.db = dbInstance;
+        this.conn = dbInstance.connect();
+
+        // Prevent Vercel OOM by limiting DuckDB memory
+        await new Promise((resolve) => this.conn.run("PRAGMA memory_limit='1GB';", resolve));
+      } catch (err: any) {
+        console.error("[OrchaFusion] ENGINE LOAD FAILURE:", err.message);
+        throw new Error(`OrchaFusion engine failed to start: ${err.message}`);
       }
     }
-    return this.db!;
+    return this.conn;
   }
 
-  /** Load a DuckDB extension once per engine lifetime. */
-  private static async ensureExtension(conn: any, ext: string): Promise<void> {
+  private static async ensureExtension(ext: string): Promise<void> {
     if (this.extensionsLoaded[ext]) return;
+    const conn = await this.getConn();
     await this.runQuery(conn, `INSTALL ${ext}; LOAD ${ext};`);
     this.extensionsLoaded[ext] = true;
   }
 
   /**
-   * Execute a SQL query against a single database config.
-   * Falls back to legacy DbExecutor if DuckDB is unavailable.
+   * Single-database execution.
    */
   static async execute(sql: string, schemaName: string, config: any): Promise<any[]> {
     try {
-      const db = await this.getDb();
-      const conn = db.connect();
+      const conn = await this.getConn();
+      await this.attachDatabase(conn, schemaName, config, sql);
 
-      console.log(`[OrchaFusion] Executing (${config.type}): ${schemaName}`);
+      // Use fully qualified names internally or search_path carefully
+      // Note: search_path is connection-global, so we qualify the query instead for safety
+      const qualifiedSql = sql.replace(/\bFROM\s+([a-zA-Z0-9_]+)\b/gi, `FROM ${schemaName}.$1`)
+        .replace(/\bJOIN\s+([a-zA-Z0-9_]+)\b/gi, `JOIN ${schemaName}.$1`);
 
-      if (config.type === "postgres") {
-        await this.ensureExtension(conn, "postgres");
-        const cs = `postgres://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}${config.ssl ? "?sslmode=require" : ""}`;
-        await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${schemaName} (TYPE POSTGRES);`);
-      } else if (config.type === "mysql") {
-        await this.ensureExtension(conn, "mysql");
-        const cs = `host=${config.host} port=${config.port} user=${config.user} password=${config.password} database=${config.database}`;
-        await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${schemaName} (TYPE MYSQL);`);
-      } else if (config.type === "mssql") {
-        await this.bridgeMssql(conn, schemaName, config, sql);
-      }
-
-      await this.runQuery(conn, `SET search_path = ${schemaName};`);
-      return await this.allQuery(conn, sql);
-
+      return await this.allQuery(conn, sql.toLowerCase().includes(schemaName) ? sql : qualifiedSql);
     } catch (err: any) {
       console.warn("[OrchaFusion] Falling back to DbExecutor:", err.message);
       return await DbExecutor.execute(config, sql);
@@ -71,35 +64,96 @@ export class OrchaFusion {
   }
 
   /**
-   * MSSQL Hybrid Bridge.
-   * Uses surgical regex to only bridge tables referenced after FROM/JOIN.
+   * FEDERATED EXECUTION (Optimized)
    */
-  private static async bridgeMssql(conn: any, schemaName: string, config: any, sql: string) {
-    // Surgical regex: match only words immediately after FROM or JOIN
-    const tableRegex = /(?:FROM|JOIN)\s+\[?([a-zA-Z0-9_]+)\]?/gi;
+  static async executeMulti(sql: string, sources: Map<string, any>): Promise<any[]> {
+    const conn = await this.getConn();
+
+    // SURGICAL ATTACHMENT: Only attach databases referenced in the SQL (using word boundaries)
+    const attachPromises: Promise<void>[] = [];
+    for (const [alias, config] of sources.entries()) {
+      const aliasRegex = new RegExp(`\\b${alias}\\b`, 'i');
+      if (aliasRegex.test(sql)) {
+        attachPromises.push(this.attachDatabase(conn, alias, config, sql));
+      }
+    }
+
+    if (attachPromises.length > 0) {
+      console.log(`[OrchaFusion] Attaching ${attachPromises.length} referenced database(s) in parallel...`);
+      await Promise.all(attachPromises);
+    }
+
+    return await this.allQuery(conn, sql);
+  }
+
+  private static async attachDatabase(conn: any, alias: string, config: any, sql: string): Promise<void> {
+    const configHash = JSON.stringify(config);
+    // Skip if already attached with the EXACT SAME configuration in this singleton connection
+    if (this.attachedDatabases.get(alias) === configHash) return;
+
+    // If attached w  ith a different config, detach it first to force a fresh connection
+    if (this.attachedDatabases.has(alias)) {
+      try {
+        await this.runQuery(conn, `DETACH ${alias};`);
+      } catch (e) { /* ignore detach errors */ }
+    }
+
+    if (config.type === "postgres") {
+      await this.ensureExtension("postgres");
+      const cs = `postgres://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}${config.ssl ? "?sslmode=require" : ""}`;
+      await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${alias} (TYPE POSTGRES);`);
+    } else if (config.type === "mysql") {
+      await this.ensureExtension("mysql");
+      const cs = `host=${config.host} port=${config.port} user=${config.user} password=${config.password} database=${config.database}`;
+      await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${alias} (TYPE MYSQL);`);
+    } else if (config.type === "mssql") {
+      await this.bridgeMssql(conn, alias, config, sql);
+    }
+
+    this.attachedDatabases.set(alias, configHash);
+    console.log(`[OrchaFusion] Successfully attached [${alias}] (${config.type})`);
+  }
+
+  /**
+   * MSSQL Hybrid Bridge (Corrected Regex)
+   */
+  private static async bridgeMssql(conn: any, alias: string, config: any, sql: string) {
+    // Regex matches: alias.table or just table if it's a single DB execute
+    // Format: alias.tableName
+    const tableRegex = new RegExp(`(?:FROM|JOIN)\\s+${alias}\\.([a-zA-Z0-9_]+)`, "gi");
     let match;
     const found: string[] = [];
     while ((match = tableRegex.exec(sql)) !== null) {
       found.push(match[1]);
     }
+
+    // Fallback for single-db queries where alias might be missing in SQL
+    if (found.length === 0) {
+      const simpleRegex = /(?:FROM|JOIN)\s+\[?([a-zA-Z0-9_]+)\]?/gi;
+      while ((match = simpleRegex.exec(sql)) !== null) {
+        if (!this.attachedDatabases.has(match[1])) found.push(match[1]);
+      }
+    }
+
     const tables = [...new Set(found)];
     if (tables.length === 0) return;
 
-    await this.runQuery(conn, `CREATE SCHEMA IF NOT EXISTS ${schemaName};`);
+    await this.runQuery(conn, `CREATE SCHEMA IF NOT EXISTS ${alias};`);
 
-    for (const table of tables) {
+    // Bridge tables in parallel
+    await Promise.all(tables.map(async (table) => {
       try {
-        console.log(`[OrchaFusion] Bridging MSSQL: ${schemaName}.${table}`);
+        console.log(`[OrchaFusion] Bridging MSSQL: ${alias}.${table}`);
         const rows = await DbExecutor.execute(config, `SELECT TOP 1000 * FROM [${table}]`);
-        if (rows.length === 0) continue;
+        if (rows.length === 0) return;
 
         const json = JSON.stringify(rows);
-        await this.runQuery(conn, `CREATE OR REPLACE TABLE ${schemaName}_${table} AS SELECT * FROM read_json_auto('${json}');`);
-        await this.runQuery(conn, `CREATE OR REPLACE VIEW ${schemaName}.${table} AS SELECT * FROM ${schemaName}_${table};`);
+        await this.runQuery(conn, `CREATE OR REPLACE TABLE ${alias}_${table} AS SELECT * FROM read_json_auto('${json}');`);
+        await this.runQuery(conn, `CREATE OR REPLACE VIEW ${alias}.${table} AS SELECT * FROM ${alias}_${table};`);
       } catch (e) {
-        // Table may not exist — skip silently
+        console.warn(`[OrchaFusion] Failed to bridge MSSQL table ${table}:`, (e as any).message);
       }
-    }
+    }));
   }
 
   private static runQuery(conn: any, sql: string): Promise<void> {
@@ -115,8 +169,27 @@ export class OrchaFusion {
     return new Promise((resolve, reject) => {
       conn.all(sql, (err: any, rows: any[]) => {
         if (err) reject(err);
-        else resolve(rows);
+        else resolve(this.sanitizeRows(rows));
       });
+    });
+  }
+
+  /**
+   * Recursively converts BigInt values to Numbers to prevent JSON serialization errors.
+   */
+  private static sanitizeRows(rows: any[]): any[] {
+    return rows.map(row => {
+      const sanitized: any = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (typeof value === "bigint") {
+          sanitized[key] = value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : String(value);
+        } else if (Array.isArray(value)) {
+          sanitized[key] = value.map(v => typeof v === "bigint" ? (v <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(v) : String(v)) : v);
+        } else {
+          sanitized[key] = value;
+        }
+      }
+      return sanitized;
     });
   }
 }
