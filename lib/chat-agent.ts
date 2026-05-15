@@ -1,8 +1,9 @@
 import { UIMessage, jsonSchema, ToolLoopAgent, stepCountIs, convertToModelMessages } from "ai";
 import { resolveModel } from "./model-resolver";
 import { pruneColumns, getPruningModelId } from "./column-pruner";
-import { DbExecutor } from "./db-executor";
 import { api } from "@/convex/_generated/api";
+import { OrchaFusion } from "./engine/orcha-fusion";
+import { classifyIntent } from "./intent-classifier";
 
 const MAX_ROWS = 50;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
@@ -15,7 +16,8 @@ function isSafeSQL(sql: string): boolean {
 export interface AgentContext {
   convex: any;
   organizationId: string;
-  configId: string;
+  configId?: string;
+  configIds?: string[];
   modelId: string;
   showResults: boolean;
   messages: UIMessage[];
@@ -27,9 +29,14 @@ export interface AgentContext {
 }
 
 export async function createChatAgent(context: AgentContext) {
-  const { convex, organizationId, configId: rawConfigId, modelId, showResults, messages, userId, orgIdStr, apiKey, defaultModelId, defaultConfigId } = context;
+  const { convex, organizationId, configId: rawConfigId, configIds: rawConfigIds, modelId, showResults, messages, userId, orgIdStr, apiKey, defaultModelId, defaultConfigId } = context;
 
-  const configId = rawConfigId || (defaultConfigId as any);
+  // If multiple IDs provided, the first one is the "primary" context
+  const activeConfigIds = rawConfigIds && rawConfigIds.length > 0
+    ? rawConfigIds
+    : (rawConfigId ? [rawConfigId] : (defaultConfigId ? [defaultConfigId] : []));
+
+  const configId = activeConfigIds[0];
 
   let config: any;
   const allConfigs = await convex.query(api.databaseConfigs.listByOrganization, { organizationId, apiKey });
@@ -47,6 +54,21 @@ export async function createChatAgent(context: AgentContext) {
     throw new Error("Failed to parse database configuration.");
   }
 
+  // Build a connection config map for the selected databases (for federation)
+  const allOrgConfigs = allConfigs || [];
+  const dbConfigMap = new Map<string, any>();
+  const activeIdsSet = new Set(activeConfigIds);
+
+  for (const c of allOrgConfigs) {
+    if (!activeIdsSet.has(c._id)) continue; // Filter to only selected databases
+    try {
+      const parsed = { ...JSON.parse(c.encryptedUri), type: c.type };
+      if (parsed.port) parsed.port = parseInt(parsed.port, 10);
+      const alias = c.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      dbConfigMap.set(alias, parsed);
+    } catch { /* skip malformed configs */ }
+  }
+
   const [aiKeys, integrationKeys] = await Promise.all([
     convex.query(api.aiKeys.listByOrganization, { organizationId, apiKey }),
     convex.query(api.integrationKeys.listByOrganization, { organizationId, apiKey }),
@@ -58,75 +80,143 @@ export async function createChatAgent(context: AgentContext) {
   const selectedModelStr = modelId || defaultModel;
   const aiModel = resolveModel(selectedModelStr, aiKeys, orgIdStr);
 
-  const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
-  const mcpTools = await loadMcpTools(integrationKeys, orgIdStr);
-
   let filteredModels: any[] = [];
   let relationships: any[] = [];
+  let mcpTools: any = {};
   const lastMessage = (messages[messages.length - 1] as any)?.content || "";
 
-  try {
-    let embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
+  // --- INTENT CLASSIFICATION  ---
+  // 1. Get a quick list of table names to help the classifier
+  const allModels = await convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey });
+  const tableNames = allModels.map((m: any) => m.displayName || m.tableName);
 
-    const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
-      organizationId: organizationId as any,
-      text: lastMessage,
-      provider: embedProvider,
-      sysApiKey: apiKey,
-    });
+  // 2. Classify intent (TEMPORARILY DISABLED)
+  // const classification = await classifyIntent(lastMessage, aiModel, tableNames, config.businessContext);
+  // const messageIntent = classification.intent;
+  // const suggestedTables = classification.suggestedTables;
+  const messageIntent = "TEXT_TO_SQL";
+  const suggestedTables: string[] = [];
+  console.log(`[Agent] Intent Classification bypassed, defaulting to: ${messageIntent}`);
 
-    const indexName = dimensions === 1536 ? "by_embedding_1536" :
-      dimensions === 1024 ? "by_embedding_1024" : "by_embedding_768";
+  // Run MCP tool loading in the background
+  const mcpLoadPromise = (async () => {
+    const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
+    return await loadMcpTools(integrationKeys, orgIdStr);
+  })();
 
-    // O(1) Semantic Retrieval
-    const context = await convex.action(api.semanticModels.retrieveSchemaContext, {
-      configId: config._id,
-      embedding,
-      indexName,
-      limit: 10, // Top 10 to match WrenAI
-      apiKey,
-    });
+  // Only run the expensive RAG pipeline for data queries
+  if (messageIntent === "TEXT_TO_SQL") {
+    const ragPromise = (async () => {
+      const embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
+      const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
+        organizationId: organizationId as any,
+        text: lastMessage,
+        provider: embedProvider,
+        sysApiKey: apiKey,
+      });
+      const indexName = dimensions === 1536 ? "by_embedding_1536" :
+        dimensions === 1024 ? "by_embedding_1024" : "by_embedding_768";
+      return await convex.action(api.semanticModels.retrieveSchemaContext, {
+        configId: config._id,
+        embedding,
+        indexName,
+        limit: 10,
+        apiKey,
+      });
+    })();
 
-    if (context.models && context.models.length > 0) {
-      filteredModels = context.models;
-      relationships = context.relationships;
+    const [mcpResult, ragResult] = await Promise.allSettled([mcpLoadPromise, ragPromise]);
 
-      // --- TWO-STAGE COLUMN PRUNING ---
-      const pruningModelId = getPruningModelId(selectedModelStr);
-      const pruningModel = resolveModel(pruningModelId, aiKeys, orgIdStr);
+    if (mcpResult.status === "fulfilled") mcpTools = mcpResult.value;
 
-      filteredModels = await pruneColumns(
-        lastMessage,
-        filteredModels,
-        relationships,
-        pruningModel
-      );
+    if (ragResult.status === "fulfilled" && ragResult.value?.models?.length > 0) {
+      filteredModels = ragResult.value.models;
+      relationships = ragResult.value.relationships;
     }
-  } catch (err) {
-    console.error("[Agent] O(1) RAG/Pruning failed:", err);
+
+    // HYBRID DISCOVERY: Merge LLM-suggested tables with RAG results
+    if (suggestedTables.length > 0) {
+      const lowerSuggestions = suggestedTables.map(t => t.toLowerCase());
+      const suggestedModels = allModels.filter((m: any) => {
+        const dName = (m.displayName || "").toLowerCase();
+        const tName = (m.tableName || "").toLowerCase();
+        return lowerSuggestions.includes(dName) || lowerSuggestions.includes(tName);
+      });
+
+      // Stage 1: Add suggested models
+      const newModelIds = new Set(filteredModels.map(m => m._id));
+      for (const sm of suggestedModels) {
+        if (!newModelIds.has(sm._id)) {
+          console.log(`[Agent] Adding LLM-suggested table: ${sm.tableName}`);
+          filteredModels.push(sm);
+          newModelIds.add(sm._id);
+        }
+      }
+
+      // Stage 2: DEPENDENCY EXPANSION (WrenAI pattern)
+      // Pull in 1st-degree relationships for any table we've found so far
+      const allRels = await convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey });
+      const expandedIds = new Set(filteredModels.map(m => m._id));
+
+      for (const rel of allRels) {
+        if (expandedIds.has(rel.fromModelId) || expandedIds.has(rel.toModelId)) {
+          // Add both sides of the relationship
+          const neighborId = expandedIds.has(rel.fromModelId) ? rel.toModelId : rel.fromModelId;
+          if (!expandedIds.has(neighborId)) {
+            const neighbor = allModels.find((m: any) => m._id === neighborId);
+            if (neighbor) {
+              console.log(`[Agent] Expanding to neighbor table: ${neighbor.tableName}`);
+              filteredModels.push(neighbor);
+              expandedIds.add(neighborId);
+            }
+          }
+          // Also track this relationship to show in prompt
+          if (!relationships.find(r => r._id === rel._id)) {
+            relationships.push(rel);
+          }
+        }
+      }
+    }
+  } else {
+    // GENERAL / IRRELEVANT: skip RAG, just load MCP tools
+    mcpTools = await mcpLoadPromise;
+    console.log(`[Agent] Skipped RAG pipeline for intent: ${messageIntent}`);
   }
 
   // Fallback for databases without embeddings or very small databases
-  if (!filteredModels || filteredModels.length === 0) {
-    console.warn("[Agent] Falling back to mass fetch (listModelsByConfig)");
-    const [allModels, allRels] = await Promise.all([
-      convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey }),
-      convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey }),
-    ]);
-    filteredModels = allModels;
-    relationships = allRels;
+  if (messageIntent === "TEXT_TO_SQL" && (!filteredModels || filteredModels.length === 0)) {
+    console.warn("[Agent] RAG returned no results. Running Instant Fuzzy Matcher...");
+
+    // Fuzzy match: Look for query keywords in table names
+    const queryWords = lastMessage.toLowerCase().split(/\s+/);
+    const fuzzyMatches = allModels.filter((m: any) => {
+      const name = (m.displayName || m.tableName || "").toLowerCase();
+      return queryWords.some((word: string) => word.length > 3 && (name.includes(word) || word.includes(name)));
+    });
+
+    if (fuzzyMatches.length > 0) {
+      console.log(`[Agent] Fuzzy Matcher found ${fuzzyMatches.length} tables.`);
+      filteredModels = fuzzyMatches.slice(0, 5); // Limit to top 5 fuzzy matches
+    } else if (allModels.length <= 15) {
+      filteredModels = allModels;
+    } else {
+      filteredModels = []; // Truly no match, show discovery list
+    }
   }
 
   // 6. Build Prompt
+  const tableDiscoveryList = filteredModels.length === 0 && messageIntent === "TEXT_TO_SQL"
+    ? `### AVAILABLE TABLES (Discovery Mode):\n- ${tableNames.join("\n- ")}`
+    : "";
   const schemaDescription = filteredModels.map((model: any) => {
     const fields = model.fields.map((f: any) => {
-      let d = `- ${f.displayName} (${f.columnName}): ${f.type}`;
+      let d = `- ${f.displayName} (USE THIS IN SQL: ${f.columnName}): ${f.type}`;
       if (f.expression) d += ` [CALCULATED: ${f.expression}]`;
       if (f.aggregation) d += `, aggregation: ${f.aggregation}`;
       if (f.isPrimary) d += ` (PRIMARY KEY)`;
       return d;
     }).join("\n");
-    return `### ${model.displayName} (table: ${model.tableName})\n${fields}`;
+    return `### ${model.displayName} (USE THIS TABLE NAME: ${model.tableName})\n${fields}`;
   }).join("\n\n");
 
   const relationshipDescription = relationships?.length > 0
@@ -138,10 +228,36 @@ export async function createChatAgent(context: AgentContext) {
     : "";
 
   const dialectRules = config.type === "mssql"
-    ? "- Dialect: T-SQL (SQL Server). Use TOP instead of LIMIT for limiting rows."
+    ? "- Dialect: T-SQL (Microsoft SQL Server). ALWAYS use 'SELECT TOP N' instead of 'LIMIT'. Use square brackets [table] or [column] if needed."
     : config.type === "mysql"
-      ? "- Dialect: MySQL. Use backticks for reserved names."
-      : "- Dialect: PostgreSQL. Use double quotes for reserved names.";
+      ? "- Dialect: MySQL. Use backticks `table` for reserved names."
+      : "- Dialect: PostgreSQL. Use double quotes \"table\" for reserved names.";
+
+  // Build a federated catalog for the prompt (only for selected databases)
+  const allOrgModels = await convex.query(api.semanticModels.listAllModelsInOrg, { organizationId, apiKey });
+  const federatedCatalog = allOrgConfigs
+    .filter((c: any) => activeIdsSet.has(c._id))
+    .map((c: any) => {
+      const alias = c.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const dbTables = allOrgModels
+        .filter((m: any) => m.configId === c._id)
+        .map((m: any) => m.tableName)
+        .join(", ");
+
+      return `- [${c.type.toUpperCase()}] alias: **${alias}** (Tables: ${dbTables || "none detected"})`;
+    }).join("\n");
+
+  const federatedRule = `
+### FEDERATED QUERY RULE:
+- You have access to MULTIPLE databases in this organization.
+- To JOIN across databases, use the alias prefix: alias.table_name
+- Example: SELECT i.name, o.quantity FROM items_db.items i JOIN orders_db.orders o ON i.sku = o.item_sku
+- Use the 'execute_federated_sql' tool for any query that spans more than one database.
+- Use the standard 'execute_sql' tool for single-database queries only.
+
+### CONNECTED DATABASES (Federation Catalog):
+${federatedCatalog || "No additional databases connected."}
+`;
 
   const buildSystemPrompt = (toolNames: string[]) => {
     const mcpToolNames = toolNames.filter(t => t !== "execute_sql");
@@ -157,17 +273,25 @@ ${mcpToolNames.map(n => `- ${n}`).join("\n")}
 ${mcpSection}
 
 ### DATABASE CONTEXT:
+${tableDiscoveryList}
 ${schemaDescription}
 ${relationshipDescription}
-Dialect: ${dialectRules}
-Limit results to ${MAX_ROWS} rows.
+
+${dialectRules}
+${federatedRule}
+
+### CRITICAL INSTRUCTIONS:
+1. SQL SYNTAX: NEVER use the "Display Name" (e.g. 'Created At') in your SQL queries. ALWAYS use the raw "columnName" or "tableName" provided in the parentheses. Failure to do this will cause a database error.
+2. NATIVE FIRST: Prioritize the native SQL dialect mentioned above (e.g. use SELECT TOP for MSSQL).
+3. DISCOVERY: Use the provided schema context to identify tables and columns.
+4. LIMIT: Always limit results to ${MAX_ROWS} rows.
 
 ### REASONING PHASE (CRITICAL):
 - BEFORE providing any final answer or executing any tools, you MUST provide a brief "Thinking Process" to explain your logic to the user.
 - Start your response with "### 🧠 Reasoning" followed by a few bullet points explaining how you interpret the question and which tools/tables you intend to use.
 - Keep the reasoning high-level and clear for a non-technical business user. Do NOT include raw SQL in this section.
 
-- ONLY output a chart if the user explicitly asks to visualize, chart, graph, or plot the data.
+- STRICTLY FORBIDDEN: Do NOT output a chart unless the user explicitly used words like "visualize", "chart", "graph", or "plot". If they just ask for a list or a question, only show the table.
 - To plot a chart, you MUST use the execute_sql tool and provide the optional chartConfig object.
 - THE FRONTEND AUTOMATICALLY RENDERS THE CHART IF chartConfig IS PROVIDED. DO NOT output markdown image links (e.g. ![chart](...)) or attempt to display the chart yourself in the text.
 - Choose the most appropriate chartType:
@@ -191,14 +315,14 @@ Limit results to ${MAX_ROWS} rows.
   // 7. Initialize Agent
   const tools = {
     execute_sql: {
-      description: `Executes a SQL SELECT query and returns the result rows. If the user asked for a chart/graph, you MUST provide the chartConfig object.`,
+      description: `Executes a SQL SELECT query. Use this tool for data analysis. DO NOT provide a chartConfig unless the user explicitly asked to visualize, chart, graph, or plot the data.`,
       inputSchema: jsonSchema({
         type: "object",
         properties: {
           sql: { type: "string" },
           chartConfig: {
             type: "object",
-            description: "Provide this ONLY if the user explicitly asked to visualize, chart, graph, or plot the data.",
+            description: "CRITICAL: Provide this ONLY if the user explicitly asked for a visualization. Defaults to null.",
             properties: {
               chartType: { type: "string", enum: ["bar", "line", "area", "pie"], description: "The type of chart to render." },
               title: { type: "string", description: "A short descriptive title for the chart." },
@@ -213,7 +337,8 @@ Limit results to ${MAX_ROWS} rows.
       execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
         try {
-          const rows = await DbExecutor.execute(dbConfig, sql);
+          const schemaName = config.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+          const rows = await OrchaFusion.execute(sql, schemaName, dbConfig);
           return {
             success: true,
             data: rows.slice(0, MAX_ROWS),
@@ -221,6 +346,43 @@ Limit results to ${MAX_ROWS} rows.
           };
         } catch (err: any) {
           return { success: false, error: err.message || "Failed to execute SQL." };
+        }
+      },
+    },
+    execute_federated_sql: {
+      description: `Executes a SQL query that JOINs data across MULTIPLE databases using alias.table syntax. Use this ONLY when the user needs data from more than one connected database. Do NOT use chartConfig unless the user explicitly asked for a visualization.`,
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          sql: { type: "string", description: "Federated SQL query using alias.table syntax (e.g. items_db.items JOIN orders_db.orders)" },
+          chartConfig: {
+            type: "object",
+            description: "CRITICAL: Provide this ONLY if the user explicitly asked for a visualization.",
+            properties: {
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie"] },
+              title: { type: "string" },
+              xKey: { type: "string" },
+              yKey: { type: "string" }
+            },
+            required: ["chartType", "title", "xKey", "yKey"]
+          }
+        },
+        required: ["sql"],
+      }),
+      execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
+        if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
+        try {
+          console.log("[Agent] Executing FEDERATED query across", dbConfigMap.size, "databases");
+          const rows = await OrchaFusion.executeMulti(sql, dbConfigMap);
+          return {
+            success: true,
+            data: rows.slice(0, MAX_ROWS),
+            chartConfig,
+            federated: true,
+            sourceDatabases: Array.from(dbConfigMap.keys()),
+          };
+        } catch (err: any) {
+          return { success: false, error: err.message || "Federated query failed." };
         }
       },
     },

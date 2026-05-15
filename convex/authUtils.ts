@@ -33,79 +33,51 @@ export async function checkMembership(
   // ── Handle API Key Auth ──
   if (apiKey) {
     const keyHash = await hashKey(apiKey);
-    const keyRecord = await ctx.db
-      .query("apiKeys")
-      .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
-      .unique();
+    const [keyRecord, org] = await Promise.all([
+      ctx.db.query("apiKeys").withIndex("by_hash", (q) => q.eq("keyHash", keyHash)).unique(),
+      ctx.db.get(organizationId)
+    ]);
 
-    if (!keyRecord) {
-      throw new Error("Invalid API Key.");
-    }
-
-    if (keyRecord.organizationId !== organizationId) {
-      throw new Error("API Key does not belong to this organization.");
-    }
-
-    const org = await ctx.db.get(organizationId);
+    if (!keyRecord) throw new Error("Invalid API Key.");
+    if (keyRecord.organizationId !== organizationId) throw new Error("API Key does not belong to this organization.");
     if (!org) throw new Error("Organization not found.");
 
     return { user: null, membership: null, organization: org };
   }
 
-  // ── Handle Clerk Auth ──
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    // Instead of throwing, we return null to allow the caller to decide 
-    // (e.g. queries returning empty results instead of crashing the UI)
-    return null;
-  }
+  if (!identity) return null;
 
-  // Find the user in our system. Subject (Clerk ID) is the most stable lookup.
-  let user = null;
-  if (identity.subject) {
-    user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject))
-      .unique();
-  }
+  // 1. Parallelize User (both formats) and Org lookups.
+  // We run two user queries simultaneously to handle both storage formats:
+  // - identity.subject       → short-form  (e.g. "user_abc123")
+  // - identity.tokenIdentifier → long-form (e.g. "https://accounts.dev|user_abc123")
+  // Existing users in the DB may be stored under either format.
+  const [userBySubject, userByToken, org] = await Promise.all([
+    identity.subject
+      ? ctx.db.query("users").withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject!)).unique()
+      : Promise.resolve(null),
+    ctx.db.query("users").withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier)).unique(),
+    ctx.db.get(organizationId)
+  ]);
 
-  // Fallback to full tokenIdentifier if subject lookup failed
-  if (!user) {
-    user = await ctx.db
-      .query("users")
-      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
-      .unique();
-  }
+  const user = userBySubject ?? userByToken;
 
-  if (!user) {
-    throw new Error("User not found in system.");
-  }
+  if (!user) throw new Error("User not found in system.");
+  if (!org) throw new Error("Organization not found.");
 
-  // Check if a membership exists for this user and organization (Highly indexed)
+  // 2. Check Membership (Optimized Index)
   const membership = await ctx.db
     .query("memberships")
     .withIndex("by_org_user", (q) => 
-      q.eq("organizationId", organizationId).eq("userId", user!._id)
+      q.eq("organizationId", organizationId).eq("userId", user._id)
     )
     .unique();
 
-  if (membership) {
-    // If they are a member, we still might need the org record for the caller
-    const org = await ctx.db.get(organizationId);
-    if (!org) throw new Error("Organization not found.");
+  if (membership || org.ownerId === user._id) {
     return { user, membership, organization: org };
   }
 
-  // If not a member, check if they are the direct owner (Fallback)
-  const org = await ctx.db.get(organizationId);
-  if (!org) {
-    throw new Error("Organization not found.");
-  }
-
-  if (org.ownerId !== user._id) {
-    throw new Error(`Access Denied: You are not a member of this organization.`);
-  }
-
-  return { user, membership: null, organization: org };
+  throw new Error(`Access Denied: You are not a member of ${org.name}`);
 }
 

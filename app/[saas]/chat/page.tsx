@@ -33,12 +33,12 @@ export default function ChatPage() {
     api.databaseConfigs.listByOrganization,
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
   );
-  const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
+  const [selectedConfigIds, setSelectedConfigIds] = useState<string[]>([]);
   useEffect(() => {
-    if (allConfigs && allConfigs.length > 0 && !selectedConfigId) {
-      setSelectedConfigId(allConfigs[0]._id);
+    if (allConfigs && allConfigs.length > 0 && selectedConfigIds.length === 0) {
+      setSelectedConfigIds([allConfigs[0]._id]);
     }
-  }, [allConfigs, selectedConfigId]);
+  }, [allConfigs, selectedConfigIds]);
 
   const isConnected = useQuery(
     api.databaseConfigs.isConnected,
@@ -83,7 +83,7 @@ export default function ChatPage() {
     } else {
       createSession({
         organizationId: activeOrg._id,
-        configId: selectedConfigId ? selectedConfigId as Id<"databaseConfigs"> : undefined,
+        configIds: selectedConfigIds.length > 0 ? (selectedConfigIds as Id<"databaseConfigs">[]) : undefined,
         modelId: selectedModel,
       }).then(setActiveSessionId);
     }
@@ -107,9 +107,11 @@ export default function ChatPage() {
   useEffect(() => {
     if (!activeSession) return;
     
-    if (activeSession.configId && activeSession.configId !== selectedConfigId) {
-      console.log("[Chat] Syncing session configId:", activeSession.configId);
-      setSelectedConfigId(activeSession.configId);
+    if (activeSession.configIds && JSON.stringify(activeSession.configIds) !== JSON.stringify(selectedConfigIds)) {
+      console.log("[Chat] Syncing session configIds:", activeSession.configIds);
+      setSelectedConfigIds(activeSession.configIds);
+    } else if (activeSession.configId && selectedConfigIds.length === 0) {
+      setSelectedConfigIds([activeSession.configId]);
     }
     
     if (activeSession.modelId && activeSession.modelId !== selectedModel) {
@@ -119,12 +121,12 @@ export default function ChatPage() {
   }, [activeSession?._id]);
 
   // Persist changes to the session when the user manually changes the selector
-  const handleConfigChange = useCallback((id: string | null) => {
-    setSelectedConfigId(id);
-    if (activeSessionId && id) {
+  const handleConfigChange = useCallback((ids: string[]) => {
+    setSelectedConfigIds(ids);
+    if (activeSessionId && ids.length > 0) {
       updateSessionConfig({ 
         sessionId: activeSessionId as Id<"chatSessions">, 
-        configId: id as Id<"databaseConfigs"> 
+        configIds: ids as Id<"databaseConfigs">[] 
       }).catch(console.error);
     }
   }, [activeSessionId, updateSessionConfig]);
@@ -141,10 +143,10 @@ export default function ChatPage() {
 
   const activeOrgId = activeOrg?._id;
 
-  const chatParamsRef = useRef({ activeOrgId, selectedConfigId, selectedModel, saas, showResults, activeSessionId });
+  const chatParamsRef = useRef({ activeOrgId, selectedConfigIds, selectedModel, saas, showResults, activeSessionId });
   useEffect(() => {
-    chatParamsRef.current = { activeOrgId, selectedConfigId, selectedModel, saas, showResults, activeSessionId };
-  }, [activeOrgId, selectedConfigId, selectedModel, saas, showResults, activeSessionId]);
+    chatParamsRef.current = { activeOrgId, selectedConfigIds, selectedModel, saas, showResults, activeSessionId };
+  }, [activeOrgId, selectedConfigIds, selectedModel, saas, showResults, activeSessionId]);
 
   const { messages, sendMessage, setMessages, status } = (useChat as any)({
     id: activeSessionId ?? undefined,
@@ -153,7 +155,7 @@ export default function ChatPage() {
       api: "/api/chat",
       body: () => ({
         organizationId: chatParamsRef.current.activeOrgId,
-        configId: chatParamsRef.current.selectedConfigId,
+        configIds: chatParamsRef.current.selectedConfigIds,
         modelId: chatParamsRef.current.selectedModel,
         showResults: chatParamsRef.current.showResults,
         sessionId: chatParamsRef.current.activeSessionId,
@@ -267,7 +269,7 @@ export default function ChatPage() {
     if (!activeOrg?._id) return;
     const id = await createSession({
       organizationId: activeOrg._id,
-      configId: selectedConfigId ? selectedConfigId as Id<"databaseConfigs"> : undefined,
+      configIds: selectedConfigIds.length > 0 ? (selectedConfigIds as Id<"databaseConfigs">[]) : undefined,
       modelId: selectedModel,
     });
     setActiveSessionId(id);
@@ -275,7 +277,7 @@ export default function ChatPage() {
     restoredSessionRef.current = id;
     setInput("");
     setIsStreaming(false);
-  }, [activeOrg?._id, selectedConfigId, selectedModel, createSession, setMessages]);
+  }, [activeOrg?._id, selectedConfigIds, selectedModel, createSession, setMessages]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -325,7 +327,7 @@ export default function ChatPage() {
               isLoading={isLoading}
               showResults={showResults}
               organizationId={activeOrgId}
-              configId={selectedConfigId}
+              configId={selectedConfigIds[0]}
             />
           </Stack>
         </ScrollArea>
@@ -337,8 +339,8 @@ export default function ChatPage() {
             handleSubmit={handleSubmit}
             isLoading={isLoading}
             allConfigs={allConfigs || []}
-            selectedConfigId={selectedConfigId}
-            setSelectedConfigId={handleConfigChange}
+            selectedConfigIds={selectedConfigIds}
+            setSelectedConfigIds={handleConfigChange}
             aiKeys={aiKeys || []}
             selectedModel={selectedModel}
             setSelectedModel={handleModelChange}

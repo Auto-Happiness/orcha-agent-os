@@ -580,10 +580,10 @@ function extractSQLFromParts(parts: any[]): string[] {
   for (const part of parts) {
     const type: string = part.type ?? "";
     let sql: string | undefined;
-    if (type === "tool-execute_sql") sql = part.input?.sql;
-    else if (type === "tool-invocation" && part.toolInvocation?.toolName === "execute_sql")
+    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") sql = part.input?.sql;
+    else if (type === "tool-invocation" && (part.toolInvocation?.toolName === "execute_sql" || part.toolInvocation?.toolName === "execute_federated_sql"))
       sql = (part.toolInvocation.input as any)?.sql ?? (part.toolInvocation.args as any)?.sql;
-    else if (type === "tool-result" && part.toolName === "execute_sql")
+    else if (type === "tool-result" && (part.toolName === "execute_sql" || part.toolName === "execute_federated_sql"))
       sql = (part.input as any)?.sql ?? (part.args as any)?.sql;
     
     if (sql && !queries.includes(sql)) queries.push(sql);
@@ -601,7 +601,7 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
     (type === "tool-execute_sql" && part.state === "input-streaming")
   ) {
     const toolName = part.toolInvocation?.toolName || part.toolName || "query";
-    const isSQL = toolName === "execute_sql";
+    const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
     
     return (
       <Box key={i} ml="3rem" mt="xs">
@@ -617,9 +617,9 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
   let result: any = null;
   let toolName = "";
 
-  if (type === "tool-execute_sql" && part.state === "output-available") {
+  if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql") && part.state === "output-available") {
     result = part.output;
-    toolName = "execute_sql";
+    toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
   }
   else if (type === "tool-result") {
     result = part.result;
@@ -640,7 +640,7 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
     return <Box key={i} ml="3rem" mt="xs"><Text size="xs" c="red.4">Error: {result.error || result.message || "Action failed"}</Text></Box>;
   }
 
-  const isSQL = toolName === "execute_sql";
+  const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
   const partSql = isSQL 
     ? (part.input?.sql ?? part.toolInvocation?.args?.sql ?? part.args?.sql) 
     : undefined;

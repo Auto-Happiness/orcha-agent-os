@@ -36,6 +36,7 @@ export const create = mutation({
     organizationId: v.id("organizations"),
     title: v.optional(v.string()),
     configId: v.optional(v.id("databaseConfigs")),
+    configIds: v.optional(v.array(v.id("databaseConfigs"))),
     modelId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -51,6 +52,7 @@ export const create = mutation({
       userId: user._id,
       title: args.title ?? "New Chat",
       configId: args.configId,
+      configIds: args.configIds,
       modelId: args.modelId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -88,6 +90,7 @@ export const updateConfig = mutation({
   args: { 
     sessionId: v.id("chatSessions"), 
     configId: v.optional(v.id("databaseConfigs")),
+    configIds: v.optional(v.array(v.id("databaseConfigs"))),
     modelId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
@@ -97,6 +100,7 @@ export const updateConfig = mutation({
     
     const updates: any = { updatedAt: Date.now() };
     if (args.configId !== undefined) updates.configId = args.configId;
+    if (args.configIds !== undefined) updates.configIds = args.configIds;
     if (args.modelId !== undefined) updates.modelId = args.modelId;
     
     await ctx.db.patch(args.sessionId, updates);

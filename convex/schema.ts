@@ -53,7 +53,77 @@ const WidgetLayoutValidator = v.object({
   h: v.number(),
 });
 
-export default defineSchema({  // ─── Users ────────────────────────────────────────────────
+// Extracted validators to prevent V8 isolate cold-start timeouts
+const DbTypeValidator = v.union(
+  v.literal("postgres"),
+  v.literal("mysql"),
+  v.literal("bigquery"),
+  v.literal("mssql"),
+  v.literal("mongodb"),
+  v.literal("sqlite")
+);
+
+const DbStatusValidator = v.optional(v.union(v.literal("draft"), v.literal("ready")));
+
+const MemoryProviderValidator = v.optional(v.union(
+  v.literal("openai"),
+  v.literal("gemini"),
+  v.literal("local")
+));
+
+const IndexingStatusValidator = v.optional(v.union(
+  v.literal("idle"),
+  v.literal("processing"),
+  v.literal("completed"),
+  v.literal("cancelled")
+));
+
+const ExportStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("processing"),
+  v.literal("completed"),
+  v.literal("failed")
+);
+
+const McpParameterValidator = v.array(v.object({
+  name: v.string(),
+  type: v.string(),
+  description: v.string(),
+}));
+
+const UserRoleValidator = v.union(v.literal("owner"), v.literal("admin"), v.literal("member"));
+
+const WidgetTypeValidator = v.union(
+  v.literal("bar"),
+  v.literal("line"),
+  v.literal("pie"),
+  v.literal("kpi"),
+  v.literal("text")
+);
+
+const WidgetSizeValidator = v.union(
+  v.literal("small"),
+  v.literal("medium"),
+  v.literal("large"),
+  v.literal("full")
+);
+
+const RelationshipTypeValidator = v.union(
+  v.literal("one_to_one"),
+  v.literal("one_to_many"),
+  v.literal("many_to_one")
+);
+
+const AiProviderValidator = v.union(
+  v.literal("gemini"),
+  v.literal("openai"),
+  v.literal("claude"),
+  v.literal("local"),
+  v.literal("grok")
+);
+
+export default defineSchema({
+  // ─── Users ────────────────────────────────────────────────
   // Updated for Clerk integration:
   // We identify users by their Clerk 'subject' (sub) in JWTs.
   users: defineTable({
@@ -61,7 +131,7 @@ export default defineSchema({  // ─── Users ──────────
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
-    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+    role: UserRoleValidator,
     createdAt: v.number(),
     lastSeenAt: v.optional(v.number()),
   })
@@ -86,7 +156,7 @@ export default defineSchema({  // ─── Users ──────────
   memberships: defineTable({
     organizationId: v.id("organizations"),
     userId: v.id("users"),
-    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+    role: UserRoleValidator,
     joinedAt: v.number(),
   })
     .index("by_org", ["organizationId"])
@@ -118,20 +188,20 @@ export default defineSchema({  // ─── Users ──────────
   // ─── Bridge: Multi-Tenant DB Configs ────────────────────
   databaseConfigs: defineTable({
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("postgres"), v.literal("mysql"), v.literal("bigquery"), v.literal("mssql"), v.literal("mongodb"), v.literal("sqlite")),
-    encryptedUri: v.string(), // Encrypted DB URI
-    name: v.string(),        // Environment Profile Name
+    type: DbTypeValidator,
+    encryptedUri: v.string(),
+    name: v.string(),
     description: v.optional(v.string()),
     image: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     modelProvider: v.optional(v.string()),
-    modelConfig: v.optional(v.string()), // Encrypted LLM JSON
-    businessContext: v.optional(v.string()), // Added for AI semantic memory
-    status: v.optional(v.union(v.literal("draft"), v.literal("ready"))),
-    memoryProvider: v.optional(v.union(v.literal("openai"), v.literal("gemini"), v.literal("local"))),
+    modelConfig: v.optional(v.string()),
+    businessContext: v.optional(v.string()),
+    status: DbStatusValidator,
+    memoryProvider: MemoryProviderValidator,
     indexingTotal: v.optional(v.number()),
     indexingProgress: v.optional(v.number()),
-    indexingStatus: v.optional(v.union(v.literal("idle"), v.literal("processing"), v.literal("completed"), v.literal("cancelled"))),
+    indexingStatus: IndexingStatusValidator,
     updatedBy: v.id("users"),
     updatedAt: v.number(),
   }).index("by_org", ["organizationId"])
@@ -142,12 +212,7 @@ export default defineSchema({  // ─── Users ──────────
   dataExports: defineTable({
     userId: v.id("users"),
     organizationId: v.id("organizations"),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("processing"),
-      v.literal("completed"),
-      v.literal("failed")
-    ),
+    status: ExportStatusValidator,
     toolName: v.string(),
     args: v.any(),
     downloadUrl: v.optional(v.string()),
@@ -162,14 +227,8 @@ export default defineSchema({  // ─── Users ──────────
     configId: v.id("databaseConfigs"),
     name: v.string(),
     description: v.string(),
-    parameters: v.array(
-      v.object({
-        name: v.string(),
-        type: v.string(),
-        description: v.string(),
-      })
-    ),
-    statement: v.string(), // SQL statement with placeholders
+    parameters: McpParameterValidator,
+    statement: v.string(),
     createdAt: v.number(),
     createdBy: v.id("users"),
   })
@@ -218,7 +277,7 @@ export default defineSchema({  // ─── Users ──────────
     fromColumn: v.string(),
     toModelId: v.id("semanticModels"),
     toColumn: v.string(),
-    type: v.union(v.literal("one_to_one"), v.literal("one_to_many"), v.literal("many_to_one")),
+    type: RelationshipTypeValidator,
     createdAt: v.number(),
   })
     .index("by_org", ["organizationId"])
@@ -243,13 +302,7 @@ export default defineSchema({  // ─── Users ──────────
   // ─── AI: Provider Configurations (API Keys) ──────────────
   aiKeys: defineTable({
     organizationId: v.id("organizations"),
-    provider: v.union(
-      v.literal("gemini"),
-      v.literal("openai"),
-      v.literal("claude"),
-      v.literal("local"),
-      v.literal("grok")
-    ),
+    provider: AiProviderValidator,
     keyType: v.string(),
     keyValue: v.string(),
     storageStrategy: v.string(),
@@ -263,7 +316,8 @@ export default defineSchema({  // ─── Users ──────────
     organizationId: v.id("organizations"),
     userId: v.id("users"),
     title: v.string(),
-    configId: v.optional(v.id("databaseConfigs")),
+    configId: v.optional(v.id("databaseConfigs")), // Legacy: keep for compatibility
+    configIds: v.optional(v.array(v.id("databaseConfigs"))), // Support for multiple selected DBs
     modelId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -323,7 +377,7 @@ export default defineSchema({  // ─── Users ──────────
   dashboardWidgets: defineTable({
     dashboardId: v.id("dashboards"),
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
+    type: WidgetTypeValidator,
     title: v.string(),
     description: v.optional(v.string()),
 
@@ -336,7 +390,7 @@ export default defineSchema({  // ─── Users ──────────
     // Layout: Full pixel-grid control (react-grid-layout)
     layout: v.optional(WidgetLayoutValidator),
     order: v.number(),
-    size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
+    size: WidgetSizeValidator,
 
     createdAt: v.number(),
   })
