@@ -9,9 +9,18 @@ const SemanticFieldValidator = v.object({
   columnName: v.string(),
   displayName: v.string(),
   description: v.optional(v.string()),
-  type: v.string(),
-  aggregation: v.optional(v.string()),
-  expression: v.optional(v.string()),
+  remarks: v.optional(v.string()),    // Business logic notes or caveats
+  type: v.string(),                   // Technical data type (e.g. 'varchar')
+  
+  // BI Layer Metadata
+  fieldType: v.optional(v.union(v.literal("dimension"), v.literal("measure"))),
+  dataType: v.optional(v.string()),   // Semantic type (e.g. 'currency', 'percentage')
+  defaultAggregation: v.optional(v.string()), // 'sum', 'avg', 'count', etc.
+  sqlExpression: v.optional(v.string()),      // For calculated virtual columns
+  isTimeDimension: v.optional(v.boolean()),
+  
+  aggregation: v.optional(v.string()), // Legacy - keep for compatibility
+  expression: v.optional(v.string()),  // Legacy - keep for compatibility
   isPrimary: v.optional(v.boolean()),
   isHidden: v.optional(v.boolean()),
 });
@@ -242,6 +251,7 @@ export default defineSchema({
     tableName: v.string(),     // Physical table/view name (e.g. 'users_raw')
     displayName: v.string(),   // Business name (e.g. 'Customers')
     description: v.optional(v.string()),
+    remarks: v.optional(v.string()),     // Global table notes (e.g. "Data refreshed every 4h")
     isView: v.optional(v.boolean()), // true if this is a database view, not a base table
     fields: v.array(SemanticFieldValidator),
     // Multi-dimensional embedding support for different providers

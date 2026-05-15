@@ -236,13 +236,21 @@ export const updateModel = mutation({
     id: v.id("semanticModels"),
     displayName: v.optional(v.string()),
     description: v.optional(v.string()),
+    remarks: v.optional(v.string()),
+    isView: v.optional(v.boolean()),
     fields: v.optional(
       v.array(
         v.object({
           columnName: v.string(),
           displayName: v.string(),
           description: v.optional(v.string()),
+          remarks: v.optional(v.string()),
           type: v.string(),
+          fieldType: v.optional(v.union(v.literal("dimension"), v.literal("measure"))),
+          dataType: v.optional(v.string()),
+          defaultAggregation: v.optional(v.string()),
+          sqlExpression: v.optional(v.string()),
+          isTimeDimension: v.optional(v.boolean()),
           aggregation: v.optional(v.string()),
           expression: v.optional(v.string()),
           isPrimary: v.optional(v.boolean()),

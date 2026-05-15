@@ -209,14 +209,29 @@ export async function createChatAgent(context: AgentContext) {
     ? `### AVAILABLE TABLES (Discovery Mode):\n- ${tableNames.join("\n- ")}`
     : "";
   const schemaDescription = filteredModels.map((model: any) => {
+    let modelCtx = `### ${model.displayName} (USE THIS TABLE NAME: ${model.tableName})\n`;
+    if (model.description) modelCtx += `Description: ${model.description}\n`;
+    if (model.remarks) modelCtx += `Notes: ${model.remarks}\n`;
+
     const fields = model.fields.map((f: any) => {
       let d = `- ${f.displayName} (USE THIS IN SQL: ${f.columnName}): ${f.type}`;
-      if (f.expression) d += ` [CALCULATED: ${f.expression}]`;
-      if (f.aggregation) d += `, aggregation: ${f.aggregation}`;
+
+      // BI Metadata & Semantic Hints
+      if (f.fieldType === "measure") d += ` [MEASURE: default aggregation=${f.defaultAggregation || 'sum'}]`;
+      if (f.fieldType === "dimension") d += ` [DIMENSION]`;
+      if (f.isTimeDimension) d += ` [TIME SERIES]`;
+
+      if (f.sqlExpression) d += ` [CALCULATED: ${f.sqlExpression}]`;
+      else if (f.expression) d += ` [CALCULATED: ${f.expression}]`; // Legacy fallback
+
+      if (f.description) d += ` | Info: ${f.description}`;
+      if (f.remarks) d += ` | Note: ${f.remarks}`;
+
       if (f.isPrimary) d += ` (PRIMARY KEY)`;
       return d;
     }).join("\n");
-    return `### ${model.displayName} (USE THIS TABLE NAME: ${model.tableName})\n${fields}`;
+
+    return `${modelCtx}${fields}`;
   }).join("\n\n");
 
   const relationshipDescription = relationships?.length > 0

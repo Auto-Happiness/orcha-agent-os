@@ -173,6 +173,19 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
     orgDoc?._id ? { organizationId: orgDoc._id } : "skip"
   );
 
+  // Developer Diagnostics
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Layout Sync] Status:", {
+        clerkUser: userLoaded ? "Ready" : "Waiting",
+        clerkOrg: orgLoaded ? "Ready" : "Waiting",
+        convexOrgDoc: orgDoc === undefined ? "Loading" : orgDoc === null ? "Not Found" : "Ready",
+        membership: isMember === undefined ? "Loading" : isMember === true ? "Verified" : "Syncing Needed",
+        slug
+      });
+    }
+  }, [userLoaded, orgLoaded, orgDoc, isMember, slug]);
+
   const spotlightActions = useMemo(() => {
     return (dbConfigs || []).map((config) => ({
       id: config._id,

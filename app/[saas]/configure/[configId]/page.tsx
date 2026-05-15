@@ -285,7 +285,6 @@ export default function EditConfigurationPage() {
             <Tabs.Tab value="modeler" leftSection={<IconHierarchy2 size={16} />}>Semantic Modeler</Tabs.Tab>
             <Tabs.Tab value="lab" leftSection={<IconTerminal2 size={16} />}>Query Lab</Tabs.Tab>
             <Tabs.Tab value="memory" leftSection={<IconBrain size={16} />}>Semantic Memory</Tabs.Tab>
-            <Tabs.Tab value="skills" leftSection={<IconPuzzle size={16} />}>AI Skills</Tabs.Tab>
             <Tabs.Tab value="health" leftSection={<IconAdjustmentsHorizontal size={16} />}>Connectivity & Pulse</Tabs.Tab>
           </Tabs.List>
 
@@ -328,48 +327,6 @@ export default function EditConfigurationPage() {
             )}
           </Tabs.Panel>
 
-          <Tabs.Panel value="skills">
-             <Stack gap="xl">
-                <Box>
-                  <Title order={4} c="white">AI Skill Libraries</Title>
-                  <Text size="sm" c="dimmed">Enhance your agent's reasoning with pre-built domain intelligence.</Text>
-                </Box>
-                
-                <Grid>
-                  {[
-                    { title: "Finance Core", desc: "Automated GAAP mapping, DSO calculation, and Cash Flow reasoning.", icon: <IconActivity size={24} />, color: "green" },
-                    { title: "Supply Chain", desc: "Inventory forecasting, lead-time analysis, and stock-out prevention.", icon: <IconHierarchy2 size={24} />, color: "blue" },
-                    { title: "HR Intelligence", desc: "Employee churn prediction, performance analytics, and payroll mapping.", icon: <IconTags size={24} />, color: "orange" },
-                  ].map(skill => (
-                    <Grid.Col span={4} key={skill.title}>
-                      <Paper withBorder p="xl" radius="md" style={{ background: "rgba(255,255,255,0.01)", height: "100%" }}>
-                        <Stack gap="md">
-                           <ThemeIcon variant="light" color={skill.color} size="xl" radius="md">
-                              {skill.icon}
-                           </ThemeIcon>
-                           <Box>
-                              <Text fw={700} c="white">{skill.title}</Text>
-                              <Text size="xs" c="dimmed" lh={1.5}>{skill.desc}</Text>
-                           </Box>
-                           <Button variant="light" color="violet" size="xs" fullWidth mt="auto">Install Skill</Button>
-                        </Stack>
-                      </Paper>
-                    </Grid.Col>
-                  ))}
-                  
-                  <Grid.Col span={4}>
-                    <Paper withBorder p="xl" radius="md" style={{ background: "rgba(147,51,234,0.03)", border: "1px dashed rgba(147,51,234,0.3)", display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                       <Stack align="center" gap="xs">
-                          <ThemeIcon variant="transparent" color="violet" size="xl">
-                             <IconPlus size={32} />
-                          </ThemeIcon>
-                          <Text size="sm" fw={600} c="violet.4">Create Custom Skill</Text>
-                       </Stack>
-                    </Paper>
-                  </Grid.Col>
-                </Grid>
-             </Stack>
-          </Tabs.Panel>
 
           {/* ── Tab: Connectivity ──────────────────────────────────────────── */}
           <Tabs.Panel value="health">
