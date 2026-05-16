@@ -246,8 +246,10 @@ export const processEmbeddingBatch = internalAction({
       const model = await ctx.runQuery(internal.semanticModels.getById, { modelId });
       if (!model) continue;
 
-      const columnNames = model.fields.map((f: any) => f.displayName || f.columnName).join(", ");
-      const textToEmbed = `Table: ${model.tableName}. Columns: ${columnNames}. Description: ${model.description || ""}`;
+      const columnContext = model.fields.map((f: any) => 
+        `${f.columnName} (${f.displayName}): ${f.description || ""}${f.remarks ? ` [Note: ${f.remarks}]` : ""}`
+      ).join("; ");
+      const textToEmbed = `Table: ${model.tableName}. Description: ${model.description || ""}. Columns: ${columnContext}`;
 
       try {
         const { embedding, dimensions } = await fetchEmbedding(

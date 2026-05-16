@@ -4,6 +4,7 @@ import { pruneColumns, getPruningModelId } from "./column-pruner";
 import { api } from "@/convex/_generated/api";
 import { OrchaFusion } from "./engine/orcha-fusion";
 import { classifyIntent } from "./intent-classifier";
+import { getNativeDialectRule, getFederatedRule } from "./dialects";
 
 const MAX_ROWS = 50;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
@@ -79,6 +80,8 @@ export async function createChatAgent(context: AgentContext) {
 
   const selectedModelStr = modelId || defaultModel;
   const aiModel = resolveModel(selectedModelStr, aiKeys, orgIdStr);
+  const pruningModelId = getPruningModelId(selectedModelStr);
+  const pruningModel = resolveModel(pruningModelId, aiKeys, orgIdStr);
 
   let filteredModels: any[] = [];
   let relationships: any[] = [];
@@ -204,6 +207,25 @@ export async function createChatAgent(context: AgentContext) {
     }
   }
 
+  // --- COLUMN PRUNING ---
+  // Only prune when there are genuinely many columns (> 60 total).
+  // For small/simple schemas, pruning adds an extra LLM call with no benefit
+  // and can actually hurt accuracy by stripping columns the AI needs.
+  if (messageIntent === "TEXT_TO_SQL" && filteredModels.length > 0) {
+    const totalColumns = filteredModels.reduce((sum: number, m: any) => sum + (m.fields?.length || 0), 0);
+    if (totalColumns > 60) {
+      try {
+        const pruned = await pruneColumns(lastMessage, filteredModels, relationships, pruningModel);
+        filteredModels = pruned;
+      } catch (err) {
+        console.warn("[Agent] Column pruning failed, using full schema context:", err);
+        // Intentionally fall through — original filteredModels remain intact
+      }
+    } else {
+      console.log(`[Agent] Skipping pruning: total columns (${totalColumns}) below threshold.`);
+    }
+  }
+
   // 6. Build Prompt
   const tableDiscoveryList = filteredModels.length === 0 && messageIntent === "TEXT_TO_SQL"
     ? `### AVAILABLE TABLES (Discovery Mode):\n- ${tableNames.join("\n- ")}`
@@ -242,12 +264,6 @@ export async function createChatAgent(context: AgentContext) {
     }).join("\n")
     : "";
 
-  const dialectRules = config.type === "mssql"
-    ? "- Dialect: T-SQL (Microsoft SQL Server). ALWAYS use 'SELECT TOP N' instead of 'LIMIT'. Use square brackets [table] or [column] if needed."
-    : config.type === "mysql"
-      ? "- Dialect: MySQL. Use backticks `table` for reserved names."
-      : "- Dialect: PostgreSQL. Use double quotes \"table\" for reserved names.";
-
   // Build a federated catalog for the prompt (only for selected databases)
   const allOrgModels = await convex.query(api.semanticModels.listAllModelsInOrg, { organizationId, apiKey });
   const federatedCatalog = allOrgConfigs
@@ -262,17 +278,8 @@ export async function createChatAgent(context: AgentContext) {
       return `- [${c.type.toUpperCase()}] alias: **${alias}** (Tables: ${dbTables || "none detected"})`;
     }).join("\n");
 
-  const federatedRule = `
-### FEDERATED QUERY RULE:
-- You have access to MULTIPLE databases in this organization.
-- To JOIN across databases, use the alias prefix: alias.table_name
-- Example: SELECT i.name, o.quantity FROM items_db.items i JOIN orders_db.orders o ON i.sku = o.item_sku
-- Use the 'execute_federated_sql' tool for any query that spans more than one database.
-- Use the standard 'execute_sql' tool for single-database queries only.
-
-### CONNECTED DATABASES (Federation Catalog):
-${federatedCatalog || "No additional databases connected."}
-`;
+  const dialectRules = getNativeDialectRule(config.type);
+  const federatedRule = getFederatedRule(federatedCatalog, config.name);
 
   const buildSystemPrompt = (toolNames: string[]) => {
     const mcpToolNames = toolNames.filter(t => t !== "execute_sql");

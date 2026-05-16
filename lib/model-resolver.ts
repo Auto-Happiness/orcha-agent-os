@@ -1,5 +1,6 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { KeyManager } from "./key-manager";
 
 export type LanguageModel = ReturnType<ReturnType<typeof createOpenAI>["chat"]>;
@@ -57,7 +58,19 @@ export function resolveModel(
       return createOpenAI({ baseURL, apiKey: "ollama" }).chat(resolvedModel);
     }
 
-    case "gemini":
+    case "gemini": {
+      const apiKey = decryptKey(findKey("gemini"), orgIdStr);
+      if (!apiKey) throw new Error("Gemini API key not configured.");
+      return createGoogleGenerativeAI({ apiKey })(modelName || "gemini-1.5-flash") as any;
+    }
+
+    case "claude":
+    case "anthropic": {
+      const apiKey = decryptKey(findKey("claude"), orgIdStr);
+      if (!apiKey) throw new Error("Claude API key not configured.");
+      return createAnthropic({ apiKey })(modelName) as any;
+    }
+
     default: {
       const apiKey = decryptKey(findKey("gemini"), orgIdStr);
       if (!apiKey) throw new Error("Gemini API key not configured.");
