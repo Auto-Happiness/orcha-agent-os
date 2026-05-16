@@ -25,7 +25,7 @@ interface DashboardGridProps {
   saas: string;
 }
 
-function WidgetRenderer({ widget, organizationId }: { widget: any, organizationId: string }) {
+function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryData: any[], queryError: string | null }) {
   if (widget.type === "text") {
     return (
       <Box p="xs" style={{ height: "100%", overflow: "auto" }}>
@@ -36,47 +36,24 @@ function WidgetRenderer({ widget, organizationId }: { widget: any, organizationI
     );
   }
 
-  const { data: result, isLoading, error } = useQuery({
-    queryKey: ['widgetData', widget._id, widget.queryId, widget.mapping],
-    queryFn: async () => {
-      if (!widget.queryId || !widget.mapping) return null;
-      const response = await fetch("/api/bi/widget-query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          widgetId: widget._id,
-          organizationId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Failed to load widget data.");
-      }
-      return data;
-    },
-    enabled: !!widget.queryId && !!widget.mapping,
-    staleTime: 5 * 60 * 1000, // Keep data fresh for 5 minutes
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-
-  const queryData = result?.success ? result.rows : [];
-  const queryError = error ? (error as Error).message : (result?.success === false ? result.message : null);
-
-  if (isLoading) {
-    return (
-      <Center h="100%">
-        <Loader size="sm" color="violet" />
-      </Center>
-    );
-  }
-
   if (queryError) {
     return (
       <Center h="100%" p="md">
         <Stack align="center" gap={4}>
           <Text size="xs" c="red.4" ta="center">{queryError}</Text>
           <Text size="10px" c="dimmed">Check query configuration</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  if (!widget.mapping || !widget.queryId) {
+    return (
+      <Center h="100%">
+        <Stack align="center" gap={4}>
+          <IconChartBar size={32} color="rgba(255,255,255,0.05)" />
+          <Text size="xs" c="dimmed">Not Configured</Text>
+          <Text size="10px" c="violet.4">Click to setup intelligence</Text>
         </Stack>
       </Center>
     );
@@ -111,6 +88,32 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
   const [selectedWidget, setSelectedWidget] = useState<any>(null);
   const [panelOpened, setPanelOpened] = useState(false);
 
+  // 1. Unified Dashboard Mega-Query
+  // Fetch all widget data in a single batch
+  const organizationId = widgets[0]?.organizationId;
+  const dashboardId = widgets[0]?.dashboardId;
+
+  const { data: batchResult, isLoading: isBatchLoading, error: batchError } = useQuery({
+    queryKey: ['dashboardBatch', dashboardId, widgets.map(w => w.queryId).join(',')],
+    queryFn: async () => {
+      if (!dashboardId || !organizationId || widgets.length === 0) return { results: {} };
+      const response = await fetch("/api/bi/dashboard-query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dashboardId, organizationId }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to execute dashboard query.");
+      }
+      return data;
+    },
+    enabled: !!dashboardId && !!organizationId && widgets.length > 0,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
   // Generate layouts from widgets
   const layouts = useMemo(() => ({
     lg: widgets.map(w => ({ i: w._id, ...w.layout })),
@@ -118,6 +121,28 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
 
   if (!mounted) {
     return <Box ref={containerRef as any} h={400} />;
+  }
+
+  if (isBatchLoading) {
+    return (
+      <Center h={400} w="100%">
+        <Stack align="center" gap="md">
+          <Loader color="violet" size="lg" type="bars" />
+          <Text size="sm" c="dimmed" fw={500}>Synchronizing Dashboard Canvas...</Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  if (batchError) {
+    return (
+      <Center h={400} w="100%">
+        <Stack align="center" gap={4}>
+          <Text size="sm" c="red.4" ta="center">{(batchError as Error).message}</Text>
+          <Text size="xs" c="dimmed">Failed to load dashboard data. Please try again.</Text>
+        </Stack>
+      </Center>
+    );
   }
 
   const handleWidgetClick = (widget: any) => {
@@ -169,7 +194,7 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                 style={{ cursor: isEditMode ? "move" : "default", flex: 1 }}
               >
                 <Text size="xs" fw={700} c="dimmed" truncate>
-                  {widget.title || "Untitled Widget"}
+                  {widget.title || batchResult?.results?.[widget._id]?.queryName || "Untitled Widget"}
                 </Text>
               </Group>
 
@@ -207,7 +232,11 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
 
             {/* Content Area */}
             <Box style={{ flex: 1, position: "relative" }}>
-              <WidgetRenderer widget={widget} organizationId={widgets[0]?.organizationId} />
+              <WidgetRenderer 
+                widget={widget} 
+                queryData={batchResult?.results?.[widget._id]?.rows || []} 
+                queryError={batchResult?.results?.[widget._id]?.error || null} 
+              />
             </Box>
 
             {/* Edit Mode Overlay (Subtle) */}

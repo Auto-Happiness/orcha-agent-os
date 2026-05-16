@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Modal,
+  Drawer,
   Tabs,
   Stack,
   Text,
@@ -219,48 +220,69 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
 
   if (isTextWidget) {
     return (
-      <Modal
+      <Drawer
         opened={opened}
         onClose={onClose}
+        position="right"
+        size="lg"
         title={
           <Group gap="xs">
-            <IconChartBar size={20} color="var(--mantine-color-violet-filled)" />
-            <Text fw={700}>Text Box: {widget?.title || "New Text Box"}</Text>
+            <IconChartBar size={20} color="#a855f7" />
+            <Text fw={800} size="lg">Text Box Configuration</Text>
           </Group>
         }
-        size="lg"
-        radius="lg"
+        padding="xl"
         styles={{
           content: {
-            background: "#0c0a1d",
-            border: "1px solid rgba(147, 51, 234, 0.2)",
-            backdropFilter: "blur(24px)",
+            background: "#0c0a1a",
+            borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
             color: "white"
           },
-          header: { background: "transparent" },
-          close: { color: "gray" }
+          header: { 
+            background: "#0c0a1a", 
+            color: "white",
+            borderBottom: "1px solid rgba(255,255,255,0.05)",
+            paddingBottom: 20
+          },
         }}
       >
-        <Stack gap="md">
-          <TextInput
-            label="Component Title"
-            placeholder="e.g. Executive Notes"
-            value={widgetTitle}
-            onChange={(e) => setWidgetTitle(e.currentTarget.value)}
-          />
-          <Textarea
-            label="Text Content"
-            placeholder="Add explanatory notes, business context, assumptions, and guidance..."
-            minRows={8}
-            autosize
-            value={textContent}
-            onChange={(e) => setTextContent(e.currentTarget.value)}
-          />
+        <Stack gap="xl" mt="md">
+          <Box>
+            <Text size="sm" c="dimmed" mb="lg">
+              Add contextual guidance, business rules, or notes to your dashboard.
+            </Text>
+            <Stack gap="md">
+              <TextInput
+                label="Component Title"
+                placeholder="e.g. Executive Notes"
+                value={widgetTitle}
+                onChange={(e) => setWidgetTitle(e.currentTarget.value)}
+                styles={{
+                  label: { color: "white", marginBottom: 8 },
+                  input: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(147, 51, 234, 0.3)", color: "white" }
+                }}
+              />
+              <Textarea
+                label="Text Content"
+                placeholder="Add explanatory notes, business context, assumptions, and guidance..."
+                minRows={12}
+                autosize
+                value={textContent}
+                onChange={(e) => setTextContent(e.currentTarget.value)}
+                styles={{
+                  label: { color: "white", marginBottom: 8 },
+                  input: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(147, 51, 234, 0.3)", color: "white" }
+                }}
+              />
+            </Stack>
+          </Box>
           <Group justify="flex-end" mt="md">
             <Button variant="subtle" color="gray" onClick={onClose}>Cancel</Button>
             <Button
               color="violet"
+              size="md"
               loading={isSaving}
+              style={{ background: "linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)" }}
               onClick={async () => {
                 if (onSave) {
                   setIsSaving(true);
@@ -286,42 +308,67 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </Drawer>
     );
   }
 
 
   return (
-    <Modal
+    <Drawer
       opened={opened}
       onClose={onClose}
+      position="right"
+      size="80%"
       title={
         <Group gap="xs">
-          <IconChartBar size={20} color="var(--mantine-color-violet-filled)" />
-          <Text fw={700}>Intelligence Panel: {widget?.title || "Configure Widget"}</Text>
+          <IconSparkles size={22} color="#a855f7" />
+          <Text fw={800} size="xl">Insight Intelligence Engine</Text>
+          <Badge variant="outline" color="violet">{widget?.type?.toUpperCase()} WIDGET</Badge>
         </Group>
       }
-      size="90%"
-      radius="lg"
+      padding="xl"
       styles={{
         content: {
-          background: "#0c0a1d",
-          border: "1px solid rgba(147, 51, 234, 0.2)",
-          backdropFilter: "blur(24px)",
-          minHeight: '80vh',
+          background: "#0c0a1a",
+          borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
           color: "white"
         },
-        header: {
-          background: "transparent",
+        header: { 
+          background: "#0c0a1a", 
+          color: "white",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          paddingBottom: 20
         },
-        close: {
-          color: "gray"
-        }
       }}
     >
       <Stack gap="xl">
         <Stack gap="lg">
           <Box>
+            <Box mb="xl">
+              <Group mb="xs" justify="space-between">
+                <Text size="sm" fw={600} c="dimmed">CHART IDENTITY</Text>
+                {selectedQueryId && (
+                  <Button 
+                    variant="subtle" 
+                    size="compact-xs" 
+                    color="cyan"
+                    onClick={() => {
+                      const query = savedQueries?.find(q => q._id === selectedQueryId);
+                      if (query) setWidgetTitle(query.name);
+                    }}
+                  >
+                    Sync with Query Name
+                  </Button>
+                )}
+              </Group>
+              <TextInput
+                placeholder="e.g. Monthly Revenue Trend"
+                size="md"
+                value={widgetTitle}
+                onChange={(e) => setWidgetTitle(e.currentTarget.value)}
+              />
+            </Box>
+
             <Group grow align="flex-start" gap="md">
               <Box>
                 <Group mb="xs">
@@ -537,7 +584,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
           </Box>
         </Stack>
       </Stack>
-    </Modal>
+    </Drawer>
   );
 }
 
