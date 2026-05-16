@@ -10,6 +10,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useOrganizationList, useUser } from "@clerk/nextjs";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 function OrchaLogo() {
   return (
@@ -33,6 +35,7 @@ export default function HomePage() {
   const router = useRouter();
   const { user } = useUser();
   const { createOrganization, setActive } = useOrganizationList();
+  const upsertOrg = useMutation(api.organizations.upsertFromClerk);
 
   const [name, setName]       = useState("");
   const [error, setError]     = useState("");
@@ -47,6 +50,18 @@ export default function HomePage() {
     setError("");
     try {
       const org = await createOrganization({ name: name.trim() });
+      
+      // JIT Sync to Convex
+      try {
+        await upsertOrg({
+          clerkOrgId: org.id,
+          name: org.name,
+          slug: org.slug || org.id,
+        });
+      } catch (err) {
+        console.error("Failed to JIT sync org during creation:", err);
+      }
+
       if (setActive) {
         await setActive({ organization: org.id });
       }
