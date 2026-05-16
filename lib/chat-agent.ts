@@ -153,7 +153,7 @@ export async function createChatAgent(context: AgentContext) {
         }
       }
 
-      // Stage 2: DEPENDENCY EXPANSION (WrenAI pattern)
+      // Stage 2: DEPENDENCY EXPANSION 
       // Pull in 1st-degree relationships for any table we've found so far
       const allRels = await convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey });
       const expandedIds = new Set(filteredModels.map(m => m._id));
