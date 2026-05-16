@@ -12,6 +12,7 @@
     "worker": "npx tsx lib/bridge/worker-runner.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.78",
     "@ai-sdk/google": "^3.0.55",
     "@ai-sdk/openai": "^3.0.51",
     "@ai-sdk/react": "^3.0.144",

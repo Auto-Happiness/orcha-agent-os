@@ -26,6 +26,10 @@ export function getPruningModelId(modelId: string): string {
     if (modelName.includes("flash")) return modelId;
     return "gemini:gemini-1.5-flash";
   }
+  if (provider === "claude" || provider === "anthropic") {
+    // Downgrade to Haiku for cost-effective pruning
+    return "claude:claude-haiku-4-5";
+  }
   return modelId;
 }
 
@@ -38,8 +42,10 @@ export async function pruneColumns(
   console.log(`[ColumnPruner] Pruning ${models.length} tables...`);
 
   const tempDDL = models.map((model: any) => {
-    const fields = model.fields.map((f: any) => `${f.displayName} (${f.columnName}): ${f.type}`).join(", ");
-    return `Table: ${model.tableName}. Columns: [${fields}]`;
+    const fields = model.fields.map((f: any) => 
+      `${f.displayName} (${f.columnName}): ${f.type}${f.description ? ` | Info: ${f.description}` : ""}${f.remarks ? ` | Note: ${f.remarks}` : ""}`
+    ).join(", ");
+    return `Table: ${model.tableName}. Description: ${model.description || ""}. Columns: [${fields}]`;
   }).join("\n");
 
   const { object: prunedResults } = await generateObject({

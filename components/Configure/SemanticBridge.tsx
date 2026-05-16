@@ -314,7 +314,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                           boxShadow: field.isPrimary ? "0 0 10px rgba(147,51,234,0.1)" : "none"
                         }} radius="md" p="sm">
                           <Grid align="center">
-                            <Grid.Col span={4}>
+                            <Grid.Col span={3}>
                               <Stack gap={4}>
                                 <TextInput
                                   size="xs"
@@ -372,16 +372,25 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                               )}
                             </Grid.Col>
 
-                            <Grid.Col span={3}>
-                              <TextInput
-                                size="xs"
-                                label="Business Logic / Remarks"
-                                placeholder="Notes for AI..."
-                                defaultValue={field.remarks}
-                                onBlur={(e) => handleFieldUpdate(idx, { remarks: e.currentTarget.value })}
-                                maxLength={30}
-                                styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) }, label: { fontSize: rem(10), color: "rgba(255,255,255,0.3)" } }}
-                              />
+                            <Grid.Col span={4}>
+                              <Stack gap={4}>
+                                <TextInput
+                                  size="xs"
+                                  label="Business Description"
+                                  placeholder="What is this column?"
+                                  defaultValue={field.description}
+                                  onBlur={(e) => handleFieldUpdate(idx, { description: e.currentTarget.value })}
+                                  styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) }, label: { fontSize: rem(10), color: "rgba(255,255,255,0.3)" } }}
+                                />
+                                <TextInput
+                                  size="xs"
+                                  label="Logic / Remarks"
+                                  placeholder="Notes for AI..."
+                                  defaultValue={field.remarks}
+                                  onBlur={(e) => handleFieldUpdate(idx, { remarks: e.currentTarget.value })}
+                                  styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) }, label: { fontSize: rem(10), color: "rgba(255,255,255,0.3)" } }}
+                                />
+                              </Stack>
                             </Grid.Col>
 
                             <Grid.Col span={1} ta="right">

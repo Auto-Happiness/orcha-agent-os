@@ -1,5 +1,8 @@
 import { Database } from "duckdb";
 import { DbExecutor } from "../db-executor";
+import { writeFileSync, unlinkSync, mkdirSync, existsSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 /**
  * ORCHA FUSION ENGINE
@@ -120,7 +123,7 @@ export class OrchaFusion {
   private static async bridgeMssql(conn: any, alias: string, config: any, sql: string) {
     // Regex matches: alias.table or just table if it's a single DB execute
     // Format: alias.tableName
-    const tableRegex = new RegExp(`(?:FROM|JOIN)\\s+${alias}\\.([a-zA-Z0-9_]+)`, "gi");
+    const tableRegex = new RegExp(`(?:FROM|JOIN)\\s+["\\[]?${alias}["\\]]?\\.["\\[]?([a-zA-Z0-9_]+)["\\]]?`, "gi");
     let match;
     const found: string[] = [];
     while ((match = tableRegex.exec(sql)) !== null) {
@@ -142,16 +145,28 @@ export class OrchaFusion {
 
     // Bridge tables in parallel
     await Promise.all(tables.map(async (table) => {
+      let tempPath = "";
       try {
         console.log(`[OrchaFusion] Bridging MSSQL: ${alias}.${table}`);
         const rows = await DbExecutor.execute(config, `SELECT TOP 1000 * FROM [${table}]`);
         if (rows.length === 0) return;
 
-        const json = JSON.stringify(rows);
-        await this.runQuery(conn, `CREATE OR REPLACE TABLE ${alias}_${table} AS SELECT * FROM read_json_auto('${json}');`);
+        // Use a temporary file to avoid SQL injection/serialization errors with large JSON strings
+        const tempDir = join(tmpdir(), "orcha-fusion");
+        if (!existsSync(tempDir)) mkdirSync(tempDir, { recursive: true });
+        tempPath = join(tempDir, `${alias}_${table}_${Date.now()}.json`);
+        
+        writeFileSync(tempPath, JSON.stringify(rows));
+        
+        // DuckDB read_json_auto from file is much more robust than passing strings
+        await this.runQuery(conn, `CREATE OR REPLACE TABLE ${alias}_${table} AS SELECT * FROM read_json_auto('${tempPath.replace(/\\/g, "/")}');`);
         await this.runQuery(conn, `CREATE OR REPLACE VIEW ${alias}.${table} AS SELECT * FROM ${alias}_${table};`);
       } catch (e) {
         console.warn(`[OrchaFusion] Failed to bridge MSSQL table ${table}:`, (e as any).message);
+      } finally {
+        if (tempPath && existsSync(tempPath)) {
+          try { unlinkSync(tempPath); } catch (err) { /* ignore cleanup errors */ }
+        }
       }
     }));
   }
