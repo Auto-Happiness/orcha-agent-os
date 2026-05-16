@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState, useMemo, useEffect } from "react";
+import { ReactNode, useState, useMemo, useEffect, useRef } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -45,6 +45,7 @@ import {
 import { MantineUiProvider } from "@/lib/mantine-provider";
 import { Spotlight, spotlight } from "@mantine/spotlight";
 import { useQuery, useMutation } from "convex/react";
+import { useQuery as useTanStackQuery } from "@tanstack/react-query";
 import { api } from "@/convex/_generated/api";
 
 /* ─── Brand logo ─────────────────────────────────────────────────────────── */
@@ -161,7 +162,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   const { user, isLoaded: userLoaded } = useUser();
   const { organization, isLoaded: orgLoaded } = useOrganization();
   const syncMembership = useMutation(api.memberships.syncMembership);
-  const [syncing, setSyncing] = useState(false);
+  const upsertOrg = useMutation(api.organizations.upsertFromClerk);
 
   const slug = params?.saas ?? "";
 
@@ -210,20 +211,45 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
     }));
   }, [dbConfigs, router, slug]);
 
-  // Handle JIT Membership Synchronization
-  useEffect(() => {
-    // If we've confirmed they are NOT a member, and we haven't started syncing yet
-    if (isMember === false && orgDoc?._id && userLoaded && orgLoaded && !syncing) {
-      setSyncing(true);
-      syncMembership({ organizationId: orgDoc._id }).catch((err) => {
-        console.error("Failed to sync membership:", err);
+  // ─── JIT Synchronization via React Query ──────────────────────────
+  
+  // 1. Sync Organization if it exists in Clerk but not Convex
+  const { isLoading: isSyncingOrg } = useTanStackQuery({
+    queryKey: ["jit-sync-org", slug, organization?.id],
+    queryFn: async () => {
+      if (!organization) return null;
+      console.log("[Layout Sync] Triggering JIT Org Sync (React Query) for:", organization.slug);
+      return await upsertOrg({
+        clerkOrgId: organization.id,
+        name: organization.name,
+        slug: organization.slug || organization.id,
       });
-    }
-  }, [isMember, orgDoc, userLoaded, orgLoaded, syncing, syncMembership]);
+    },
+    enabled: orgDoc === null && !!organization && orgLoaded,
+    staleTime: Infinity, // Only run once per session/slug
+    retry: 1,
+  });
+
+  // 2. Sync Membership if user is in Clerk org but not Convex membership
+  const { isLoading: isSyncingMembership } = useTanStackQuery({
+    queryKey: ["jit-sync-membership", orgDoc?._id, user?.id],
+    queryFn: async () => {
+      if (!orgDoc?._id) return null;
+      console.log("[Layout Sync] Triggering JIT Membership Sync (React Query) for org:", orgDoc._id);
+      return await syncMembership({ organizationId: orgDoc._id });
+    },
+    enabled: isMember === false && !!orgDoc?._id && userLoaded && orgLoaded,
+    staleTime: Infinity,
+    retry: 1,
+  });
+
+  const isSyncing = isSyncingOrg || isSyncingMembership;
 
   // Can safely render children if we confirmed they are a member,
   // or if the workspace doesn't exist (let children handle 404)
-  const canRenderChildren = isMember === true || (orgDoc === null && organization === null);
+  const canRenderChildren = 
+    (isMember === true || (orgDoc === null && organization === null && orgLoaded)) && 
+    !isSyncing;
 
   function isActive(href: string) {
     const target = `/${slug}/${href}`;

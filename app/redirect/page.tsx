@@ -28,6 +28,7 @@ export default function RedirectPage() {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
 
   const syncUser = useMutation(api.users.storeUser);
+  const syncOrg  = useMutation(api.organizations.upsertFromClerk);
 
   useEffect(() => {
     // Guard: only fire once, and only when every hook is settled
@@ -64,13 +65,24 @@ export default function RedirectPage() {
       redirected.current = true;
 
       try {
+        // 1. Sync User
         await syncUser({
           name: user.fullName || undefined,
           email: user.primaryEmailAddress?.emailAddress,
           avatarUrl: user.imageUrl,
         });
+
+        // 2. Sync Organization (if we have one)
+        const orgToSync = organization || userMemberships?.data?.[0]?.organization;
+        if (orgToSync) {
+          await syncOrg({
+            clerkOrgId: orgToSync.id,
+            name: orgToSync.name,
+            slug: orgToSync.slug || orgToSync.id,
+          });
+        }
       } catch (err) {
-        console.error("Failed to lazy-sync user during redirect:", err);
+        console.error("Failed to JIT sync during redirect:", err);
       }
 
       // 3. Final redirect to the workspace
@@ -82,7 +94,7 @@ export default function RedirectPage() {
     userLoaded, orgLoaded, listLoaded, authLoading, isAuthenticated,
     isSignedIn, organization, user,
     userMemberships?.isLoading, userMemberships?.data,
-    router, syncUser
+    router, syncUser, syncOrg
   ]);
 
   return (
