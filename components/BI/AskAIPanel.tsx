@@ -23,8 +23,10 @@ import {
   Checkbox,
   Select
 } from "@mantine/core";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
+import { useMutation as useRqMutation } from "@tanstack/react-query";
 import { api } from "@/convex/_generated/api";
+import { MODEL_OPTIONS } from "@/lib/model-options";
 import {
   IconSparkles,
   IconSend,
@@ -44,7 +46,7 @@ import {
 
 interface AskAIPanelProps {
   opened: boolean;
-  onClose: () => void;
+  onClose: (createdDashboardId?: string) => void;
   organizationId: any;
   saas: string;
 }
@@ -55,49 +57,30 @@ interface ProposedWidget {
   title: string;
   reason: string;
   sql: string;
+  mapping?: {
+    labelKey: string;
+    valueKeys: string[];
+  };
 }
 
-const MODEL_OPTIONS = [
-  {
-    group: "Google Gemini",
-    items: [
-      { value: "gemini:gemini-3.1-pro", label: "Gemini 3.1 Pro (High)" },
-      { value: "gemini:gemini-3.0-flash", label: "Gemini 3 Flash" },
-      { value: "gemini:gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-      { value: "gemini:gemini-1.5-pro", label: "Gemini 1.5 Pro" },
-      { value: "gemini:gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-    ],
-  },
-  {
-    group: "OpenAI",
-    items: [
-      { value: "openai:gpt-5", label: "GPT-5 Omni" },
-      { value: "openai:o1", label: "OpenAI o1" },
-      { value: "openai:gpt-4o", label: "GPT-4o" },
-      { value: "openai:gpt-4o-mini", label: "GPT-4o mini" },
-    ],
-  },
-  {
-    group: "Anthropic Claude",
-    items: [
-      { value: "claude:claude-3-7-sonnet-latest", label: "Claude 3.7 Sonnet" },
-      { value: "claude:claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet (New)" },
-      { value: "claude:claude-3-opus-20240229", label: "Claude 3 Opus" },
-    ],
-  },
-];
 
 export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanelProps) {
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [draftPrompts, setDraftPrompts] = useState<{ text: string; type: string }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [proposedWidgets, setProposedWidgets] = useState<ProposedWidget[]>([]);
   const [currentStep, setCurrentStep] = useState<"idle" | "analyzing" | "designing" | "ready">("idle");
+  const [proposalId, setProposalId] = useState<string | null>(null);
 
   // Selection States
   const allConfigs = useQuery(api.databaseConfigs.listByOrganization, { organizationId }) || [];
   const [selectedConfigIds, setSelectedConfigIds] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState("gemini:gemini-1.5-flash");
+
+  // Convex mutations
+  const createDashboard = useMutation(api.bi.createDashboardWithWidgets);
+  const proposal = useQuery(api.bi.getProposal, proposalId ? { proposalId: proposalId as any } : "skip");
 
   // Initialize selection if not set
   useEffect(() => {
@@ -105,6 +88,30 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
       setSelectedConfigIds([allConfigs[0]._id]);
     }
   }, [allConfigs]);
+
+  // Reactive Subscription for Asynchronous Generator Completed State
+  useEffect(() => {
+    if (!proposal) return;
+    if (proposal.status === "ready") {
+      setProposedWidgets((proposal.widgets || []).map((w: any, i: number) => ({
+        id: String(i),
+        type: w.type as any,
+        title: w.title,
+        reason: w.reason || "AI-generated widget",
+        sql: w.sql,
+        mapping: w.mapping
+      })));
+      setCurrentStep("ready");
+      setIsGenerating(false);
+      setProposalId(null);
+    } else if (proposal.status === "failed") {
+      console.error("[DashboardGen] Background proposal failed:", proposal.error);
+      setIsGenerating(false);
+      setCurrentStep("idle");
+      setProposalId(null);
+      alert(proposal.error || "Generation failed. Please try a different query or settings.");
+    }
+  }, [proposal]);
 
   const handleAddPrompt = () => {
     if (!currentPrompt.trim() || draftPrompts.length >= 5) return;
@@ -116,10 +123,55 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
     setDraftPrompts(draftPrompts.filter((_, i) => i !== index));
   };
 
+  const generateDashboardMutation = useRqMutation({
+    mutationFn: async (payload: {
+      draftPrompts: { text: string; type: string }[];
+      selectedConfigIds: string[];
+      selectedModel: string;
+      organizationId: any;
+    }) => {
+      const response = await fetch("/api/bi/generate-dashboard", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to generate dashboard");
+      }
+      return result;
+    },
+    onSuccess: (result) => {
+      if (result.mode === "async") {
+        setCurrentStep("designing");
+        setProposalId(result.proposalId);
+      } else {
+        setProposedWidgets((result.widgets || []).map((w: any, i: number) => ({
+          id: String(i),
+          type: w.type as any,
+          title: w.title,
+          reason: w.reason || "AI-generated widget",
+          sql: w.sql,
+          mapping: w.mapping,
+        })));
+        setCurrentStep("ready");
+        setIsGenerating(false);
+      }
+    },
+    onError: (err: any) => {
+      console.error("[DashboardGen] Error generating dashboard:", err);
+      setIsGenerating(false);
+      setCurrentStep("idle");
+      alert(err.message || "Failed to generate dashboard. Please try again.");
+    },
+  });
+
   const handleGenerate = async () => {
     if (draftPrompts.length === 0 && !currentPrompt.trim()) return;
 
-    // Auto-add current prompt if not empty
     const finalPrompts = currentPrompt.trim()
       ? [...draftPrompts, { text: currentPrompt.trim(), type: "bar" }].slice(0, 5)
       : draftPrompts;
@@ -127,21 +179,64 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
     setIsGenerating(true);
     setCurrentStep("analyzing");
 
-    // Simulate AI workflow
-    setTimeout(() => {
-      setCurrentStep("designing");
-      setTimeout(() => {
-        setProposedWidgets(finalPrompts.map((p, i) => ({
-          id: String(i),
-          type: p.type as any,
-          title: `Insight ${i + 1}`,
-          reason: `AI-generated based on: "${p.text}"`,
-          sql: "-- Generated SQL --"
-        })));
-        setCurrentStep("ready");
-        setIsGenerating(false);
-      }, 2000);
-    }, 1500);
+    generateDashboardMutation.mutate({
+      draftPrompts: finalPrompts,
+      selectedConfigIds,
+      selectedModel,
+      organizationId,
+    });
+  };
+
+  const handleDeploy = async () => {
+    if (proposedWidgets.length === 0) return;
+    setIsSaving(true);
+
+    try {
+      const name = prompt("Enter dashboard name:", "AI Generated Dashboard") || "AI Generated Dashboard";
+
+      const widgetsToSave = proposedWidgets.map((w, index) => {
+        const x = (index % 2) * 6;
+        const y = Math.floor(index / 2) * 4;
+        const wVal = index === 4 ? 12 : 6;
+        const hVal = 4;
+        const sizeVal: "small" | "medium" | "large" | "full" = index === 4 ? "full" : "medium";
+
+        return {
+          type: w.type as any,
+          title: w.title,
+          description: w.reason,
+          sql: w.sql,
+          mapping: w.mapping ? {
+            labelKey: w.mapping.labelKey,
+            valueKeys: w.mapping.valueKeys,
+          } : {
+            labelKey: "category",
+            valueKeys: ["value"],
+          },
+          layout: { x, y, w: wVal, h: hVal },
+          order: index,
+          size: sizeVal,
+        };
+      });
+
+      const dashboardId = await createDashboard({
+        organizationId,
+        configId: selectedConfigIds[0] as any,
+        name,
+        description: "AI-Generated multi-insight dashboard",
+        widgets: widgetsToSave,
+      });
+
+      setProposedWidgets([]);
+      setDraftPrompts([]);
+      setCurrentStep("idle");
+      onClose(dashboardId);
+    } catch (err: any) {
+      console.error("[DashboardGen] Failed to save dashboard:", err);
+      alert(err.message || "Failed to deploy dashboard. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getIconForType = (type: string) => {
@@ -369,6 +464,9 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                   color="violet"
                   mt="xl"
                   leftSection={<IconCheck size={18} />}
+                  onClick={handleDeploy}
+                  loading={isSaving}
+                  disabled={isSaving}
                   style={{ background: "linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)" }}
                 >
                   Confirm & Deploy Dashboard

@@ -145,3 +145,142 @@ export const deleteDashboard = mutation({
     await ctx.db.delete(args.dashboardId);
   },
 });
+
+/**
+ * Atomic mutation to create a full dashboard and all its widgets in a single transaction.
+ */
+export const createDashboardWithWidgets = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    widgets: v.array(v.object({
+      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
+      title: v.string(),
+      description: v.optional(v.string()),
+      sql: v.string(),
+      mapping: v.optional(v.object({
+        labelKey: v.string(),
+        valueKeys: v.array(v.string()),
+        color: v.optional(v.string()),
+        palette: v.optional(v.array(v.string())),
+        seriesColors: v.optional(v.record(v.string(), v.string())),
+        aggregation: v.optional(v.string()),
+      })),
+      layout: v.optional(v.object({
+        x: v.number(),
+        y: v.number(),
+        w: v.number(),
+        h: v.number(),
+      })),
+      order: v.number(),
+      size: v.union(v.literal("small"), v.literal("medium"), v.literal("large"), v.literal("full")),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const dashboardId = await ctx.db.insert("dashboards", {
+      organizationId: args.organizationId,
+      name: args.name,
+      description: args.description,
+      isDefault: false,
+      createdAt: Date.now(),
+      createdBy: user._id,
+    });
+
+    for (const w of args.widgets) {
+      // 1. Save the SQL query to the savedQueries collection first
+      const queryId = await ctx.db.insert("savedQueries", {
+        organizationId: args.organizationId,
+        configId: args.configId,
+        name: `${args.name} - ${w.title}`,
+        sql: w.sql,
+        description: w.description || "AI-generated dashboard query",
+        createdBy: user._id,
+        createdAt: Date.now(),
+      });
+
+      // 2. Save the widget and link it to the saved query ID
+      await ctx.db.insert("dashboardWidgets", {
+        dashboardId,
+        organizationId: args.organizationId,
+        type: w.type,
+        title: w.title,
+        description: w.description,
+        queryId,
+        mapping: w.mapping,
+        layout: w.layout,
+        order: w.order,
+        size: w.size,
+        createdAt: Date.now(),
+      });
+    }
+
+    return dashboardId;
+  },
+});
+
+/**
+ * Creates a new dashboard generation proposal (Pending state).
+ */
+export const createProposal = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("dashboardProposals", {
+      organizationId: args.organizationId,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Updates the proposal with generated widgets or error state (Internal only).
+ */
+export const updateProposal = mutation({
+  args: {
+    proposalId: v.id("dashboardProposals"),
+    status: v.union(v.literal("ready"), v.literal("failed")),
+    error: v.optional(v.string()),
+    widgets: v.optional(v.array(v.object({
+      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
+      title: v.string(),
+      reason: v.optional(v.string()),
+      sql: v.string(),
+      mapping: v.optional(v.object({
+        labelKey: v.string(),
+        valueKeys: v.array(v.string()),
+        color: v.optional(v.string()),
+        palette: v.optional(v.array(v.string())),
+        seriesColors: v.optional(v.record(v.string(), v.string())),
+        aggregation: v.optional(v.string()),
+      })),
+    }))),
+  },
+  handler: async (ctx, args) => {
+    const { proposalId, ...data } = args;
+    await ctx.db.patch(proposalId, data);
+  },
+});
+
+/**
+ * Get a specific proposal (for real-time reactive UI polling).
+ */
+export const getProposal = query({
+  args: { proposalId: v.id("dashboardProposals") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.proposalId);
+  },
+});

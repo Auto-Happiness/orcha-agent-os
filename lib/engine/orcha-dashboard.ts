@@ -59,10 +59,12 @@ export class OrchaDashboard {
     // Execute all queries in parallel.
     // OrchaFusion handles the connection multiplexing and bridging.
     const promises = queries.map(async (q) => {
+      // Declare sql outside try so the catch self-healing block can reference it
+      let sql = q.sql;
       try {
         // --- STEP 1: AI REFINEMENT (Intelligent Translation) ---
         const aliases = Array.from(dbConfigMap.keys());
-        let sql = await SqlRefiner.refine(q.sql, aliases, q.defaultAlias, aliasTableMap, aiKeys, organizationId);
+        sql = await SqlRefiner.refine(q.sql, aliases, q.defaultAlias, aliasTableMap, aiKeys, organizationId);
         
         // --- STEP 2: MANUAL QUALIFICATION (Safety Fallback) ---
         sql = sql.trim().replace(/;?\s*$/, "");
@@ -128,6 +130,29 @@ export class OrchaDashboard {
         results[q.id] = { rows, columns, queryName: q.queryName };
       } catch (err: any) {
         console.error(`[OrchaDashboard] Query ${q.id} failed:`, err.message);
+        
+        // SELF-HEALING RETRY MECHANISM:
+        // If DuckDB throws a Catalog Error due to a hallucinated table name and suggests a correction,
+        // we automatically rewrite the query using the suggested correct table and retry once!
+        const selfHealMatch = err.message.match(/Table with name\s+["']?([a-zA-Z0-9_]+)["']?\s+does not exist!\s+Did you mean\s+["']?([a-zA-Z0-9_]+)["']?/i);
+        if (selfHealMatch) {
+          const nonexistentTable = selfHealMatch[1];
+          const suggestedTable = selfHealMatch[2];
+          console.warn(`[OrchaDashboard] Detected hallucinated table name "${nonexistentTable}". Self-healing query to use suggested correct table "${suggestedTable}" and retrying...`);
+          
+          try {
+            // Replace the hallucinated table name with the suggested one
+            const healedSql = sql.replace(new RegExp(`\\b${nonexistentTable}\\b`, 'g'), suggestedTable);
+            console.log(`[OrchaDashboard] Retrying healed SQL: ${healedSql}`);
+            const rows = await OrchaFusion.executeMulti(healedSql, dbConfigMap);
+            const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+            results[q.id] = { rows, columns, queryName: q.queryName };
+            return; // Exit success
+          } catch (retryErr: any) {
+            console.error(`[OrchaDashboard] Self-healing retry failed:`, retryErr.message);
+          }
+        }
+
         // On failure, return an empty set with an error so the rest of the dashboard still loads
         results[q.id] = { rows: [], columns: [], error: err.message, queryName: q.queryName };
       }

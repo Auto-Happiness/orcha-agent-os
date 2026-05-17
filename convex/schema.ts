@@ -406,6 +406,20 @@ export default defineSchema({
   })
     .index("by_dashboard", ["dashboardId"])
     .index("by_org", ["organizationId"]),
+    
+  dashboardProposals: defineTable({
+    organizationId: v.id("organizations"),
+    status: v.union(v.literal("pending"), v.literal("ready"), v.literal("failed")),
+    error: v.optional(v.string()),
+    widgets: v.optional(v.array(v.object({
+      type: WidgetTypeValidator,
+      title: v.string(),
+      reason: v.optional(v.string()),
+      sql: v.string(),
+      mapping: v.optional(WidgetMappingValidator),
+    }))),
+    createdAt: v.number(),
+  }).index("by_org", ["organizationId"]),
 
   // ─── Developer Portal: API Keys ─────────────────────────────────────────
   apiKeys: defineTable({

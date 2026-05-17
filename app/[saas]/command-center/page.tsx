@@ -437,7 +437,12 @@ export default function CommandCenterPage() {
 
         <AskAIPanel
           opened={askAIOpened}
-          onClose={() => setAskAIOpened(false)}
+          onClose={(createdId) => {
+            setAskAIOpened(false);
+            if (createdId) {
+              setCurrentDashboardId(createdId as any);
+            }
+          }}
           organizationId={organization?._id}
           saas={saas as string}
         />

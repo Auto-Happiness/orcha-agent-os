@@ -40,18 +40,40 @@ export function DynamicChart({
   isLoading
 }: DynamicChartProps) {
 
+  // Smart label key resolution: if the provided labelKey maps to numeric-looking values (IDs),
+  // auto-detect a better string column from the actual data as a fallback.
+  const resolvedLabelKey = useMemo(() => {
+    if (!data || data.length === 0) return labelKey;
+    const sampleValues = data.slice(0, 5).map(row => row[labelKey]);
+    const allNumeric = sampleValues.every(v => v !== undefined && v !== null && !isNaN(Number(v)) && String(v).trim() !== "");
+    if (allNumeric) {
+      // Find the first column that contains non-numeric, human-readable text values
+      const firstRow = data[0];
+      const stringCol = Object.keys(firstRow).find(col => {
+        if (col === labelKey) return false;
+        const val = firstRow[col];
+        return typeof val === "string" && isNaN(Number(val)) && val.trim().length > 0;
+      });
+      if (stringCol) {
+        console.warn(`[DynamicChart] labelKey "${labelKey}" resolved to numeric IDs. Auto-switching to "${stringCol}".`);
+        return stringCol;
+      }
+    }
+    return labelKey;
+  }, [data, labelKey]);
+
   // Format data for Recharts - ensure all numeric keys are parsed
   const formattedData = useMemo(() => {
     if (!data || data.length === 0) return [];
     return data.map((item) => {
       const formattedItem: any = { ...item };
-      formattedItem[labelKey] = String(item[labelKey] || "Unknown");
+      formattedItem[resolvedLabelKey] = String(item[resolvedLabelKey] || "Unknown");
       valueKeys.forEach(key => {
         formattedItem[key] = parseFloat(String(item[key])) || 0;
       });
       return formattedItem;
     });
-  }, [data, labelKey, valueKeys]);
+  }, [data, resolvedLabelKey, valueKeys]);
 
   if (isLoading) {
     return (
@@ -124,7 +146,7 @@ export function DynamicChart({
         return (
           <LineChart data={formattedData}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-            <XAxis dataKey={labelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
+            <XAxis dataKey={resolvedLabelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
             <YAxis {...axisStyle} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v} />
             <Tooltip content={<CustomTooltip />} />
             {valueKeys.map((key, index) => {
@@ -160,7 +182,7 @@ export function DynamicChart({
               })}
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-            <XAxis dataKey={labelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
+            <XAxis dataKey={resolvedLabelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
             <YAxis {...axisStyle} tickLine={false} axisLine={false} />
             <Tooltip content={<CustomTooltip />} />
             {valueKeys.map((key, index) => {
@@ -193,7 +215,7 @@ export function DynamicChart({
               outerRadius={80}
               paddingAngle={5}
               dataKey={primaryValueKey}
-              nameKey={labelKey}
+              nameKey={resolvedLabelKey}
               stroke="none"
               labelLine={false}
               label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
@@ -201,7 +223,7 @@ export function DynamicChart({
               {formattedData.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={getSeriesColor(String(entry[labelKey]), index)}
+                  fill={getSeriesColor(String(entry[resolvedLabelKey]), index)}
                 />
               ))}
             </Pie>
@@ -220,7 +242,7 @@ export function DynamicChart({
         return (
           <BarChart data={formattedData}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-            <XAxis dataKey={labelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
+            <XAxis dataKey={resolvedLabelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
             <YAxis {...axisStyle} tickLine={false} axisLine={false} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
             {valueKeys.map((key, index) => {
