@@ -33,6 +33,31 @@ export class OrchaDashboard {
     }
   }
 
+  private static async runWithConcurrencyLimit<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T) => Promise<R>
+  ): Promise<R[]> {
+    const results: R[] = [];
+    const promises: Promise<void>[] = [];
+    let index = 0;
+
+    async function worker() {
+      while (index < items.length) {
+        const currentIndex = index++;
+        results[currentIndex] = await fn(items[currentIndex]);
+      }
+    }
+
+    const poolSize = Math.min(limit, items.length);
+    for (let i = 0; i < poolSize; i++) {
+      promises.push(worker());
+    }
+
+    await Promise.all(promises);
+    return results;
+  }
+
   static async executeBatch(
     dashboardId: string,
     queries: { id: string, sql: string, defaultAlias?: string, queryName?: string, type?: string, rawDb?: string }[],
@@ -52,13 +77,12 @@ export class OrchaDashboard {
       return cached.data;
     }
 
-    console.log(`[OrchaDashboard] Executing batch for dashboard ${dashboardId} (${queries.length} queries)`);
+    console.log(`[OrchaDashboard] Executing batch for dashboard ${dashboardId} (${queries.length} queries) with a concurrency limit of 3`);
 
     const results: Record<string, { rows: any[], columns: string[], error?: string, queryName?: string }> = {};
 
-    // Execute all queries in parallel.
-    // OrchaFusion handles the connection multiplexing and bridging.
-    const promises = queries.map(async (q) => {
+    // Execute queries with limited concurrency to avoid API rate limits and connection pooling exhaustion.
+    await this.runWithConcurrencyLimit(queries, 3, async (q) => {
       // Declare sql outside try so the catch self-healing block can reference it
       let sql = q.sql;
       try {
@@ -157,8 +181,6 @@ export class OrchaDashboard {
         results[q.id] = { rows: [], columns: [], error: err.message, queryName: q.queryName };
       }
     });
-
-    await Promise.all(promises);
 
     // Save to Cache
     this.cache.set(cacheKey, { timestamp: Date.now(), data: results });

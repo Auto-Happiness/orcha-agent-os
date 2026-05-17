@@ -80,41 +80,53 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Build a per-alias table catalog from semantic models for AI-guided translation
+    // 3. Build a per-alias table catalog from semantic models for AI-guided translation in parallel
     const aliasTableMap = new Map<string, string[]>();
-    for (const c of allConfigs) {
-      try {
-        const alias = configIdToAlias.get(c._id);
-        if (!alias) continue;
-        const models = await convex.query(api.semanticModels.listModelsByConfig, { configId: c._id });
-        const tableNames = (models || []).map((m: any) => m.tableName);
-        if (tableNames.length > 0) aliasTableMap.set(alias, tableNames);
-      } catch (e) { /* skip if models unavailable */ }
-    }
-
-    for (const widget of processableWidgets) {
-      if (widget.type === "text" || !widget.queryId) continue;
-      
-      const savedQuery: any = await convex.query(api.savedQueries.getById, { queryId: widget.queryId });
-      if (savedQuery && savedQuery.sql) {
-        const config = allConfigs.find(c => c._id === savedQuery.configId);
-        let rawDb = "";
+    await Promise.all(
+      allConfigs.map(async (c) => {
         try {
-           const decrypted = looksLikeEncryptedPayload(config?.encryptedUri || "") 
-             ? KeyManager.decrypt(config!.encryptedUri, organizationId) 
-             : config?.encryptedUri;
-           rawDb = JSON.parse(decrypted || "{}").database;
-        } catch(e) {}
+          const alias = configIdToAlias.get(c._id);
+          if (!alias) return;
+          const models = await convex.query(api.semanticModels.listModelsByConfig, { configId: c._id });
+          const tableNames = (models || []).map((m: any) => m.tableName);
+          if (tableNames.length > 0) aliasTableMap.set(alias, tableNames);
+        } catch (e) { /* skip if models unavailable */ }
+      })
+    );
 
-        queriesToRun.push({ 
-          id: widget._id, 
-          sql: savedQuery.sql,
-          defaultAlias: configIdToAlias.get(savedQuery.configId),
-          queryName: savedQuery.name,
-          type: config?.type,
-          rawDb: rawDb
-        });
+    // 4. Fetch savedQueries for all processable widgets in parallel to avoid sequential N+1 requests
+    const queryPromises = processableWidgets.map(async (widget: any) => {
+      if (widget.type === "text" || !widget.queryId) return null;
+      try {
+        const savedQuery: any = await convex.query(api.savedQueries.getById, { queryId: widget.queryId });
+        if (savedQuery && savedQuery.sql) {
+          const config = allConfigs.find(c => c._id === savedQuery.configId);
+          let rawDb = "";
+          try {
+             const decrypted = looksLikeEncryptedPayload(config?.encryptedUri || "") 
+               ? KeyManager.decrypt(config!.encryptedUri, organizationId) 
+               : config?.encryptedUri;
+             rawDb = JSON.parse(decrypted || "{}").database;
+          } catch (e) {}
+
+          return { 
+            id: widget._id, 
+            sql: savedQuery.sql,
+            defaultAlias: configIdToAlias.get(savedQuery.configId),
+            queryName: savedQuery.name,
+            type: config?.type,
+            rawDb: rawDb
+          };
+        }
+      } catch (e) {
+        console.warn(`[Dashboard API] Failed to fetch savedQuery for widget ${widget._id}:`, e);
       }
+      return null;
+    });
+
+    const queryResults = await Promise.all(queryPromises);
+    for (const res of queryResults) {
+      if (res) queriesToRun.push(res);
     }
 
     if (queriesToRun.length === 0) {
