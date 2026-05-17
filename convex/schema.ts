@@ -421,6 +421,19 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_org", ["organizationId"]),
 
+  // ─── BI: Persistent Dashboard Query Result Cache ─────────────────────────
+  // L2 cache layer that survives serverless cold starts and process restarts.
+  // Results are stored as serialized JSON with a TTL-based expiry.
+  dashboardQueryCache: defineTable({
+    cacheKey: v.string(),       // SHA-256 hash of dashboardId + sorted widget SQL
+    organizationId: v.id("organizations"),
+    data: v.string(),           // JSON.stringify(batchResults)
+    expiresAt: v.number(),      // Unix ms — entries past this timestamp are stale
+  })
+    .index("by_key", ["cacheKey"])
+    .index("by_org", ["organizationId"])
+    .index("by_expiry", ["expiresAt"]),
+
   // ─── Developer Portal: API Keys ─────────────────────────────────────────
   apiKeys: defineTable({
     organizationId: v.id("organizations"),

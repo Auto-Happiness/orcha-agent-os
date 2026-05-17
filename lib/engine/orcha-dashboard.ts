@@ -2,6 +2,8 @@ import { OrchaFusion } from "./orcha-fusion";
 import { SqlRefiner } from "./sql-refiner";
 import { DbExecutor } from "../db-executor";
 import crypto from "crypto";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "@/convex/_generated/api";
 
 interface CacheEntry {
   timestamp: number;
@@ -10,10 +12,17 @@ interface CacheEntry {
 
 /**
  * Specialized engine for handling heavy, multi-query dashboard executions.
- * Features a 5-minute TTL cache and safe batch processing.
+ *
+ * Two-Tier Cache Strategy:
+ *  L1 (In-Memory): Static process Map — zero-latency but wiped on cold starts.
+ *  L2 (Convex DB): Persistent dashboardQueryCache table — survives all cold starts.
+ *
+ * On cache read:  L1 hit → return immediately. L1 miss → check L2 → populate L1.
+ * On cache write: Write to L1 immediately, write to L2 asynchronously (fire-and-forget).
  */
 export class OrchaDashboard {
-  private static cache = new Map<string, CacheEntry>();
+  /** L1: process-level in-memory cache */
+  private static l1Cache = new Map<string, CacheEntry>();
   private static CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   private static generateCacheKey(dashboardId: string, queries: { id: string, sql: string }[]): string {
@@ -24,13 +33,42 @@ export class OrchaDashboard {
     return crypto.createHash('sha256').update(payload).digest('hex');
   }
 
-  private static sweepCache() {
+  private static sweepL1Cache() {
     const now = Date.now();
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [key, entry] of this.l1Cache.entries()) {
       if (now - entry.timestamp > this.CACHE_TTL_MS) {
-        this.cache.delete(key);
+        this.l1Cache.delete(key);
       }
     }
+  }
+
+  /** Reads from L2 Convex cache. Returns null on miss or error. */
+  private static async readL2Cache(convex: ConvexHttpClient, cacheKey: string): Promise<any | null> {
+    try {
+      const raw = await convex.query(api.bi.getDashboardCache, { cacheKey });
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      console.warn("[OrchaDashboard] L2 cache read failed (non-fatal):", (e as any).message);
+      return null;
+    }
+  }
+
+  /** Writes to L2 Convex cache asynchronously (fire-and-forget — never blocks execution). */
+  private static writeL2Cache(
+    convex: ConvexHttpClient,
+    cacheKey: string,
+    organizationId: string,
+    data: any
+  ): void {
+    convex.mutation(api.bi.setDashboardCache, {
+      cacheKey,
+      organizationId: organizationId as any,
+      data: JSON.stringify(data),
+      ttlMs: this.CACHE_TTL_MS,
+    }).catch((e: any) => {
+      console.warn("[OrchaDashboard] L2 cache write failed (non-fatal):", e.message);
+    });
   }
 
   private static async runWithConcurrencyLimit<T, R>(
@@ -64,20 +102,34 @@ export class OrchaDashboard {
     dbConfigMap: Map<string, any>,
     aliasTableMap: Map<string, string[]>,
     aiKeys: any[],
-    organizationId: string
+    organizationId: string,
+    convexToken?: string
   ): Promise<Record<string, { rows: any[], columns: string[], error?: string, queryName?: string }>> {
 
-    this.sweepCache();
+    this.sweepL1Cache();
 
-    // Check Cache
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    if (convexToken) convex.setAuth(convexToken);
+
     const cacheKey = this.generateCacheKey(dashboardId, queries);
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      console.log(`[OrchaDashboard] Serving dashboard ${dashboardId} from cache (Key: ${cacheKey})`);
-      return cached.data;
+
+    // --- L1 Cache Check (In-Memory, Zero-Latency) ---
+    const l1Hit = this.l1Cache.get(cacheKey);
+    if (l1Hit) {
+      console.log(`[OrchaDashboard] L1 HIT: Serving dashboard ${dashboardId} from memory.`);
+      return l1Hit.data;
     }
 
-    console.log(`[OrchaDashboard] Executing batch for dashboard ${dashboardId} (${queries.length} queries) with a concurrency limit of 3`);
+    // --- L2 Cache Check (Convex, Persistent across cold starts) ---
+    const l2Data = await this.readL2Cache(convex, cacheKey);
+    if (l2Data) {
+      console.log(`[OrchaDashboard] L2 HIT: Serving dashboard ${dashboardId} from Convex persistent cache.`);
+      // Populate L1 from L2 so subsequent requests in this process are instant
+      this.l1Cache.set(cacheKey, { timestamp: Date.now(), data: l2Data });
+      return l2Data;
+    }
+
+    console.log(`[OrchaDashboard] CACHE MISS: Executing batch for dashboard ${dashboardId} (${queries.length} queries, concurrency: 3).`);
 
     const results: Record<string, { rows: any[], columns: string[], error?: string, queryName?: string }> = {};
 
@@ -182,8 +234,11 @@ export class OrchaDashboard {
       }
     });
 
-    // Save to Cache
-    this.cache.set(cacheKey, { timestamp: Date.now(), data: results });
+    // --- Write results to both cache tiers ---
+    // L1: Synchronous in-memory write (instant for same-process subsequent requests)
+    this.l1Cache.set(cacheKey, { timestamp: Date.now(), data: results });
+    // L2: Async Convex write (fire-and-forget — persists across cold starts)
+    this.writeL2Cache(convex, cacheKey, organizationId, results);
 
     return results;
   }

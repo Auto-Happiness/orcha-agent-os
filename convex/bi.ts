@@ -284,3 +284,83 @@ export const getProposal = query({
     return await ctx.db.get(args.proposalId);
   },
 });
+
+// ─── Dashboard Query Cache (L2 Persistent Cache) ─────────────────────────────
+
+/**
+ * Retrieve a cached dashboard query result by its SHA-256 cache key.
+ * Returns null if the entry does not exist or has expired.
+ */
+export const getDashboardCache = query({
+  args: { cacheKey: v.string() },
+  handler: async (ctx, args) => {
+    const entry = await ctx.db
+      .query("dashboardQueryCache")
+      .withIndex("by_key", (q) => q.eq("cacheKey", args.cacheKey))
+      .unique();
+
+    if (!entry) return null;
+    if (entry.expiresAt < Date.now()) return null; // Stale entry
+
+    return entry.data;
+  },
+});
+
+/**
+ * Persist a dashboard query result into the L2 cache.
+ * Upserts the entry using the cacheKey, with a 5-minute TTL.
+ */
+export const setDashboardCache = mutation({
+  args: {
+    cacheKey: v.string(),
+    organizationId: v.id("organizations"),
+    data: v.string(),
+    ttlMs: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const ttl = args.ttlMs ?? 5 * 60 * 1000; // Default: 5 minutes
+    const expiresAt = Date.now() + ttl;
+
+    // Upsert: delete old entry if present, then insert new one
+    const existing = await ctx.db
+      .query("dashboardQueryCache")
+      .withIndex("by_key", (q) => q.eq("cacheKey", args.cacheKey))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { data: args.data, expiresAt });
+    } else {
+      await ctx.db.insert("dashboardQueryCache", {
+        cacheKey: args.cacheKey,
+        organizationId: args.organizationId,
+        data: args.data,
+        expiresAt,
+      });
+    }
+  },
+});
+
+/**
+ * Sweep expired cache entries for an organization.
+ * Call this periodically (e.g. on each dashboard load) to keep the table lean.
+ */
+export const sweepDashboardCache = mutation({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const staleEntries = await ctx.db
+      .query("dashboardQueryCache")
+      .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
+      .collect();
+
+    let swept = 0;
+    for (const entry of staleEntries) {
+      if (entry.expiresAt < now) {
+        await ctx.db.delete(entry._id);
+        swept++;
+      }
+    }
+    if (swept > 0) console.log(`[CacheGC] Swept ${swept} stale cache entries for org ${args.organizationId}`);
+  },
+});
+

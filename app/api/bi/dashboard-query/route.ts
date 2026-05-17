@@ -136,8 +136,11 @@ export async function POST(req: NextRequest) {
     // 4. Fetch AI Keys for refinement
     const aiKeys = await convex.query(api.aiKeys.listByOrganization, { organizationId });
 
-    // 5. Execute Batch via OrchaDashboard Engine
-    const results = await OrchaDashboard.executeBatch(dashboardId, queriesToRun, dbConfigMap, aliasTableMap, aiKeys, organizationId);
+    // 5. Fire-and-forget sweep of stale L2 cache entries for this org (non-blocking)
+    convex.mutation(api.bi.sweepDashboardCache, { organizationId }).catch(() => {/* ignore */});
+
+    // 6. Execute Batch via OrchaDashboard Engine (L1+L2 cache-aware)
+    const results = await OrchaDashboard.executeBatch(dashboardId, queriesToRun, dbConfigMap, aliasTableMap, aiKeys, organizationId, token ?? undefined);
 
     return NextResponse.json({
       success: true,
