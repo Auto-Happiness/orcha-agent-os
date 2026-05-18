@@ -16,7 +16,8 @@ import {
   Tabs,
   Accordion,
   ActionIcon,
-  Divider
+  Divider,
+  Alert
 } from "@mantine/core";
 import {
   IconTerminal2,
@@ -29,7 +30,8 @@ import {
   IconTable,
   IconColumns,
   IconEdit,
-  IconTrash
+  IconTrash,
+  IconAlertCircle
 } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, usePaginatedQuery } from "convex/react";
@@ -69,6 +71,17 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const [isExecuting, setIsExecuting] = useState(false);
   const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>("schema");
+  const [librarySearch, setLibrarySearch] = useState("");
+
+  const filteredQueries = useMemo(() => {
+    // Only display standard connection queries; exclude AI/federated queries to avoid confusion
+    const list = savedQueries?.filter(q => !q.isFederated) || [];
+    if (!librarySearch.trim()) return list;
+    return list.filter(q => 
+      q.name.toLowerCase().includes(librarySearch.toLowerCase()) || 
+      (q.sql && q.sql.toLowerCase().includes(librarySearch.toLowerCase()))
+    );
+  }, [savedQueries, librarySearch]);
 
   const { results: semanticModels, status: modelsStatus, loadMore: loadMoreModels } = usePaginatedQuery(
     api.semanticModels.listModelSummariesByConfig, 
@@ -445,19 +458,23 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                   size="xs"
                   styles={inputStyles}
                   leftSection={<IconSearch size={12} />}
+                  value={librarySearch}
+                  onChange={(e) => setLibrarySearch(e.currentTarget.value)}
                 />
 
                 <ScrollArea h={600}>
                   <Stack gap="xs">
-                    {savedQueries ? savedQueries.map((item) => (
+                    {filteredQueries.length > 0 ? filteredQueries.map((item) => (
                       <Paper key={item._id} p="xs" radius="xs" style={{ background: "rgba(147,51,234,0.03)", cursor: "pointer", border: "1px solid transparent" }}
                         onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(147,51,234,0.3)"}
                         onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
                         onClick={() => setSql(item.sql)}
                       >
-                        <Group justify="space-between" mb={4}>
-                          <Text size="xs" fw={700} c="white">{item.name}</Text>
-                          <Group gap={4}>
+                        <Group justify="space-between" mb={4} wrap="nowrap">
+                          <Group gap="xs" style={{ flex: 1, minWidth: 0 }}>
+                            <Text size="xs" fw={700} c="white" truncate style={{ flex: 1 }}>{item.name}</Text>
+                          </Group>
+                          <Group gap={4} style={{ flexShrink: 0 }}>
                             <IconStar size={10} color="#a855f7" />
                             <ActionIcon
                               size="xs"

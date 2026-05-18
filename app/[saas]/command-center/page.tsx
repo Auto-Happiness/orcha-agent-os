@@ -38,7 +38,8 @@ import {
   IconFileTypePdf,
   IconTrash,
   IconDotsVertical,
-  IconSparkles
+  IconSparkles,
+  IconTable
 } from "@tabler/icons-react";
 import { Menu } from "@mantine/core";
 import { useQuery, useMutation } from "convex/react";
@@ -126,7 +127,7 @@ export default function CommandCenterPage() {
             widgetId: widget._id,
             dashboardId: currentDashboardId as any,
             organizationId: organization._id,
-            type: widget.type,
+            type: widget.type as any,
             title: widget.title,
             queryId: widget.queryId,
             mapping: widget.mapping,
@@ -354,6 +355,20 @@ export default function CommandCenterPage() {
                   disabled={widgets.length >= 7}
                 >
                   KPI Metric
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconTable size={16} />} 
+                  onClick={() => handleAddWidgetStart("table")}
+                  disabled={widgets.length >= 7}
+                >
+                  Data Table
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconNumbers size={16} />} 
+                  onClick={() => handleAddWidgetStart("counter")}
+                  disabled={widgets.length >= 7}
+                >
+                  Smart Counter
                 </Menu.Item>
                 <Menu.Item 
                   leftSection={<IconAlignLeft size={16} />} 

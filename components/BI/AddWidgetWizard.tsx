@@ -20,6 +20,7 @@ import {
   IconChartLine,
   IconChartPie,
   IconCircleNumber1,
+  IconTable,
   IconCheck,
   IconChevronRight
 } from "@tabler/icons-react";
@@ -35,6 +36,8 @@ const WIDGET_TYPES = [
   { id: "line", title: "Line Chart", description: "Visualize trends over time", icon: IconChartLine, color: "violet" },
   { id: "pie", title: "Pie Chart", description: "Show proportions of a whole", icon: IconChartPie, color: "orange" },
   { id: "kpi", title: "KPI Metric", description: "A single important number", icon: IconCircleNumber1, color: "cyan" },
+  { id: "table", title: "Data Table", description: "View raw tabular data cleanly", icon: IconTable, color: "teal" },
+  { id: "counter", title: "Smart Counter", description: "A sum or average count metric", icon: IconCircleNumber1, color: "pink" },
 ];
 
 export function AddWidgetWizard({ opened, onClose, onAdd }: AddWidgetWizardProps) {

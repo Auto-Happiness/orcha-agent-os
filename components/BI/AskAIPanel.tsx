@@ -409,7 +409,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
               <Stack align="center" py={50} gap="md">
                 <Loader color="violet" size="lg" type="bars" />
                 <Text fw={600} c="violet.3">
-                  {currentStep === "analyzing" ? "Cross-referencing Schema..." : "Architecting Dashboard..."}
+                  {currentStep === "analyzing" ? "Seat back and relax..." : "Architecting Dashboard..."}
                 </Text>
                 <Text size="xs" c="dimmed" ta="center">
                   Processing {draftPrompts.length} requested insights...
@@ -498,7 +498,17 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
               size="md"
               value={currentPrompt}
               onChange={(e) => setCurrentPrompt(e.currentTarget.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddPrompt()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    handleGenerate();
+                  } else {
+                    e.preventDefault();
+                    handleAddPrompt();
+                  }
+                }
+              }}
               disabled={isGenerating || draftPrompts.length >= 5}
               styles={{
                 input: {

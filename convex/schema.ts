@@ -107,7 +107,9 @@ const WidgetTypeValidator = v.union(
   v.literal("line"),
   v.literal("pie"),
   v.literal("kpi"),
-  v.literal("text")
+  v.literal("text"),
+  v.literal("table"),
+  v.literal("counter")
 );
 
 const WidgetSizeValidator = v.union(
@@ -305,6 +307,7 @@ export default defineSchema({
     createdBy: v.id("users"),
     createdAt: v.number(),
     lastExecutedAt: v.optional(v.number()),
+    isFederated: v.optional(v.boolean()),
   })
     .index("by_org", ["organizationId"])
     .index("by_config", ["configId"])

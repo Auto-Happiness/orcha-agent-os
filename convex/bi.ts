@@ -79,7 +79,7 @@ export const saveWidget = mutation({
     widgetId: v.optional(v.id("dashboardWidgets")),
     dashboardId: v.id("dashboards"),
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
+    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter")),
     title: v.string(),
     description: v.optional(v.string()),
     queryId: v.optional(v.id("savedQueries")),
@@ -208,6 +208,7 @@ export const createDashboardWithWidgets = mutation({
         description: w.description || "AI-generated dashboard query",
         createdBy: user._id,
         createdAt: Date.now(),
+        isFederated: true,
       });
 
       // 2. Save the widget and link it to the saved query ID

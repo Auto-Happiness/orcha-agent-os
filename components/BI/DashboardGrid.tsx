@@ -6,7 +6,7 @@ import {
   Layout, 
   useContainerWidth 
 } from "react-grid-layout";
-import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center } from "@mantine/core";
+import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center, Table, ScrollArea } from "@mantine/core";
 import { IconDotsVertical, IconTrash, IconArrowsMaximize, IconSettings, IconChartBar } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { DynamicChart } from "./DynamicChart";
@@ -59,13 +59,107 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
     );
   }
 
-  if (!widget.mapping || !widget.queryId) {
+  if (widget.type === "table") {
+    if (!queryData || queryData.length === 0) {
+      return (
+        <Center h="100%">
+          <Text size="xs" c="dimmed">No table data available</Text>
+        </Center>
+      );
+    }
+    const columns = Object.keys(queryData[0]);
     return (
-      <Center h="100%">
-        <Stack align="center" gap={4}>
-          <IconChartBar size={32} color="rgba(255,255,255,0.05)" />
-          <Text size="xs" c="dimmed">Not Configured</Text>
-          <Text size="10px" c="violet.4">Click to setup intelligence</Text>
+      <Box p="xs" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <ScrollArea h="100%" className="rounded-lg border border-white/[0.06] bg-black/20" style={{ flex: 1 }}>
+          <Table variant="unstyled" style={{ color: "rgba(255,255,255,0.85)" }}>
+            <Table.Thead className="bg-[#120a2a]/80 backdrop-blur-md sticky top-0 z-10 border-b border-purple-500/25">
+              <Table.Tr>
+                {columns.map((col) => (
+                  <Table.Th 
+                    key={col} 
+                    className="text-purple-300/80 font-bold uppercase tracking-wider text-[10px] py-3.5 px-4 text-left border-b border-purple-500/20"
+                    style={{ borderBottom: "1px solid rgba(147, 51, 234, 0.25)" }}
+                  >
+                    {col.replace(/_/g, " ")}
+                  </Table.Th>
+                ))}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {queryData.map((row, rowIndex) => (
+                <Table.Tr 
+                  key={rowIndex} 
+                  className="border-b border-white/[0.03] hover:bg-purple-500/[0.04] transition-colors duration-150"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+                >
+                  {columns.map((col) => {
+                    const val = row[col];
+                    const displayVal = typeof val === "number" ? val.toLocaleString() : String(val ?? "");
+                    return (
+                      <Table.Td key={col} className="text-slate-200 font-medium text-[11px] py-3 px-4" style={{ whiteSpace: "nowrap" }}>
+                        {displayVal}
+                      </Table.Td>
+                    );
+                  })}
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </ScrollArea>
+      </Box>
+    );
+  }
+
+  if (widget.type === "kpi" || widget.type === "counter") {
+    if (!queryData || queryData.length === 0) {
+      return (
+        <Center h="100%">
+          <Text size="xs" c="dimmed">No KPI data available</Text>
+        </Center>
+      );
+    }
+    const valueKey = widget.mapping?.valueKeys?.[0] || Object.keys(queryData[0])[0];
+    
+    // Sum or average or count depending on type or first row
+    let rawVal = 0;
+    if (queryData.length > 0) {
+      const isMultiple = queryData.length > 1;
+      if (isMultiple) {
+        rawVal = queryData.reduce((acc, row) => acc + (parseFloat(row[valueKey]) || 0), 0);
+      } else {
+        rawVal = parseFloat(queryData[0][valueKey]) || 0;
+      }
+    }
+
+    let displayVal = "";
+    if (rawVal >= 1_000_000_000) {
+      displayVal = `${(rawVal / 1_000_000_000).toFixed(1)}B`;
+    } else if (rawVal >= 1_000_000) {
+      displayVal = `${(rawVal / 1_000_000).toFixed(1)}M`;
+    } else if (rawVal >= 1_000) {
+      displayVal = `${(rawVal / 1_000).toFixed(1)}k`;
+    } else if (Number.isInteger(rawVal)) {
+      displayVal = rawVal.toLocaleString();
+    } else {
+      displayVal = rawVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    const firstRowLabel = widget.mapping?.labelKey ? queryData[0]?.[widget.mapping.labelKey] : undefined;
+
+    return (
+      <Center h="100%" p="md">
+        <Stack align="center" gap={2}>
+          <Text size="2.5rem" fw={800} style={{ 
+            background: "linear-gradient(135deg, #00D1FF 0%, #00FF94 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            letterSpacing: "-1px"
+          }}>
+            {displayVal}
+          </Text>
+          <Text size="11px" c="dimmed" fw={500} ta="center" style={{ textTransform: "uppercase", letterSpacing: "1px" }}>
+            {valueKey.replace(/_/g, " ")} {firstRowLabel ? `(${firstRowLabel})` : ""}
+          </Text>
         </Stack>
       </Center>
     );

@@ -101,7 +101,14 @@ export class OrchaFusion {
     const configHash = JSON.stringify(config);
 
     // Skip if already attached with the EXACT SAME configuration in this singleton connection
-    if (this.attachedDatabases.get(alias) === configHash) return;
+    if (this.attachedDatabases.get(alias) === configHash) {
+      // For MSSQL databases, we still need to check if there are new tables referenced
+      // in this query that haven't been bridged yet, and bridge them incrementally.
+      if (config.type === "mssql") {
+        await this.bridgeMssql(conn, alias, config, sql);
+      }
+      return;
+    }
 
     // PROMISE POOLING: If another parallel query is currently in the middle of attaching
     // this same alias, wait for that existing promise instead of running a duplicate attachment.
@@ -109,6 +116,10 @@ export class OrchaFusion {
     if (existingAttachment) {
       console.log(`[OrchaFusion] Waiting for in-progress attachment of [${alias}]...`);
       await existingAttachment;
+      // We must still ensure that any tables referenced in THIS query are bridged incrementally
+      if (config.type === "mssql") {
+        await this.bridgeMssql(conn, alias, config, sql);
+      }
       return;
     }
 
