@@ -256,7 +256,7 @@ export const updateProposal = mutation({
     status: v.union(v.literal("ready"), v.literal("failed")),
     error: v.optional(v.string()),
     widgets: v.optional(v.array(v.object({
-      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
+      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter")),
       title: v.string(),
       reason: v.optional(v.string()),
       sql: v.string(),

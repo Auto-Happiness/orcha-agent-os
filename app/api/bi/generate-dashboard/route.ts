@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
             selectedModel,
             organizationId,
             convex,
+
             configMap,
             aiKeys,
           });
@@ -193,8 +194,8 @@ async function executeGeneration({
     const cols = m.fields.map((f: any) => {
       const typeHint = f.type === "measure" ? "[MEASURE - numeric, use in valueKeys]"
         : f.isPrimary ? "[PRIMARY KEY - NEVER use as labelKey]"
-        : f.type?.toLowerCase().includes("int") || f.type?.toLowerCase().includes("id") ? "[ID/NUMERIC - avoid as labelKey]"
-        : "[DIMENSION - good candidate for labelKey if it contains human-readable text]";
+          : f.type?.toLowerCase().includes("int") || f.type?.toLowerCase().includes("id") ? "[ID/NUMERIC - avoid as labelKey]"
+            : "[DIMENSION - good candidate for labelKey if it contains human-readable text]";
       return `  - ${f.columnName} (${f.type || "unknown"}): ${f.description || f.displayName || ""} ${typeHint}`;
     }).join("\n");
     return `### Table: ${m.tableName}\n${m.description || ""}\nColumns:\n${cols}`;

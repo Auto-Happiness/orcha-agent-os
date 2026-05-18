@@ -17,10 +17,8 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
-  IconPlus,
   IconAdjustmentsHorizontal,
   IconChevronDown,
-  IconMicrophone,
   IconArrowRight,
   IconSparkles,
   IconTable
@@ -144,10 +142,6 @@ export function ChatPromptBox({
 
             <Group justify="space-between" align="center">
               <Group gap={8}>
-                <ActionIcon variant="transparent" color="dimmed" size="md">
-                  <IconPlus size={18} />
-                </ActionIcon>
-
                 <MultiSelect
                   data={allConfigs?.map(c => ({ value: c._id, label: c.name })) || []}
                   value={selectedConfigIds}
@@ -269,10 +263,6 @@ export function ChatPromptBox({
                     />
                   </Group>
                 </Tooltip>
-
-                <ActionIcon variant="transparent" color="dimmed" size="md">
-                  <IconMicrophone size={18} />
-                </ActionIcon>
 
                 <ActionIcon
                   type="submit"
