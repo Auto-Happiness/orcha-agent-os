@@ -39,10 +39,20 @@ export async function createChatAgent(context: AgentContext) {
 
   const configId = activeConfigIds[0];
 
-  let config: any;
-  const allConfigs = await convex.query(api.databaseConfigs.listByOrganization, { organizationId, apiKey });
-  config = allConfigs.find((c: any) => c._id === configId);
+  // ── PARALLEL FETCH: Fire all org-level queries simultaneously ──
+  // allConfigs, aiKeys, integrationKeys, and allOrgModels are fully independent —
+  // bundling them into one Promise.all saves ~3 sequential network round-trips per request.
+  const [allConfigs, aiKeys, integrationKeys, allOrgModels] = await Promise.all([
+    convex.query(api.databaseConfigs.listByOrganization, { organizationId, apiKey }),
+    convex.query(api.aiKeys.listByOrganization, { organizationId, apiKey }),
+    convex.query(api.integrationKeys.listByOrganization, { organizationId, apiKey }),
+    convex.query(api.semanticModels.listAllModelsInOrg, { organizationId, apiKey }),
+  ]);
+
+  // Resolve the primary database config from the already-fetched list
+  let config: any = allConfigs.find((c: any) => c._id === configId);
   if (!config) {
+    // Fallback: fetch any ready config for the org (e.g. when no configId is supplied)
     config = await convex.query(api.databaseConfigs.getByOrganization, { organizationId, apiKey });
   }
   if (!config) throw new Error("No ready database configuration found.");
@@ -55,7 +65,7 @@ export async function createChatAgent(context: AgentContext) {
     throw new Error("Failed to parse database configuration.");
   }
 
-  // Build a connection config map for the selected databases (for federation)
+  // Build the federation config map (uses allConfigs resolved above)
   const allOrgConfigs = allConfigs || [];
   const dbConfigMap = new Map<string, any>();
   const activeIdsSet = new Set(activeConfigIds);
@@ -70,11 +80,6 @@ export async function createChatAgent(context: AgentContext) {
     } catch { /* skip malformed configs */ }
   }
 
-  const [aiKeys, integrationKeys] = await Promise.all([
-    convex.query(api.aiKeys.listByOrganization, { organizationId, apiKey }),
-    convex.query(api.integrationKeys.listByOrganization, { organizationId, apiKey }),
-  ]);
-
   // If a default model is set for the API key, use it.
   const defaultModel = defaultModelId || "gemini:gemini-1.5-flash";
 
@@ -86,14 +91,17 @@ export async function createChatAgent(context: AgentContext) {
   let filteredModels: any[] = [];
   let relationships: any[] = [];
   let mcpTools: any = {};
+  // allModels (full field schemas) is fetched lazily inside the TEXT_TO_SQL branch
+  let allModels: any[] = [];
   const lastMessage = (messages[messages.length - 1] as any)?.content || "";
 
-  // --- INTENT CLASSIFICATION  ---
-  // 1. Get a quick list of table names to help the classifier
-  const allModels = await convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey });
-  const tableNames = allModels.map((m: any) => m.displayName || m.tableName);
+  // --- INTENT CLASSIFICATION ---
+  // Derive table names from allOrgModels fetched in the parallel block above — zero extra cost.
+  const tableNames = allOrgModels
+    .filter((m: any) => m.configId === config._id)
+    .map((m: any) => m.displayName || m.tableName);
 
-  // 2. Classify intent (TEMPORARILY DISABLED)
+  // classifyIntent is temporarily commented out for now
   // const classification = await classifyIntent(lastMessage, aiModel, tableNames, config.businessContext);
   // const messageIntent = classification.intent;
   // const suggestedTables = classification.suggestedTables;
@@ -101,14 +109,16 @@ export async function createChatAgent(context: AgentContext) {
   const suggestedTables: string[] = [];
   console.log(`[Agent] Intent Classification bypassed, defaulting to: ${messageIntent}`);
 
-  // Run MCP tool loading in the background
-  const mcpLoadPromise = (async () => {
-    const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
-    return await loadMcpTools(integrationKeys, orgIdStr);
-  })();
-
   // Only run the expensive RAG pipeline for data queries
   if (messageIntent === "TEXT_TO_SQL") {
+    // ── CONCURRENT TEXT_TO_SQL LOAD ──
+    // MCP tools, RAG embedding + vector search, and full model schemas all fire in parallel.
+    // Previously these were sequential; now they all complete in the time of the slowest one.
+    const mcpLoadPromise = (async () => {
+      const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
+      return await loadMcpTools(integrationKeys, orgIdStr);
+    })();
+
     const ragPromise = (async () => {
       const embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
       const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
@@ -128,13 +138,25 @@ export async function createChatAgent(context: AgentContext) {
       });
     })();
 
-    const [mcpResult, ragResult] = await Promise.allSettled([mcpLoadPromise, ragPromise]);
+    // Full model schemas (with fields) needed for fuzzy matching & hybrid discovery
+    const allModelsPromise = convex.query(api.semanticModels.listModelsByConfig, { configId: config._id, apiKey });
+
+    const [mcpResult, ragResult, allModelsResult] = await Promise.allSettled([
+      mcpLoadPromise,
+      ragPromise,
+      allModelsPromise,
+    ]);
 
     if (mcpResult.status === "fulfilled") mcpTools = mcpResult.value;
 
     if (ragResult.status === "fulfilled" && ragResult.value?.models?.length > 0) {
       filteredModels = ragResult.value.models;
       relationships = ragResult.value.relationships;
+    }
+
+    // Populate allModels for fuzzy fallback and hybrid table discovery below
+    if (allModelsResult.status === "fulfilled") {
+      allModels = (allModelsResult.value as any[]) || [];
     }
 
     // HYBRID DISCOVERY: Merge LLM-suggested tables with RAG results
@@ -181,8 +203,10 @@ export async function createChatAgent(context: AgentContext) {
       }
     }
   } else {
-    // GENERAL / IRRELEVANT: skip RAG, just load MCP tools
-    mcpTools = await mcpLoadPromise;
+    // GENERAL / IRRELEVANT: skip the entire RAG + embedding pipeline.
+    // Only load MCP tools in case the user is asking about an integration.
+    const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
+    mcpTools = await loadMcpTools(integrationKeys, orgIdStr);
     console.log(`[Agent] Skipped RAG pipeline for intent: ${messageIntent}`);
   }
 
@@ -265,7 +289,7 @@ export async function createChatAgent(context: AgentContext) {
     : "";
 
   // Build a federated catalog for the prompt (only for selected databases)
-  const allOrgModels = await convex.query(api.semanticModels.listAllModelsInOrg, { organizationId, apiKey });
+  // allOrgModels was already fetched in the initial parallel block — reused here at zero extra cost.
   const federatedCatalog = allOrgConfigs
     .filter((c: any) => activeIdsSet.has(c._id))
     .map((c: any) => {
