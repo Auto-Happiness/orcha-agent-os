@@ -79,6 +79,15 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   const [textContent, setTextContent] = useState(widget?.description || "");
   const [isSaving, setIsSaving] = useState(false);
 
+  const colorKeys = useMemo(() => {
+    if ((widgetType === "pie" || widgetType === "bar" || widgetType === "line") && labelKey && previewRows.length > 0) {
+      if (widgetType === "pie" || valueKeys.length <= 1) {
+        return Array.from(new Set(previewRows.map(row => String(row[labelKey] || ""))));
+      }
+    }
+    return valueKeys;
+  }, [widgetType, labelKey, valueKeys, previewRows]);
+
   // Reset state when panel opens/closes
   useEffect(() => {
     if (opened) {
@@ -101,24 +110,24 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
     }
   }, [opened, widget]);
 
-  // Sync series colors when valueKeys change
+  // Sync series colors when colorKeys change using functional state update to prevent wiping custom colors
   useEffect(() => {
-    const newSeriesColors = { ...seriesColors };
-    let changed = false;
+    setSeriesColors((prev) => {
+      const newSeriesColors = { ...prev };
+      let changed = false;
 
-    valueKeys.forEach((key, index) => {
-      if (!newSeriesColors[key]) {
-        // Auto-assign from a default attractive palette
-        const defaultPalette = ["#9333ea", "#00D1FF", "#00FF94", "#FF00E5", "#FFB800", "#FF6B6B"];
-        newSeriesColors[key] = defaultPalette[index % defaultPalette.length];
-        changed = true;
-      }
+      colorKeys.forEach((key, index) => {
+        if (!newSeriesColors[key]) {
+          // Auto-assign from a default attractive palette
+          const defaultPalette = ["#9333ea", "#00D1FF", "#00FF94", "#FF00E5", "#FFB800", "#FF6B6B"];
+          newSeriesColors[key] = defaultPalette[index % defaultPalette.length];
+          changed = true;
+        }
+      });
+
+      return changed ? newSeriesColors : prev;
     });
-
-    if (changed) {
-      setSeriesColors(newSeriesColors);
-    }
-  }, [valueKeys]);
+  }, [colorKeys]);
 
   // Mutants & Queries
   const organization = useQuery(api.organizations.getSafeBySlug, { slug: saas });
@@ -620,12 +629,12 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                   <Text size="sm" fw={600} c="dimmed">5. LOOK & FEEL</Text>
                 </Group>
                 <Paper p="md" radius="md" style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  {valueKeys.length > 0 ? (
+                  {colorKeys.length > 0 ? (
                     <Stack gap={8}>
-                      {valueKeys.map((key) => (
+                      {colorKeys.map((key) => (
                         <Group key={key} justify="space-between">
                           <Text size="xs" c="dimmed">{key}</Text>
-                          <ColorInput size="xs" w={120} value={seriesColors[key] || "#9333ea"} onChange={(color) => setSeriesColors(prev => ({ ...prev, [key]: color }))} />
+                          <ColorInput size="xs" w={120} value={seriesColors[key] || "#9333ea"} onChange={(color) => setSeriesColors(prev => ({ ...prev, [key]: color }))} popoverProps={{ withinPortal: true, zIndex: 10000 }} />
                         </Group>
                       ))}
                     </Stack>

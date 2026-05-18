@@ -168,7 +168,7 @@ export default function CommandCenterPage() {
 
     try {
       await saveWidgetMutation({
-        widgetId: modalMode === "edit" ? widgetData._id : undefined,
+        widgetId: widgetData._id || undefined,
         dashboardId: currentDashboardId as any,
         organizationId: organization._id,
         type: widgetData.type,

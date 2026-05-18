@@ -142,6 +142,21 @@ export async function POST(req: NextRequest) {
     // 6. Execute Batch via OrchaDashboard Engine (L1+L2 cache-aware)
     const results = await OrchaDashboard.executeBatch(dashboardId, queriesToRun, dbConfigMap, aliasTableMap, aiKeys, organizationId, token ?? undefined);
 
+    // Populate helpful skipped messages for any widgets exceeding the 7-widget ceiling
+    if (widgets.length > 7) {
+      const skippedWidgets = widgets.slice(7);
+      for (const sw of skippedWidgets) {
+        if (sw.type !== "text") {
+          results[sw._id] = {
+            rows: [],
+            columns: [],
+            error: "Dashboard ceiling exceeded (7 widget limit). Remove another widget to activate this visual.",
+            queryName: sw.title
+          };
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       results,

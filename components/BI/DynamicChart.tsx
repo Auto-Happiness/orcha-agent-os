@@ -354,11 +354,17 @@ export function DynamicChart({
     }
   };
 
+  const isRecharts = type !== "table" && type !== "kpi" && type !== "counter";
+
   return (
     <Box h={height} w="100%">
-      <ResponsiveContainer width="100%" height="100%">
-        {renderChart()}
-      </ResponsiveContainer>
+      {isRecharts ? (
+        <ResponsiveContainer width="100%" height="100%">
+          {renderChart()}
+        </ResponsiveContainer>
+      ) : (
+        renderChart()
+      )}
     </Box>
   );
 }

@@ -254,13 +254,11 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
         cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
         rowHeight={100}
         margin={[20, 20]}
-        dragConfig={{ 
-          enabled: isEditMode, 
-          handle: ".drag-handle" 
-        }}
-        resizeConfig={{ 
-          enabled: isEditMode 
-        }}
+        {...({
+          isDraggable: isEditMode,
+          isResizable: isEditMode,
+          draggableHandle: ".drag-handle"
+        } as any)}
         onLayoutChange={(currentLayout: Layout) => onLayoutChange(currentLayout)}
       >
       {widgets.map((widget) => (
