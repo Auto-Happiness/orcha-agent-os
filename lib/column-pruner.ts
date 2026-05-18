@@ -76,7 +76,13 @@ export async function pruneColumns(
   });
 
   const finalModels = models.map((model: any) => {
-    const selectedColumns = pruningMap.get(model.tableName.toLowerCase());
+    let selectedColumns: Set<string> | undefined;
+    for (const [key, value] of pruningMap.entries()) {
+      if (model.tableName.toLowerCase() === key || model.tableName.toLowerCase().endsWith("." + key) || key.endsWith("." + model.tableName.toLowerCase())) {
+        selectedColumns = value;
+        break;
+      }
+    }
     if (!selectedColumns) return null; 
 
     // Normalize selected column names to lowercase for safer matching

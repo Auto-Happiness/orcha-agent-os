@@ -16,6 +16,7 @@ import {
   ActionIcon,
   Tooltip,
   Modal,
+  Drawer,
   TextInput,
   Center,
   Loader,
@@ -36,7 +37,9 @@ import {
   IconAlignLeft,
   IconFileTypePdf,
   IconTrash,
-  IconDotsVertical
+  IconDotsVertical,
+  IconSparkles,
+  IconTable
 } from "@tabler/icons-react";
 import { Menu } from "@mantine/core";
 import { useQuery, useMutation } from "convex/react";
@@ -49,6 +52,7 @@ const DashboardGrid = dynamic(
 );
 
 import { WidgetIntelligencePanel } from "@/components/BI/WidgetIntelligencePanel";
+import { AskAIPanel } from "@/components/BI/AskAIPanel";
 
 export default function CommandCenterPage() {
   const { saas } = useParams();
@@ -68,6 +72,7 @@ export default function CommandCenterPage() {
   const [intelligenceOpened, setIntelligenceOpened] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
   const [createDashboardOpened, setCreateDashboardOpened] = useState(false);
+  const [askAIOpened, setAskAIOpened] = useState(false);
   const [newDashboardName, setNewDashboardName] = useState("");
   const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
   const [hasPromptedInitialDashboard, setHasPromptedInitialDashboard] = useState(false);
@@ -122,7 +127,7 @@ export default function CommandCenterPage() {
             widgetId: widget._id,
             dashboardId: currentDashboardId as any,
             organizationId: organization._id,
-            type: widget.type,
+            type: widget.type as any,
             title: widget.title,
             queryId: widget.queryId,
             mapping: widget.mapping,
@@ -163,7 +168,7 @@ export default function CommandCenterPage() {
 
     try {
       await saveWidgetMutation({
-        widgetId: modalMode === "edit" ? widgetData._id : undefined,
+        widgetId: widgetData._id || undefined,
         dashboardId: currentDashboardId as any,
         organizationId: organization._id,
         type: widgetData.type,
@@ -309,36 +314,66 @@ export default function CommandCenterPage() {
                   New Dashboard
                 </Menu.Item>
 
+                <Menu.Item 
+                  leftSection={<IconSparkles size={16} color="#a855f7" />} 
+                  onClick={() => setAskAIOpened(true)}
+                  style={{ background: "rgba(168, 85, 247, 0.05)" }}
+                >
+                  Ask Orcha AI
+                </Menu.Item>
+
                 <Menu.Divider color="rgba(255,255,255,0.05)" />
 
-                <Menu.Label>Add Insights</Menu.Label>
+                <Menu.Label>
+                  Add Insights 
+                  {widgets.length >= 7 && <Text component="span" size="10px" c="red.4" ml={5}>(Limit 7 reached)</Text>}
+                </Menu.Label>
                 <Menu.Item 
                   leftSection={<IconChartBar size={16} />} 
                   onClick={() => handleAddWidgetStart("bar")}
+                  disabled={widgets.length >= 7}
                 >
                   Bar Chart
                 </Menu.Item>
                 <Menu.Item 
                   leftSection={<IconChartLine size={16} />} 
                   onClick={() => handleAddWidgetStart("line")}
+                  disabled={widgets.length >= 7}
                 >
                   Line Chart
                 </Menu.Item>
                 <Menu.Item 
                   leftSection={<IconChartPie size={16} />} 
                   onClick={() => handleAddWidgetStart("pie")}
+                  disabled={widgets.length >= 7}
                 >
                   Pie Chart
                 </Menu.Item>
                 <Menu.Item 
                   leftSection={<IconNumbers size={16} />} 
                   onClick={() => handleAddWidgetStart("kpi")}
+                  disabled={widgets.length >= 7}
                 >
                   KPI Metric
                 </Menu.Item>
                 <Menu.Item 
+                  leftSection={<IconTable size={16} />} 
+                  onClick={() => handleAddWidgetStart("table")}
+                  disabled={widgets.length >= 7}
+                >
+                  Data Table
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconNumbers size={16} />} 
+                  onClick={() => handleAddWidgetStart("counter")}
+                  disabled={widgets.length >= 7}
+                >
+                  Smart Counter
+                </Menu.Item>
+                <Menu.Item 
                   leftSection={<IconAlignLeft size={16} />} 
                   onClick={() => handleAddWidgetStart("text")}
+                  disabled={widgets.length >= 7}
                 >
                   Text Box
                 </Menu.Item>
@@ -415,31 +450,88 @@ export default function CommandCenterPage() {
           saas={saas as string}
         />
 
-        <Modal
+        <AskAIPanel
+          opened={askAIOpened}
+          onClose={(createdId) => {
+            setAskAIOpened(false);
+            if (createdId) {
+              setCurrentDashboardId(createdId as any);
+            }
+          }}
+          organizationId={organization?._id}
+          saas={saas as string}
+        />
+
+        {/* New Dashboard Panel */}
+        <Drawer
           opened={createDashboardOpened}
           onClose={() => setCreateDashboardOpened(false)}
-          title="Create Dashboard"
-          centered
+          title="Create New Dashboard"
+          position="right"
+          padding="xl"
+          size="md"
+          overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
+          styles={{
+            content: { 
+              background: "#0c0a1a", 
+              borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
+              color: "white"
+            },
+            header: { 
+              background: "#0c0a1a", 
+              color: "white",
+              borderBottom: "1px solid rgba(255,255,255,0.05)",
+              paddingBottom: 20
+            },
+            title: { fontWeight: 800, fontSize: 22, color: "#a855f7" }
+          }}
         >
-          <TextInput
-            label="Dashboard Name"
-            placeholder="e.g. Executive Overview"
-            value={newDashboardName}
-            onChange={(e) => setNewDashboardName(e.currentTarget.value)}
-            autoFocus
-          />
-          <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={() => setCreateDashboardOpened(false)}>Cancel</Button>
-            <Button
-              color="violet"
-              onClick={handleCreateDashboard}
-              loading={isCreatingDashboard}
-              disabled={!newDashboardName.trim()}
-            >
-              Create
-            </Button>
-          </Group>
-        </Modal>
+          <Stack gap="xl" mt="md">
+            <Box>
+              <Text size="sm" c="dimmed" mb="lg">
+                Establish a new canvas for your organization&apos;s data intelligence. You can add up to 7 widgets per dashboard.
+              </Text>
+              
+              <TextInput
+                label="Dashboard Name"
+                placeholder="e.g. Sales Performance 2024"
+                value={newDashboardName}
+                onChange={(e) => setNewDashboardName(e.currentTarget.value)}
+                autoFocus
+                size="md"
+                styles={{
+                  label: { color: "white", marginBottom: 8 },
+                  input: { 
+                    background: "rgba(255,255,255,0.03)", 
+                    border: "1px solid rgba(147, 51, 234, 0.3)",
+                    color: "white",
+                    height: 50
+                  }
+                }}
+              />
+            </Box>
+
+            <Group justify="flex-end" gap="md" mt={40}>
+              <Button variant="subtle" color="gray" onClick={() => setCreateDashboardOpened(false)}>
+                Cancel
+              </Button>
+              <Button
+                color="violet"
+                size="md"
+                px="xl"
+                onClick={handleCreateDashboard}
+                loading={isCreatingDashboard}
+                disabled={!newDashboardName.trim()}
+                style={{ 
+                  boxShadow: "0 4px 15px rgba(147, 51, 234, 0.3)",
+                  background: "linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)"
+                }}
+              >
+                Create Dashboard
+              </Button>
+            </Group>
+          </Stack>
+        </Drawer>
 
         <Modal
           opened={!!deletingDashboardId}

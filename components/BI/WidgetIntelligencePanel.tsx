@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Modal,
+  Drawer,
   Tabs,
   Stack,
   Text,
@@ -63,6 +64,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   const executeQuery = useAction(api.biActions.executeWidgetQuery);
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(widget?.configId || null);
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(widget?.queryId || null);
+  const [widgetType, setWidgetType] = useState<string>(widget?.type || "bar");
   const [discoveredColumns, setDiscoveredColumns] = useState<string[]>([]);
   const [labelKey, setLabelKey] = useState(widget?.mapping?.labelKey || "");
   const [valueKeys, setValueKeys] = useState<string[]>(widget?.mapping?.valueKeys || []);
@@ -77,11 +79,21 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   const [textContent, setTextContent] = useState(widget?.description || "");
   const [isSaving, setIsSaving] = useState(false);
 
+  const colorKeys = useMemo(() => {
+    if ((widgetType === "pie" || widgetType === "bar" || widgetType === "line") && labelKey && previewRows.length > 0) {
+      if (widgetType === "pie" || valueKeys.length <= 1) {
+        return Array.from(new Set(previewRows.map(row => String(row[labelKey] || ""))));
+      }
+    }
+    return valueKeys;
+  }, [widgetType, labelKey, valueKeys, previewRows]);
+
   // Reset state when panel opens/closes
   useEffect(() => {
     if (opened) {
       setSelectedConfigId(widget?.configId || null);
       setSelectedQueryId(widget?.queryId || null);
+      setWidgetType(widget?.type || "bar");
       setLabelKey(widget?.mapping?.labelKey || "");
       setValueKeys(widget?.mapping?.valueKeys || []);
       setSeriesColors(widget?.mapping?.seriesColors || {});
@@ -98,33 +110,37 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
     }
   }, [opened, widget]);
 
-  // Sync series colors when valueKeys change
+  // Sync series colors when colorKeys change using functional state update to prevent wiping custom colors
   useEffect(() => {
-    const newSeriesColors = { ...seriesColors };
-    let changed = false;
+    setSeriesColors((prev) => {
+      const newSeriesColors = { ...prev };
+      let changed = false;
 
-    valueKeys.forEach((key, index) => {
-      if (!newSeriesColors[key]) {
-        // Auto-assign from a default attractive palette
-        const defaultPalette = ["#9333ea", "#00D1FF", "#00FF94", "#FF00E5", "#FFB800", "#FF6B6B"];
-        newSeriesColors[key] = defaultPalette[index % defaultPalette.length];
-        changed = true;
-      }
+      colorKeys.forEach((key, index) => {
+        if (!newSeriesColors[key]) {
+          // Auto-assign from a default attractive palette
+          const defaultPalette = ["#9333ea", "#00D1FF", "#00FF94", "#FF00E5", "#FFB800", "#FF6B6B"];
+          newSeriesColors[key] = defaultPalette[index % defaultPalette.length];
+          changed = true;
+        }
+      });
+
+      return changed ? newSeriesColors : prev;
     });
-
-    if (changed) {
-      setSeriesColors(newSeriesColors);
-    }
-  }, [valueKeys]);
+  }, [colorKeys]);
 
   // Mutants & Queries
   const organization = useQuery(api.organizations.getSafeBySlug, { slug: saas });
   const configs = useQuery(api.databaseConfigs.listByOrganization, organization ? { organizationId: organization._id } : "skip");
   const savedQueries = useQuery(api.savedQueries.listByConfig, selectedConfigId ? { configId: selectedConfigId as any } : "skip");
+  
+  const nonFederatedQueries = useMemo(() => {
+    return savedQueries?.filter(q => !q.isFederated) || [];
+  }, [savedQueries]);
 
   const handleExecute = async () => {
     const config = configs?.find(c => c._id === selectedConfigId);
-    const query = savedQueries?.find(q => q._id === selectedQueryId);
+    const query = nonFederatedQueries.find(q => q._id === selectedQueryId);
     if (!config || !query) return;
 
     setIsExecuting(true);
@@ -170,7 +186,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   };
 
   const getSmartValidationLogs = () => {
-    const query = savedQueries?.find(q => q._id === selectedQueryId);
+    const query = nonFederatedQueries.find(q => q._id === selectedQueryId);
     if (!query) return [];
 
     const logs: { type: 'success' | 'warning' | 'info'; message: string; id: string }[] = [];
@@ -219,48 +235,69 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
 
   if (isTextWidget) {
     return (
-      <Modal
+      <Drawer
         opened={opened}
         onClose={onClose}
+        position="right"
+        size="lg"
         title={
           <Group gap="xs">
-            <IconChartBar size={20} color="var(--mantine-color-violet-filled)" />
-            <Text fw={700}>Text Box: {widget?.title || "New Text Box"}</Text>
+            <IconChartBar size={20} color="#a855f7" />
+            <Text fw={800} size="lg">Text Box Configuration</Text>
           </Group>
         }
-        size="lg"
-        radius="lg"
+        padding="xl"
         styles={{
           content: {
-            background: "#0c0a1d",
-            border: "1px solid rgba(147, 51, 234, 0.2)",
-            backdropFilter: "blur(24px)",
+            background: "#0c0a1a",
+            borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
             color: "white"
           },
-          header: { background: "transparent" },
-          close: { color: "gray" }
+          header: { 
+            background: "#0c0a1a", 
+            color: "white",
+            borderBottom: "1px solid rgba(255,255,255,0.05)",
+            paddingBottom: 20
+          },
         }}
       >
-        <Stack gap="md">
-          <TextInput
-            label="Component Title"
-            placeholder="e.g. Executive Notes"
-            value={widgetTitle}
-            onChange={(e) => setWidgetTitle(e.currentTarget.value)}
-          />
-          <Textarea
-            label="Text Content"
-            placeholder="Add explanatory notes, business context, assumptions, and guidance..."
-            minRows={8}
-            autosize
-            value={textContent}
-            onChange={(e) => setTextContent(e.currentTarget.value)}
-          />
+        <Stack gap="xl" mt="md">
+          <Box>
+            <Text size="sm" c="dimmed" mb="lg">
+              Add contextual guidance, business rules, or notes to your dashboard.
+            </Text>
+            <Stack gap="md">
+              <TextInput
+                label="Component Title"
+                placeholder="e.g. Executive Notes"
+                value={widgetTitle}
+                onChange={(e) => setWidgetTitle(e.currentTarget.value)}
+                styles={{
+                  label: { color: "white", marginBottom: 8 },
+                  input: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(147, 51, 234, 0.3)", color: "white" }
+                }}
+              />
+              <Textarea
+                label="Text Content"
+                placeholder="Add explanatory notes, business context, assumptions, and guidance..."
+                minRows={12}
+                autosize
+                value={textContent}
+                onChange={(e) => setTextContent(e.currentTarget.value)}
+                styles={{
+                  label: { color: "white", marginBottom: 8 },
+                  input: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(147, 51, 234, 0.3)", color: "white" }
+                }}
+              />
+            </Stack>
+          </Box>
           <Group justify="flex-end" mt="md">
             <Button variant="subtle" color="gray" onClick={onClose}>Cancel</Button>
             <Button
               color="violet"
+              size="md"
               loading={isSaving}
+              style={{ background: "linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)" }}
               onClick={async () => {
                 if (onSave) {
                   setIsSaving(true);
@@ -286,42 +323,67 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </Drawer>
     );
   }
 
 
   return (
-    <Modal
+    <Drawer
       opened={opened}
       onClose={onClose}
+      position="right"
+      size="80%"
       title={
         <Group gap="xs">
-          <IconChartBar size={20} color="var(--mantine-color-violet-filled)" />
-          <Text fw={700}>Intelligence Panel: {widget?.title || "Configure Widget"}</Text>
+          <IconSparkles size={22} color="#a855f7" />
+          <Text fw={800} size="xl">Insight Intelligence Engine</Text>
+          <Badge variant="outline" color="violet">{widget?.type?.toUpperCase()} WIDGET</Badge>
         </Group>
       }
-      size="90%"
-      radius="lg"
+      padding="xl"
       styles={{
         content: {
-          background: "#0c0a1d",
-          border: "1px solid rgba(147, 51, 234, 0.2)",
-          backdropFilter: "blur(24px)",
-          minHeight: '80vh',
+          background: "#0c0a1a",
+          borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
           color: "white"
         },
-        header: {
-          background: "transparent",
+        header: { 
+          background: "#0c0a1a", 
+          color: "white",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          paddingBottom: 20
         },
-        close: {
-          color: "gray"
-        }
       }}
     >
       <Stack gap="xl">
         <Stack gap="lg">
           <Box>
+            <Box mb="xl">
+              <Group mb="xs" justify="space-between">
+                <Text size="sm" fw={600} c="dimmed">CHART IDENTITY</Text>
+                {selectedQueryId && (
+                  <Button 
+                    variant="subtle" 
+                    size="compact-xs" 
+                    color="cyan"
+                    onClick={() => {
+                      const query = nonFederatedQueries.find(q => q._id === selectedQueryId);
+                      if (query) setWidgetTitle(query.name);
+                    }}
+                  >
+                    Sync with Query Name
+                  </Button>
+                )}
+              </Group>
+              <TextInput
+                placeholder="e.g. Monthly Revenue Trend"
+                size="md"
+                value={widgetTitle}
+                onChange={(e) => setWidgetTitle(e.currentTarget.value)}
+              />
+            </Box>
+
             <Group grow align="flex-start" gap="md">
               <Box>
                 <Group mb="xs">
@@ -353,7 +415,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                 <Group align="flex-end" gap="xs">
                   <Select
                     placeholder={selectedConfigId ? "Choose a query..." : "Select environment first"}
-                    data={savedQueries?.map(q => ({ value: q._id, label: q.name })) || []}
+                    data={nonFederatedQueries.map(q => ({ value: q._id, label: q.name })) || []}
                     value={selectedQueryId}
                     onChange={setSelectedQueryId}
                     disabled={!selectedConfigId}
@@ -387,7 +449,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
             >
               <Paper p="md" bg="rgba(0,0,0,0.3)" style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
                 <pre style={{ margin: 0, color: "var(--mantine-color-cyan-4)", fontSize: "14px", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
-                  {savedQueries?.find(q => q._id === selectedQueryId)?.sql || "-- No SQL found --"}
+                  {nonFederatedQueries.find(q => q._id === selectedQueryId)?.sql || "-- No SQL found --"}
                 </pre>
               </Paper>
             </Modal>
@@ -461,47 +523,156 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
               </Box>
             )}
 
-            <Box mt="xl">
+             <Box mt="xl">
               <Group gap="xs" mb="xs">
                 <IconSettings size={16} color="gray" />
                 <Text size="sm" fw={600} c="dimmed">4. COLUMN MAPPING</Text>
               </Group>
               <Stack gap="sm">
-                <Group grow>
-                  <Select label="Label Column (X-Axis)" data={discoveredColumns} value={labelKey} onChange={(v) => setLabelKey(v || "")} disabled={discoveredColumns.length === 0} />
-                  <MultiSelect label="Value Columns (Y-Axis)" data={discoveredColumns} value={valueKeys} onChange={setValueKeys} disabled={discoveredColumns.length === 0} />
-                </Group>
+                <Select
+                  label="Visualization Type"
+                  placeholder="Select chart type..."
+                  data={[
+                    { value: "bar", label: "Bar Chart 📊" },
+                    { value: "line", label: "Line Chart 📈" },
+                    { value: "pie", label: "Pie Chart 🍕" },
+                    { value: "kpi", label: "KPI Metric 🎯" },
+                    { value: "table", label: "Data Table 📋" },
+                    { value: "counter", label: "Smart Counter 🔢" },
+                  ]}
+                  value={widgetType}
+                  onChange={(v) => {
+                    const newType = v || "bar";
+                    setWidgetType(newType);
+                    // Clear out chart-specific mapping fields if we are transitioning to a table
+                    if (newType === "table") {
+                      setLabelKey("");
+                      setValueKeys([]);
+                    }
+                  }}
+                  styles={{
+                    label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                    input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                    dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                    option: { color: "white" }
+                  }}
+                />
+                
+                {widgetType === "table" ? (
+                  <Alert 
+                    icon={<IconInfoCircle size={16} />} 
+                    title="Automatic Mapping Active" 
+                    color="violet" 
+                    variant="light" 
+                    radius="md"
+                    styles={{
+                      root: { background: "rgba(147, 51, 234, 0.05)", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                      title: { color: "#c084fc", fontWeight: 700 }
+                    }}
+                  >
+                    Data Tables display all query result columns automatically. No manual X/Y axis mapping is required.
+                  </Alert>
+                ) : widgetType === "kpi" || widgetType === "counter" ? (
+                  <Select 
+                    label="Metric Column" 
+                    placeholder="Select column to aggregate..." 
+                    data={discoveredColumns} 
+                    value={valueKeys[0] || ""} 
+                    onChange={(v) => setValueKeys(v ? [v] : [])} 
+                    disabled={discoveredColumns.length === 0} 
+                    styles={{
+                      label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                      input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                      dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                      option: { color: "white" }
+                    }}
+                  />
+                ) : (
+                  <Group grow>
+                    <Select 
+                      label="Label Column (X-Axis)" 
+                      placeholder="Select label column..."
+                      data={discoveredColumns} 
+                      value={labelKey} 
+                      onChange={(v) => setLabelKey(v || "")} 
+                      disabled={discoveredColumns.length === 0} 
+                      styles={{
+                        label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                        option: { color: "white" }
+                      }}
+                    />
+                    <MultiSelect 
+                      label="Value Columns (Y-Axis)" 
+                      placeholder="Select metric columns..."
+                      data={discoveredColumns} 
+                      value={valueKeys} 
+                      onChange={setValueKeys} 
+                      disabled={discoveredColumns.length === 0} 
+                      styles={{
+                        label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                        option: { color: "white" }
+                      }}
+                    />
+                  </Group>
+                )}
               </Stack>
             </Box>
 
-            <Box mt="md">
-              <Group gap="xs" mb="xs">
-                <IconPalette size={16} color="gray" />
-                <Text size="sm" fw={600} c="dimmed">5. LOOK & FEEL</Text>
-              </Group>
-              <Paper p="md" radius="md" style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                {valueKeys.length > 0 ? (
-                  <Stack gap={8}>
-                    {valueKeys.map((key) => (
-                      <Group key={key} justify="space-between">
-                        <Text size="xs" c="dimmed">{key}</Text>
-                        <ColorInput size="xs" w={120} value={seriesColors[key] || "#9333ea"} onChange={(color) => setSeriesColors(prev => ({ ...prev, [key]: color }))} />
-                      </Group>
-                    ))}
-                  </Stack>
-                ) : <Text size="xs" c="dimmed" ta="center">Select value columns to configure colors</Text>}
-              </Paper>
-            </Box>
+            {widgetType !== "table" && (
+              <Box mt="md">
+                <Group gap="xs" mb="xs">
+                  <IconPalette size={16} color="gray" />
+                  <Text size="sm" fw={600} c="dimmed">5. LOOK & FEEL</Text>
+                </Group>
+                <Paper p="md" radius="md" style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  {colorKeys.length > 0 ? (
+                    <Stack gap={8}>
+                      {colorKeys.map((key) => (
+                        <Group key={key} justify="space-between">
+                          <Text size="xs" c="dimmed">{key}</Text>
+                          <ColorInput size="xs" w={120} value={seriesColors[key] || "#9333ea"} onChange={(color) => setSeriesColors(prev => ({ ...prev, [key]: color }))} popoverProps={{ withinPortal: true, zIndex: 10000 }} />
+                        </Group>
+                      ))}
+                    </Stack>
+                  ) : <Text size="xs" c="dimmed" ta="center">Select value columns to configure colors</Text>}
+                </Paper>
+              </Box>
+            )}
 
             <Box mt="md">
               <Group gap="xs" mb="xs">
                 <IconChartPie size={16} color="gray" />
                 <Text size="sm" fw={600} c="dimmed">6. LIVE PREVIEW</Text>
               </Group>
-              <Paper p="md" radius="md" h={280} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(147, 51, 234, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {labelKey && valueKeys.length > 0 ? (
-                  <DynamicChart data={previewRows} type={widget?.type || "bar"} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} />
-                ) : <Text size="xs" c="dimmed">Select mapping keys to generate preview</Text>}
+              <Paper p="md" radius="md" h={280} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(147, 51, 234, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {(() => {
+                  const hasData = previewRows && previewRows.length > 0;
+                  const isTable = widgetType === "table";
+                  const isKPIOrCounter = widgetType === "kpi" || widgetType === "counter";
+                  
+                  if (isTable && hasData) {
+                    return <DynamicChart data={previewRows} type={widgetType as any} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} />;
+                  }
+                  if (isKPIOrCounter && hasData && valueKeys.length > 0) {
+                    return <DynamicChart data={previewRows} type={widgetType as any} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} />;
+                  }
+                  if (!isTable && !isKPIOrCounter && hasData && labelKey && valueKeys.length > 0) {
+                    return <DynamicChart data={previewRows} type={widgetType as any} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} />;
+                  }
+
+                  // Fallbacks
+                  if (!hasData) {
+                    return <Text size="xs" c="dimmed">Run the query in Step 3 to fetch preview data</Text>;
+                  }
+                  if (isKPIOrCounter && valueKeys.length === 0) {
+                    return <Text size="xs" c="dimmed">Select a metric column to see a live preview</Text>;
+                  }
+                  return <Text size="xs" c="dimmed">Select label and value columns to generate preview</Text>;
+                })()}
               </Paper>
             </Box>
 
@@ -519,6 +690,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                         title: widgetTitle || widget?.title, 
                         description: textContent, 
                         queryId: selectedQueryId, 
+                        type: widgetType as any,
                         mapping: { labelKey, valueKeys, seriesColors }, 
                         status: 'configured' 
                       }); 
@@ -537,7 +709,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
           </Box>
         </Stack>
       </Stack>
-    </Modal>
+    </Drawer>
   );
 }
 

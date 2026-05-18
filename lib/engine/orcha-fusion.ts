@@ -18,6 +18,14 @@ export class OrchaFusion {
   private static attachedDatabases = new Map<string, string>();
   private static extensionsLoaded: Record<string, boolean> = {};
 
+  // Promise pool: if two parallel queries try to attach the same alias simultaneously,
+  // the second one waits on the first's promise rather than running a duplicate attachment.
+  private static activeAttachments = new Map<string, Promise<void>>();
+
+  // Tracks "alias.tableName" keys of MSSQL tables that are already bridged into DuckDB.
+  // Prevents redundant SELECT TOP 1000 fetches across widget queries in the same engine lifetime.
+  private static bridgedTables = new Set<string>();
+
   /** Initialize DuckDB and a singleton connection once. */
   private static async getConn(): Promise<any> {
     if (!this.db) {
@@ -91,39 +99,77 @@ export class OrchaFusion {
 
   private static async attachDatabase(conn: any, alias: string, config: any, sql: string): Promise<void> {
     const configHash = JSON.stringify(config);
+
     // Skip if already attached with the EXACT SAME configuration in this singleton connection
-    if (this.attachedDatabases.get(alias) === configHash) return;
-
-    // If attached w  ith a different config, detach it first to force a fresh connection
-    if (this.attachedDatabases.has(alias)) {
-      try {
-        await this.runQuery(conn, `DETACH ${alias};`);
-      } catch (e) { /* ignore detach errors */ }
+    if (this.attachedDatabases.get(alias) === configHash) {
+      // For MSSQL databases, we still need to check if there are new tables referenced
+      // in this query that haven't been bridged yet, and bridge them incrementally.
+      if (config.type === "mssql") {
+        await this.bridgeMssql(conn, alias, config, sql);
+      }
+      return;
     }
 
-    if (config.type === "postgres") {
-      await this.ensureExtension("postgres");
-      const cs = `postgres://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}${config.ssl ? "?sslmode=require" : ""}`;
-      await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${alias} (TYPE POSTGRES);`);
-    } else if (config.type === "mysql") {
-      await this.ensureExtension("mysql");
-      const cs = `host=${config.host} port=${config.port} user=${config.user} password=${config.password} database=${config.database}`;
-      await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${alias} (TYPE MYSQL);`);
-    } else if (config.type === "mssql") {
-      await this.bridgeMssql(conn, alias, config, sql);
+    // PROMISE POOLING: If another parallel query is currently in the middle of attaching
+    // this same alias, wait for that existing promise instead of running a duplicate attachment.
+    const existingAttachment = this.activeAttachments.get(alias);
+    if (existingAttachment) {
+      console.log(`[OrchaFusion] Waiting for in-progress attachment of [${alias}]...`);
+      await existingAttachment;
+      // We must still ensure that any tables referenced in THIS query are bridged incrementally
+      if (config.type === "mssql") {
+        await this.bridgeMssql(conn, alias, config, sql);
+      }
+      return;
     }
 
-    this.attachedDatabases.set(alias, configHash);
-    console.log(`[OrchaFusion] Successfully attached [${alias}] (${config.type})`);
+    // Register our attachment promise so parallel callers can pool on it
+    const attachmentWork = (async () => {
+      // If attached with a different config, detach first to force a fresh connection
+      if (this.attachedDatabases.has(alias)) {
+        try {
+          await this.runQuery(conn, `DETACH ${alias};`);
+          // Invalidate all bridged table entries for this alias so they are re-fetched
+          for (const key of this.bridgedTables) {
+            if (key.startsWith(`${alias}.`)) this.bridgedTables.delete(key);
+          }
+        } catch (e) { /* ignore detach errors */ }
+      }
+
+      if (config.type === "postgres") {
+        await this.ensureExtension("postgres");
+        const cs = `postgres://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}${config.ssl ? "?sslmode=require" : ""}`;
+        await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${alias} (TYPE POSTGRES);`);
+      } else if (config.type === "mysql") {
+        await this.ensureExtension("mysql");
+        const cs = `host=${config.host} port=${config.port} user=${config.user} password=${config.password} database=${config.database}`;
+        await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${alias} (TYPE MYSQL);`);
+      } else if (config.type === "mssql") {
+        await this.bridgeMssql(conn, alias, config, sql);
+      }
+
+      this.attachedDatabases.set(alias, configHash);
+      console.log(`[OrchaFusion] Successfully attached [${alias}] (${config.type})`);
+    })();
+
+    this.activeAttachments.set(alias, attachmentWork);
+    try {
+      await attachmentWork;
+    } finally {
+      // Always clean up the promise pool entry once the work is done (success or failure)
+      this.activeAttachments.delete(alias);
+    }
   }
 
   /**
-   * MSSQL Hybrid Bridge (Corrected Regex)
+   * MSSQL Hybrid Bridge — incremental and deduplicated.
+   *
+   * Uses `bridgedTables` to skip tables that are already loaded into DuckDB memory,
+   * preventing redundant SELECT TOP 1000 fetches across parallel widget queries.
    */
   private static async bridgeMssql(conn: any, alias: string, config: any, sql: string) {
     // Regex matches: alias.table or just table if it's a single DB execute
-    // Format: alias.tableName
-    const tableRegex = new RegExp(`(?:FROM|JOIN)\\s+["\\[]?${alias}["\\]]?\\.["\\[]?([a-zA-Z0-9_]+)["\\]]?`, "gi");
+    const tableRegex = new RegExp(`(?:FROM|JOIN)\\s+["\\[]?${alias}["\\]]?\\.["\[]?([a-zA-Z0-9_]+)["\\]]?`, "gi");
     let match;
     const found: string[] = [];
     while ((match = tableRegex.exec(sql)) !== null) {
@@ -138,13 +184,25 @@ export class OrchaFusion {
       }
     }
 
-    const tables = [...new Set(found)];
-    if (tables.length === 0) return;
+    const allTables = [...new Set(found)];
+    if (allTables.length === 0) return;
+
+    // DEDUPLICATION: Only bridge tables that are NOT already loaded in DuckDB memory
+    const tablesToBridge = allTables.filter(table => !this.bridgedTables.has(`${alias}.${table}`));
+
+    if (tablesToBridge.length === 0) {
+      console.log(`[OrchaFusion] All MSSQL tables for [${alias}] already bridged. Skipping fetch.`);
+      return;
+    }
+
+    if (tablesToBridge.length < allTables.length) {
+      console.log(`[OrchaFusion] Incremental bridge: ${tablesToBridge.length}/${allTables.length} new table(s) for [${alias}].`);
+    }
 
     await this.runQuery(conn, `CREATE SCHEMA IF NOT EXISTS ${alias};`);
 
-    // Bridge tables in parallel
-    await Promise.all(tables.map(async (table) => {
+    // Bridge only the new, un-bridged tables in parallel
+    await Promise.all(tablesToBridge.map(async (table) => {
       let tempPath = "";
       try {
         console.log(`[OrchaFusion] Bridging MSSQL: ${alias}.${table}`);
@@ -161,6 +219,10 @@ export class OrchaFusion {
         // DuckDB read_json_auto from file is much more robust than passing strings
         await this.runQuery(conn, `CREATE OR REPLACE TABLE ${alias}_${table} AS SELECT * FROM read_json_auto('${tempPath.replace(/\\/g, "/")}');`);
         await this.runQuery(conn, `CREATE OR REPLACE VIEW ${alias}.${table} AS SELECT * FROM ${alias}_${table};`);
+
+        // Mark this table as bridged so subsequent queries skip the fetch entirely
+        this.bridgedTables.add(`${alias}.${table}`);
+        console.log(`[OrchaFusion] Successfully bridged MSSQL table [${alias}.${table}].`);
       } catch (e) {
         console.warn(`[OrchaFusion] Failed to bridge MSSQL table ${table}:`, (e as any).message);
       } finally {

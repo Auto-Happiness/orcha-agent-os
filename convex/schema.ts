@@ -107,7 +107,9 @@ const WidgetTypeValidator = v.union(
   v.literal("line"),
   v.literal("pie"),
   v.literal("kpi"),
-  v.literal("text")
+  v.literal("text"),
+  v.literal("table"),
+  v.literal("counter")
 );
 
 const WidgetSizeValidator = v.union(
@@ -305,6 +307,7 @@ export default defineSchema({
     createdBy: v.id("users"),
     createdAt: v.number(),
     lastExecutedAt: v.optional(v.number()),
+    isFederated: v.optional(v.boolean()),
   })
     .index("by_org", ["organizationId"])
     .index("by_config", ["configId"])
@@ -406,6 +409,33 @@ export default defineSchema({
   })
     .index("by_dashboard", ["dashboardId"])
     .index("by_org", ["organizationId"]),
+    
+  dashboardProposals: defineTable({
+    organizationId: v.id("organizations"),
+    status: v.union(v.literal("pending"), v.literal("ready"), v.literal("failed")),
+    error: v.optional(v.string()),
+    widgets: v.optional(v.array(v.object({
+      type: WidgetTypeValidator,
+      title: v.string(),
+      reason: v.optional(v.string()),
+      sql: v.string(),
+      mapping: v.optional(WidgetMappingValidator),
+    }))),
+    createdAt: v.number(),
+  }).index("by_org", ["organizationId"]),
+
+  // ─── BI: Persistent Dashboard Query Result Cache ─────────────────────────
+  // L2 cache layer that survives serverless cold starts and process restarts.
+  // Results are stored as serialized JSON with a TTL-based expiry.
+  dashboardQueryCache: defineTable({
+    cacheKey: v.string(),       // SHA-256 hash of dashboardId + sorted widget SQL
+    organizationId: v.id("organizations"),
+    data: v.string(),           // JSON.stringify(batchResults)
+    expiresAt: v.number(),      // Unix ms — entries past this timestamp are stale
+  })
+    .index("by_key", ["cacheKey"])
+    .index("by_org", ["organizationId"])
+    .index("by_expiry", ["expiresAt"]),
 
   // ─── Developer Portal: API Keys ─────────────────────────────────────────
   apiKeys: defineTable({

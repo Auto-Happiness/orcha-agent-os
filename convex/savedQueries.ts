@@ -27,6 +27,7 @@ export const save = mutation({
     sql: v.string(),
     description: v.optional(v.string()),
     createdBy: v.id("users"),
+    isFederated: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("savedQueries", {
