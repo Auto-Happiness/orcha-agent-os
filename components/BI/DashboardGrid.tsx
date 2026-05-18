@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { 
-  Responsive, 
-  Layout, 
-  useContainerWidth 
+import {
+  Responsive,
+  Layout,
+  useContainerWidth
 } from "react-grid-layout";
 import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center, Table, ScrollArea } from "@mantine/core";
 import { IconDotsVertical, IconTrash, IconArrowsMaximize, IconSettings, IconChartBar } from "@tabler/icons-react";
@@ -75,8 +75,8 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
             <Table.Thead className="bg-[#120a2a]/80 backdrop-blur-md sticky top-0 z-10 border-b border-purple-500/25">
               <Table.Tr>
                 {columns.map((col) => (
-                  <Table.Th 
-                    key={col} 
+                  <Table.Th
+                    key={col}
                     className="text-purple-300/80 font-bold uppercase tracking-wider text-[10px] py-3.5 px-4 text-left border-b border-purple-500/20"
                     style={{ borderBottom: "1px solid rgba(147, 51, 234, 0.25)" }}
                   >
@@ -87,8 +87,8 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
             </Table.Thead>
             <Table.Tbody>
               {queryData.map((row, rowIndex) => (
-                <Table.Tr 
-                  key={rowIndex} 
+                <Table.Tr
+                  key={rowIndex}
                   className="border-b border-white/[0.03] hover:bg-purple-500/[0.04] transition-colors duration-150"
                   style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
                 >
@@ -119,7 +119,7 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
       );
     }
     const valueKey = widget.mapping?.valueKeys?.[0] || Object.keys(queryData[0])[0];
-    
+
     // Sum or average or count depending on type or first row
     let rawVal = 0;
     if (queryData.length > 0) {
@@ -149,7 +149,7 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
     return (
       <Center h="100%" p="md">
         <Stack align="center" gap={2}>
-          <Text size="2.5rem" fw={800} style={{ 
+          <Text size="2.5rem" fw={800} style={{
             background: "linear-gradient(135deg, #00D1FF 0%, #00FF94 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
@@ -261,43 +261,43 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
         } as any)}
         onLayoutChange={(currentLayout: Layout) => onLayoutChange(currentLayout)}
       >
-      {widgets.map((widget) => (
-        <div key={widget._id}>
-          <Paper
-            radius="lg"
-            p="md"
-            style={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              background: "rgba(19, 15, 34, 0.4)",
-              border: `1px solid ${isEditMode ? "rgba(147, 51, 234, 0.4)" : "rgba(147, 51, 234, 0.15)"}`,
-              backdropFilter: "blur(12px)",
-              position: "relative",
-              overflow: "hidden",
-              cursor: "pointer",
-            }}
-          >
-            {/* Header / Drag Handle */}
-            <Group justify="space-between" mb="xs" wrap="nowrap">
-              <Group 
-                gap="xs" 
-                className={isEditMode ? "drag-handle" : ""} 
-                style={{ cursor: isEditMode ? "move" : "default", flex: 1 }}
-              >
-                <Text size="xs" fw={700} c="dimmed" truncate>
-                  {widget.title || batchResult?.results?.[widget._id]?.queryName || "Untitled Widget"}
-                </Text>
-              </Group>
+        {widgets.map((widget) => (
+          <div key={widget._id}>
+            <Paper
+              radius="lg"
+              p="md"
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                background: "rgba(19, 15, 34, 0.4)",
+                border: `1px solid ${isEditMode ? "rgba(147, 51, 234, 0.4)" : "rgba(147, 51, 234, 0.15)"}`,
+                backdropFilter: "blur(12px)",
+                position: "relative",
+                overflow: "hidden",
+                cursor: "pointer",
+              }}
+            >
+              {/* Header / Drag Handle */}
+              <Group justify="space-between" mb="xs" wrap="nowrap">
+                <Group
+                  gap="xs"
+                  className={isEditMode ? "drag-handle" : ""}
+                  style={{ cursor: isEditMode ? "move" : "default", flex: 1 }}
+                >
+                  <Text size="xs" fw={700} c="dimmed" truncate>
+                    {widget.title || batchResult?.results?.[widget._id]?.queryName || "Untitled Widget"}
+                  </Text>
+                </Group>
 
-              <Menu position="bottom-end" withinPortal>
-                <Menu.Target>
-                  <ActionIcon variant="subtle" color="gray" size="sm" onClick={(e) => e.stopPropagation()}>
-                    <IconDotsVertical size={14} />
-                  </ActionIcon>
-                </Menu.Target>
-                <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <Menu.Item
+                <Menu position="bottom-end" withinPortal>
+                  <Menu.Target>
+                    <ActionIcon variant="subtle" color="gray" size="sm" onClick={(e) => e.stopPropagation()}>
+                      <IconDotsVertical size={14} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                    {/* <Menu.Item
                     leftSection={<IconSettings size={14} />}
                     c="white"
                     onClick={(e) => {
@@ -306,55 +306,55 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                     }}
                   >
                     Configure
-                  </Menu.Item>
-                  <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />
-                  <Menu.Item 
-                    leftSection={<IconTrash size={14} />} 
-                    color="red" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemoveWidget(widget._id);
-                    }}
-                  >
-                    Remove
-                  </Menu.Item>
-                </Menu.Dropdown>
-              </Menu>
-            </Group>
+                  </Menu.Item> 
+                    <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />*/}
+                    <Menu.Item
+                      leftSection={<IconTrash size={14} />}
+                      color="red"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveWidget(widget._id);
+                      }}
+                    >
+                      Remove
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
 
-            {/* Content Area */}
-            <Box style={{ flex: 1, position: "relative" }}>
-              <WidgetRenderer 
-                widget={widget} 
-                queryData={batchResult?.results?.[widget._id]?.rows || []} 
-                queryError={batchResult?.results?.[widget._id]?.error || null} 
-              />
-            </Box>
+              {/* Content Area */}
+              <Box style={{ flex: 1, position: "relative" }}>
+                <WidgetRenderer
+                  widget={widget}
+                  queryData={batchResult?.results?.[widget._id]?.rows || []}
+                  queryError={batchResult?.results?.[widget._id]?.error || null}
+                />
+              </Box>
 
-            {/* Edit Mode Overlay (Subtle) */}
-            {isEditMode && (
-              <Box
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  pointerEvents: "none",
-                  border: "2px dashed rgba(147, 51, 234, 0.2)",
-                  borderRadius: "inherit",
-                }}
-              />
-            )}
-          </Paper>
-        </div>
-      ))}
+              {/* Edit Mode Overlay (Subtle) */}
+              {isEditMode && (
+                <Box
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    pointerEvents: "none",
+                    border: "2px dashed rgba(147, 51, 234, 0.2)",
+                    borderRadius: "inherit",
+                  }}
+                />
+              )}
+            </Paper>
+          </div>
+        ))}
       </Responsive>
 
-      <WidgetIntelligencePanel 
-        opened={panelOpened} 
-        onClose={() => setPanelOpened(false)} 
-        widget={selectedWidget} 
+      <WidgetIntelligencePanel
+        opened={panelOpened}
+        onClose={() => setPanelOpened(false)}
+        widget={selectedWidget}
         mode="edit"
         onSave={onSaveWidget}
         saas={saas}
