@@ -156,7 +156,7 @@ export const createDashboardWithWidgets = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     widgets: v.array(v.object({
-      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text")),
+      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter")),
       title: v.string(),
       description: v.optional(v.string()),
       sql: v.string(),

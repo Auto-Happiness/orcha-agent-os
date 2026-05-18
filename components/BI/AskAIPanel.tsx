@@ -41,7 +41,9 @@ import {
   IconArrowRight,
   IconDeviceFloppy,
   IconPlus,
-  IconChevronDown
+  IconChevronDown,
+  IconTable,
+  IconHash
 } from "@tabler/icons-react";
 
 interface AskAIPanelProps {
@@ -53,7 +55,7 @@ interface AskAIPanelProps {
 
 interface ProposedWidget {
   id: string;
-  type: "bar" | "line" | "pie" | "kpi" | "area";
+  type: "bar" | "line" | "pie" | "kpi" | "area" | "table" | "counter";
   title: string;
   reason: string;
   sql: string;
@@ -245,6 +247,8 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
       case "line": return <IconChartLine size={18} color="#0ea5e9" />;
       case "pie": return <IconChartPie size={18} color="#ec4899" />;
       case "kpi": return <IconNumbers size={18} color="#f59e0b" />;
+      case "table": return <IconTable size={18} color="#10b981" />;
+      case "counter": return <IconHash size={18} color="#6366f1" />;
       default: return <IconChartBar size={18} />;
     }
   };
@@ -391,6 +395,28 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                                 >
                                   KPI Metric
                                 </Menu.Item>
+                                <Menu.Item 
+                                  leftSection={<IconTable size={14} color="#10b981" />}
+                                  onClick={() => {
+                                    const newDrafts = [...draftPrompts];
+                                    newDrafts[i].type = "table";
+                                    setDraftPrompts(newDrafts);
+                                  }}
+                                  c="white"
+                                >
+                                  Data Table
+                                </Menu.Item>
+                                <Menu.Item 
+                                  leftSection={<IconHash size={14} color="#6366f1" />}
+                                  onClick={() => {
+                                    const newDrafts = [...draftPrompts];
+                                    newDrafts[i].type = "counter";
+                                    setDraftPrompts(newDrafts);
+                                  }}
+                                  c="white"
+                                >
+                                  Smart Counter
+                                </Menu.Item>
                               </Menu.Dropdown>
                             </Menu>
                             <ActionIcon variant="subtle" color="gray" size="xs" onClick={() => handleRemovePrompt(i)}>
@@ -443,7 +469,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                         left: 0,
                         width: "4px",
                         height: "100%",
-                        background: widget.type === "line" ? "#0ea5e9" : widget.type === "bar" ? "#a855f7" : "#f59e0b"
+                        background: widget.type === "line" ? "#0ea5e9" : widget.type === "bar" ? "#a855f7" : widget.type === "pie" ? "#ec4899" : widget.type === "kpi" ? "#f59e0b" : widget.type === "table" ? "#10b981" : "#6366f1"
                       }}
                     />
                     <Group justify="space-between" mb="xs" wrap="nowrap">

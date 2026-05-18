@@ -10,7 +10,7 @@ import { z } from "zod";
 
 // Zod Schema for strict AI responses matching Mantine and dashboard widgets
 const proposedWidgetSchema = z.object({
-  type: z.enum(["bar", "line", "pie", "kpi"]),
+  type: z.enum(["bar", "line", "pie", "kpi", "table", "counter"]),
   title: z.string(),
   reason: z.string(),
   sql: z.string(),
