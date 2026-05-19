@@ -232,12 +232,12 @@ export async function createChatAgent(context: AgentContext) {
   }
 
   // --- COLUMN PRUNING ---
-  // Only prune when there are genuinely many columns (> 60 total).
+  // Only prune when there are genuinely many columns (> 150 total).
   // For small/simple schemas, pruning adds an extra LLM call with no benefit
   // and can actually hurt accuracy by stripping columns the AI needs.
   if (messageIntent === "TEXT_TO_SQL" && filteredModels.length > 0) {
     const totalColumns = filteredModels.reduce((sum: number, m: any) => sum + (m.fields?.length || 0), 0);
-    if (totalColumns > 60) {
+    if (totalColumns > 150) {
       try {
         const pruned = await pruneColumns(lastMessage, filteredModels, relationships, pruningModel);
         filteredModels = pruned;
