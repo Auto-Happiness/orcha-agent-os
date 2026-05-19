@@ -271,7 +271,7 @@ export function SavedConfigsList() {
                       <Stack gap={2} w={140}>
                         <Group gap="xs">
                           <Text fw={700} size="xs" c="white" ff="monospace">{config._id.slice(-8)}</Text>
-                          <Badge variant="dot" color={isOnline ? "green" : "red"} size="xs">
+                          <Badge variant="dot" color={isOnline ? "green" : "red"} size="xs" tt="none">
                             {isOnline ? "Online" : "Offline"}
                           </Badge>
                         </Group>
