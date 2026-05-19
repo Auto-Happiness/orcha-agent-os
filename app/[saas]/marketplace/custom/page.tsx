@@ -111,10 +111,12 @@ export default function CustomToolsPage() {
 
         {customMcpServers.length === 0 ? (
           <Box p="xl" style={{ border: "2px dashed rgba(147,51,234,0.15)", borderRadius: 12, textAlign: "center", backgroundColor: "rgba(19,15,34,0.2)" }}>
-            <IconTool size={48} color="rgba(147,51,234,0.3)" style={{ margin: "0 auto 16px" }} />
-            <Text c="white" fw={600} size="lg">No custom tools yet</Text>
-            <Text c="dimmed" size="sm" mt={4} maw={500} mx="auto">Any HTTP server that speaks JSON-RPC 2.0 MCP can be added. Your tools will be immediately available to the Orcha Agent.</Text>
-            <Button mt="xl" variant="subtle" color="violet" onClick={() => setCustomMcpModal(true)}>Add your first server</Button>
+            <Stack align="center" gap="sm" py="md">
+              <img src="/undraw/tools.svg" alt="No custom tools" style={{ height: 160, width: "auto", opacity: 0.8 }} />
+              <Text c="white" fw={600} size="lg">No custom tools yet</Text>
+              <Text c="dimmed" size="sm" mt={4} maw={500} mx="auto">Any HTTP server that speaks JSON-RPC 2.0 MCP can be added. Your tools will be immediately available to the Orcha Agent.</Text>
+              <Button mt="md" variant="subtle" color="violet" onClick={() => setCustomMcpModal(true)}>Add your first server</Button>
+            </Stack>
           </Box>
         ) : (
           <Grid>

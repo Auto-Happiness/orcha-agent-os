@@ -140,7 +140,7 @@ export function SavedConfigsList() {
     return (
       <Paper withBorder p="3rem" radius="md" style={{ background: "rgba(255,255,255,0.012)", borderColor: "rgba(147,51,234,0.15)" }}>
         <Stack align="center" gap="sm">
-          <IconDatabase size={48} color="rgba(147,51,234,0.3)" />
+          <img src="/undraw/chatbot.svg" alt="No environments" style={{ height: rem(160), opacity: 0.8 }} />
           <Text fw={600} c="white">No active environments found</Text>
           <Text size="xs" c="dimmed" mb="md">Connect your first database to start building your semantic bridge.</Text>
           <Tooltip 

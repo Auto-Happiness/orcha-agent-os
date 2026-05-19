@@ -9,7 +9,6 @@ import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { IconDatabaseOff } from "@tabler/icons-react";
 import { useParams } from "next/navigation";
 import { WelcomeScreen } from "@/components/Chat/WelcomeScreen";
 import { ChatMessages } from "@/components/Chat/ChatMessages";
@@ -290,9 +289,7 @@ export default function ChatPage() {
     return (
       <Center h="70vh">
         <Box p="xl" maw={500} ta="center">
-          <Avatar size={80} radius="xl" color="red" mx="auto" mb="xl">
-            <IconDatabaseOff size={40} />
-          </Avatar>
+          <img src="/undraw/database.svg" alt="No database connected" style={{ height: 160, width: "auto", opacity: 0.8, display: "block", margin: "0 auto 24px" }} />
           <Title order={2} c="white" mb="sm">No Database Connected</Title>
           <Text c="dimmed" mb="xl">The Agent needs a data source to answer queries. Connect your database to begin.</Text>
           <Button component="a" href={`/${saas}/configure`} color="violet" size="md" radius="md">

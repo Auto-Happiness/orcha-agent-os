@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
-import { 
-  Box, 
-  Container, 
-  Group, 
-  Title, 
-  Text, 
-  Button, 
-  Select, 
+import {
+  Box,
+  Container,
+  Group,
+  Title,
+  Text,
+  Button,
+  Select,
   Badge,
   Divider,
   ActionIcon,
@@ -22,10 +22,10 @@ import {
   Loader,
   Stack
 } from "@mantine/core";
-import { 
-  IconPlus, 
-  IconShare, 
-  IconLayout2, 
+import {
+  IconPlus,
+  IconShare,
+  IconLayout2,
   IconDeviceDesktopAnalytics,
   IconDeviceFloppy,
   IconPencil,
@@ -61,7 +61,7 @@ export default function CommandCenterPage() {
 
   const [currentDashboardId, setCurrentDashboardId] = useState<string | null>(null);
   const dashboardData = useQuery(api.bi.getDashboard, currentDashboardId ? { dashboardId: currentDashboardId as any } : "skip");
-  
+
   const createDashboardMutation = useMutation(api.bi.createDashboard);
   const saveWidgetMutation = useMutation(api.bi.saveWidget);
   const removeWidgetMutation = useMutation(api.bi.removeWidget);
@@ -131,11 +131,11 @@ export default function CommandCenterPage() {
             title: widget.title,
             queryId: widget.queryId,
             mapping: widget.mapping,
-            layout: { 
-              x: item.x, 
-              y: item.y, 
-              w: item.w, 
-              h: item.h 
+            layout: {
+              x: item.x,
+              y: item.y,
+              w: item.w,
+              h: item.h
             },
             order: widget.order,
             size: widget.size,
@@ -237,7 +237,7 @@ export default function CommandCenterPage() {
 
   const confirmDeleteDashboard = async () => {
     if (!deletingDashboardId) return;
-    
+
     try {
       await deleteDashboardMutation({ dashboardId: deletingDashboardId as any });
       // Reset to the first available dashboard or null if none exist
@@ -263,7 +263,7 @@ export default function CommandCenterPage() {
               <Badge variant="dot" color="violet" size="sm">v1.0-alpha</Badge>
             </Group>
             <Text c="dimmed" size="sm" mb="md">Customize your organization&apos;s real-time intelligence dashboard.</Text>
-            
+
             {/* Action buttons removed from here, moving to the right-side meatball menu */}
           </Box>
 
@@ -290,11 +290,11 @@ export default function CommandCenterPage() {
 
             <Menu position="bottom-end" shadow="xl" width={220} radius="md" transitionProps={{ transition: 'pop-top-right' }}>
               <Menu.Target>
-                <ActionIcon 
-                  variant="light" 
-                  color="violet" 
-                  size="lg" 
-                  radius="md" 
+                <ActionIcon
+                  variant="light"
+                  color="violet"
+                  size="lg"
+                  radius="md"
                   style={{ border: "1px solid rgba(168, 85, 247, 0.3)" }}
                 >
                   <IconDotsVertical size={20} />
@@ -303,9 +303,9 @@ export default function CommandCenterPage() {
 
               <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(147,51,234,0.3)", borderRadius: 12 }}>
                 <Menu.Label>Dashboard Actions</Menu.Label>
-                
-                <Menu.Item 
-                  leftSection={<IconPlus size={16} />} 
+
+                <Menu.Item
+                  leftSection={<IconPlus size={16} />}
                   onClick={() => {
                     setNewDashboardName("");
                     setCreateDashboardOpened(true);
@@ -314,8 +314,8 @@ export default function CommandCenterPage() {
                   New Dashboard
                 </Menu.Item>
 
-                <Menu.Item 
-                  leftSection={<IconSparkles size={16} color="#a855f7" />} 
+                <Menu.Item
+                  leftSection={<IconSparkles size={16} color="#a855f7" />}
                   onClick={() => setAskAIOpened(true)}
                   style={{ background: "rgba(168, 85, 247, 0.05)" }}
                 >
@@ -325,53 +325,53 @@ export default function CommandCenterPage() {
                 <Menu.Divider color="rgba(255,255,255,0.05)" />
 
                 <Menu.Label>
-                  Add Insights 
+                  Add Insights
                   {widgets.length >= 7 && <Text component="span" size="10px" c="red.4" ml={5}>(Limit 7 reached)</Text>}
                 </Menu.Label>
-                <Menu.Item 
-                  leftSection={<IconChartBar size={16} />} 
+                <Menu.Item
+                  leftSection={<IconChartBar size={16} />}
                   onClick={() => handleAddWidgetStart("bar")}
                   disabled={widgets.length >= 7}
                 >
                   Bar Chart
                 </Menu.Item>
-                <Menu.Item 
-                  leftSection={<IconChartLine size={16} />} 
+                <Menu.Item
+                  leftSection={<IconChartLine size={16} />}
                   onClick={() => handleAddWidgetStart("line")}
                   disabled={widgets.length >= 7}
                 >
                   Line Chart
                 </Menu.Item>
-                <Menu.Item 
-                  leftSection={<IconChartPie size={16} />} 
+                <Menu.Item
+                  leftSection={<IconChartPie size={16} />}
                   onClick={() => handleAddWidgetStart("pie")}
                   disabled={widgets.length >= 7}
                 >
                   Pie Chart
                 </Menu.Item>
-                <Menu.Item 
-                  leftSection={<IconNumbers size={16} />} 
+                <Menu.Item
+                  leftSection={<IconNumbers size={16} />}
                   onClick={() => handleAddWidgetStart("kpi")}
                   disabled={widgets.length >= 7}
                 >
                   KPI Metric
                 </Menu.Item>
-                <Menu.Item 
-                  leftSection={<IconTable size={16} />} 
+                <Menu.Item
+                  leftSection={<IconTable size={16} />}
                   onClick={() => handleAddWidgetStart("table")}
                   disabled={widgets.length >= 7}
                 >
                   Data Table
                 </Menu.Item>
-                <Menu.Item 
-                  leftSection={<IconNumbers size={16} />} 
+                <Menu.Item
+                  leftSection={<IconNumbers size={16} />}
                   onClick={() => handleAddWidgetStart("counter")}
                   disabled={widgets.length >= 7}
                 >
                   Smart Counter
                 </Menu.Item>
-                <Menu.Item 
-                  leftSection={<IconAlignLeft size={16} />} 
+                <Menu.Item
+                  leftSection={<IconAlignLeft size={16} />}
                   onClick={() => handleAddWidgetStart("text")}
                   disabled={widgets.length >= 7}
                 >
@@ -386,9 +386,9 @@ export default function CommandCenterPage() {
                 </Menu.Item>
 
                 <Menu.Divider color="rgba(255,255,255,0.05)" />
-                <Menu.Item 
-                  color="red" 
-                  leftSection={<IconTrash size={16} />} 
+                <Menu.Item
+                  color="red"
+                  leftSection={<IconTrash size={16} />}
                   onClick={handleDeleteDashboard}
                 >
                   Delete Dashboard
@@ -401,8 +401,8 @@ export default function CommandCenterPage() {
         {/* Dynamic Grid Canvas */}
         <Box
           id="dashboard-report-print"
-          style={{ 
-            minHeight: 600, 
+          style={{
+            minHeight: 600,
             background: isEditMode ? "rgba(147, 51, 234, 0.02)" : "transparent",
             borderRadius: 12,
             border: isEditMode ? "1px dashed rgba(147, 51, 234, 0.2)" : "1px solid transparent",
@@ -421,29 +421,56 @@ export default function CommandCenterPage() {
             </Center>
           ) : (
             <>
-              <DashboardGrid 
-                widgets={widgets} 
+              <DashboardGrid
+                widgets={widgets}
                 isEditMode={isEditMode}
                 onLayoutChange={handleLayoutChange}
                 onRemoveWidget={handleRemoveWidget}
                 onSaveWidget={handleSaveWidget}
                 saas={saas as string}
               />
-              
+
               {widgets.length === 0 && (
                 <Box py={100} ta="center">
-                  <Text c="dimmed">This dashboard is empty.</Text>
-                  <Button variant="subtle" color="violet" mt="md" onClick={() => handleAddWidgetStart("kpi")}>Add your first widget</Button>
+                  <Stack align="center" gap="sm">
+                    <img src="/undraw/dashboard.svg" alt="Empty Dashboard" style={{ height: 160, width: "auto", opacity: 0.8 }} />
+                    <Text c="dimmed">This dashboard is empty.</Text>
+                    <Button
+                      onClick={() => handleAddWidgetStart("kpi")}
+                      styles={{
+                        root: {
+                          backgroundImage: "linear-gradient(to right, #DA22FF 0%, #9733EE 51%, #DA22FF 100%) !important",
+                          margin: "10px",
+                          padding: "15px 45px",
+                          height: "auto",
+                          textAlign: "center",
+                          transition: "0.5s",
+                          backgroundSize: "200% auto !important",
+                          color: "white !important",
+                          boxShadow: "0 0 20px rgba(218, 34, 255, 0.4) !important",
+                          borderRadius: "10px",
+                          border: "none",
+                          "&:hover": {
+                            backgroundPosition: "right center !important",
+                            color: "#fff !important",
+                            textDecoration: "none",
+                          }
+                        }
+                      }}
+                    >
+                      Add your first widget
+                    </Button>
+                  </Stack>
                 </Box>
               )}
             </>
           )}
         </Box>
- 
+
         {/* Intelligence Panel (Unified Create/Edit) */}
-        <WidgetIntelligencePanel 
-          opened={intelligenceOpened} 
-          onClose={() => setIntelligenceOpened(false)} 
+        <WidgetIntelligencePanel
+          opened={intelligenceOpened}
+          onClose={() => setIntelligenceOpened(false)}
           widget={selectedWidget}
           mode={modalMode}
           onSave={handleSaveWidget}
@@ -472,13 +499,13 @@ export default function CommandCenterPage() {
           size="md"
           overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
           styles={{
-            content: { 
-              background: "#0c0a1a", 
+            content: {
+              background: "#0c0a1a",
               borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
               color: "white"
             },
-            header: { 
-              background: "#0c0a1a", 
+            header: {
+              background: "#0c0a1a",
               color: "white",
               borderBottom: "1px solid rgba(255,255,255,0.05)",
               paddingBottom: 20
@@ -491,7 +518,7 @@ export default function CommandCenterPage() {
               <Text size="sm" c="dimmed" mb="lg">
                 Establish a new canvas for your organization&apos;s data intelligence. You can add up to 7 widgets per dashboard.
               </Text>
-              
+
               <TextInput
                 label="Dashboard Name"
                 placeholder="e.g. Sales Performance 2024"
@@ -501,8 +528,8 @@ export default function CommandCenterPage() {
                 size="md"
                 styles={{
                   label: { color: "white", marginBottom: 8 },
-                  input: { 
-                    background: "rgba(255,255,255,0.03)", 
+                  input: {
+                    background: "rgba(255,255,255,0.03)",
                     border: "1px solid rgba(147, 51, 234, 0.3)",
                     color: "white",
                     height: 50
@@ -522,7 +549,7 @@ export default function CommandCenterPage() {
                 onClick={handleCreateDashboard}
                 loading={isCreatingDashboard}
                 disabled={!newDashboardName.trim()}
-                style={{ 
+                style={{
                   boxShadow: "0 4px 15px rgba(147, 51, 234, 0.3)",
                   background: "linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)"
                 }}
