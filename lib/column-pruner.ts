@@ -52,14 +52,15 @@ export async function pruneColumns(
     model: pruningModel,
     schema: prunerSchema,
     system: `### TASK ###
-            You are a highly skilled data analyst. Your goal is to examine the provided database schema, interpret the user's question, and identify the SPECIFIC columns required to construct an accurate SQL query.
+            You are a highly skilled data analyst. Your goal is to examine the provided database schema, interpret the user's question, and identify all necessary tables and columns required to construct an accurate SQL query.
 
             ### INSTRUCTIONS ###
             1. Analyze the schema and identify essential tables and columns.
-            2. For each table, provide a clear reasoning for why specific columns are selected.
-            3. ALWAYS include Primary Keys and Foreign Keys for the selected tables to ensure valid SQL joins.
-            4. If a table is irrelevant, do not include it in the results.
-            5. Provide the response as a JSON object matching the requested schema.`,
+            2. ALWAYS include columns used for filtering (WHERE clauses), sorting (ORDER BY), grouping (GROUP BY), or joining (Primary Keys and Foreign Keys).
+            3. FILTER COLUMNS: Look closely at any constraints or conditions in the user's question (e.g., 'unpaid', 'active', 'recent', 'overdue', 'before 2023'). You MUST select the columns that allow filtering by these values (e.g., 'payment_status', 'is_active', 'status', 'created_at', 'invoice_date'), even if they are not explicitly named in the question.
+            4. RECORD IDENTIFICATION: Always include key identifying columns for the selected tables (like 'name', 'title', 'email', 'code', 'status', 'created_at') so the generated SQL can display readable information, not just raw numeric IDs.
+            5. BE GENEROUS: Do not over-prune. If there is a chance a column might be needed for the query or filter, err on the side of caution and INCLUDE it.
+            6. Provide the response as a JSON object matching the requested schema.`,
     prompt: `User Question: "${question}"\n\n### Available Schema ###\n${tempDDL}`,
   });
 

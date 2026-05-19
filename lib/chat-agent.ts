@@ -232,12 +232,12 @@ export async function createChatAgent(context: AgentContext) {
   }
 
   // --- COLUMN PRUNING ---
-  // Only prune when there are genuinely many columns (> 60 total).
+  // Only prune when there are genuinely many columns (> 150 total).
   // For small/simple schemas, pruning adds an extra LLM call with no benefit
   // and can actually hurt accuracy by stripping columns the AI needs.
   if (messageIntent === "TEXT_TO_SQL" && filteredModels.length > 0) {
     const totalColumns = filteredModels.reduce((sum: number, m: any) => sum + (m.fields?.length || 0), 0);
-    if (totalColumns > 60) {
+    if (totalColumns > 150) {
       try {
         const pruned = await pruneColumns(lastMessage, filteredModels, relationships, pruningModel);
         filteredModels = pruned;
@@ -303,7 +303,7 @@ export async function createChatAgent(context: AgentContext) {
     }).join("\n");
 
   const dialectRules = getNativeDialectRule(config.type);
-  const federatedRule = getFederatedRule(federatedCatalog, config.name);
+  const federatedRule = dbConfigMap.size > 1 ? getFederatedRule(federatedCatalog, config.name) : "";
 
   const buildSystemPrompt = (toolNames: string[]) => {
     const mcpToolNames = toolNames.filter(t => t !== "execute_sql");
@@ -359,7 +359,7 @@ ${federatedRule}
   };
 
   // 7. Initialize Agent
-  const tools = {
+  const tools: any = {
     execute_sql: {
       description: `Executes a SQL SELECT query. Use this tool for data analysis. DO NOT provide a chartConfig unless the user explicitly asked to visualize, chart, graph, or plot the data.`,
       inputSchema: jsonSchema({
@@ -395,7 +395,11 @@ ${federatedRule}
         }
       },
     },
-    execute_federated_sql: {
+  };
+
+  // Only expose federated queries if there are genuinely multiple databases selected
+  if (dbConfigMap.size > 1) {
+    tools.execute_federated_sql = {
       description: `Executes a SQL query that JOINs data across MULTIPLE databases using alias.table syntax. Use this ONLY when the user needs data from more than one connected database. Do NOT use chartConfig unless the user explicitly asked for a visualization.`,
       inputSchema: jsonSchema({
         type: "object",
@@ -431,9 +435,11 @@ ${federatedRule}
           return { success: false, error: err.message || "Federated query failed." };
         }
       },
-    },
-    ...mcpTools,
-  };
+    };
+  }
+
+  // Merge loaded MCP tools
+  Object.assign(tools, mcpTools);
 
   const toolNames = Object.keys(tools);
   console.log(`[ChatAgent] Loaded tools: ${toolNames.join(", ")}`);
