@@ -260,7 +260,7 @@ export default function CommandCenterPage() {
             <Group gap="sm" mb={4}>
               <IconDeviceDesktopAnalytics size={24} color="#a855f7" />
               <Title order={2} c="white" fw={800}>Command Center</Title>
-              <Badge variant="dot" color="violet" size="sm">v1.0-alpha</Badge>
+              <Badge variant="dot" color="violet" size="sm" tt="none">v1.0-alpha</Badge>
             </Group>
             <Text c="dimmed" size="sm" mb="md">Customize your organization&apos;s real-time intelligence dashboard.</Text>
             
