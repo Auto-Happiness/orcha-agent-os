@@ -486,7 +486,7 @@ const ChartBlock = memo(function ChartBlock({
       </Box>
       {/* Chart */}
       <Box ref={chartRef} style={{ background: "rgba(10,8,20,0.85)", padding: "24px 12px 12px 4px" }}>
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={380}>
           {renderChart()}
         </ResponsiveContainer>
       </Box>
