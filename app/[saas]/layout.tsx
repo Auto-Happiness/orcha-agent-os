@@ -23,7 +23,7 @@ import {
   Loader,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useUser, useOrganization, SignOutButton } from "@clerk/nextjs";
+import { useUser, useOrganization, useOrganizationList, SignOutButton } from "@clerk/nextjs";
 import {
   IconRobot,
   IconAdjustments,
@@ -119,7 +119,24 @@ function SideNavItem({
       leftSection={<Icon size={18} stroke={1.6} />}
       rightSection={
         !collapsed && badge ? (
-          <Badge size="xs" variant="light" color={badgeColor || "violet"} radius="sm">{badge}</Badge>
+          <Badge 
+            variant="light" 
+            color={badgeColor || "violet"} 
+            radius="sm" 
+            tt="none"
+            style={{
+              height: "20px",
+              lineHeight: "1",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 8px",
+              fontSize: "11px",
+              fontWeight: 600
+            }}
+          >
+            {badge}
+          </Badge>
         ) : null
       }
       active={active}
@@ -161,10 +178,29 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, isLoaded: userLoaded } = useUser();
   const { organization, isLoaded: orgLoaded } = useOrganization();
+  const { userMemberships, setActive } = useOrganizationList({
+    userMemberships: {
+      infinite: true
+    }
+  });
   const syncMembership = useMutation(api.memberships.syncMembership);
   const upsertOrg = useMutation(api.organizations.upsertFromClerk);
 
   const slug = params?.saas ?? "";
+
+  // ─── Automatic Organization Synchronization ──────────────────────
+  // Sync Clerk's active organization to match the URL slug if they differ.
+  useEffect(() => {
+    if (orgLoaded && userMemberships?.data && setActive) {
+      if (organization?.slug !== slug && organization?.id !== slug) {
+        const target = userMemberships.data.find(m => m.organization.slug === slug || m.organization.id === slug);
+        if (target) {
+          console.log("[Layout Sync] Auto-switching Clerk organization to match URL slug:", slug);
+          setActive({ organization: target.organization.id });
+        }
+      }
+    }
+  }, [slug, organization, orgLoaded, userMemberships?.data, setActive]);
 
   // ─── Search implementation ──────────────────────────────────────────
   const orgDoc = useQuery(api.organizations.getSafeBySlug, slug ? { slug } : "skip");
@@ -212,7 +248,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   }, [dbConfigs, router, slug]);
 
   // ─── JIT Synchronization via React Query ──────────────────────────
-  
+
   // 1. Sync Organization if it exists in Clerk but not Convex
   const { isLoading: isSyncingOrg } = useTanStackQuery({
     queryKey: ["jit-sync-org", slug, organization?.id],
@@ -247,8 +283,8 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
 
   // Can safely render children if we confirmed they are a member,
   // or if the workspace doesn't exist (let children handle 404)
-  const canRenderChildren = 
-    (isMember === true || (orgDoc === null && organization === null && orgLoaded)) && 
+  const canRenderChildren =
+    (isMember === true || (orgDoc === null && organization === null && orgLoaded)) &&
     !isSyncing;
 
   function isActive(href: string) {
@@ -394,9 +430,6 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                   >
                     Settings
                   </Menu.Item>
-                  <Menu.Item leftSection={<IconBuildingSkyscraper size={15} />} c="rgba(255,255,255,0.75)">
-                    {organization?.name ?? "Organization"}
-                  </Menu.Item>
                   <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.06)" }} />
                   <Menu.Item leftSection={<IconHelpCircle size={15} />} c="rgba(255,255,255,0.75)">
                     Help & Docs
@@ -441,26 +474,78 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
 
           <Divider color={BORDER_COL} />
 
-          {/* Org pill */}
+          {/* Org pill dropdown */}
           {!collapsed && (
             <Box px="md" py="xs">
-              <Group
-                gap="xs"
-                px="xs"
-                py={6}
-                style={{
-                  background: "rgba(147,51,234,0.08)",
-                  border: "1px solid rgba(147,51,234,0.18)",
-                  borderRadius: "8px",
-                  cursor: "pointer",
+              <Menu 
+                position="right-start" 
+                withArrow 
+                offset={15}
+                styles={{
+                  dropdown: { background: "#0c0a1a", borderColor: "rgba(147, 51, 234, 0.2)" },
+                  item: { color: "rgba(255, 255, 255, 0.8)", fontSize: "12px" }
                 }}
               >
-                <IconBuildingSkyscraper size={14} color="#a855f7" />
-                <Text size="xs" c="violet.3" fw={500} style={{ flex: 1 }} truncate>
-                  {organization?.name ?? slug}
-                </Text>
-                <IconChevronDown size={11} color="#a855f7" />
-              </Group>
+                <Menu.Target>
+                  <Group
+                    gap="xs"
+                    px="xs"
+                    py={6}
+                    style={{
+                      background: "rgba(147,51,234,0.08)",
+                      border: "1px solid rgba(147,51,234,0.18)",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }}
+                    className="org-pill-hover"
+                  >
+                    <style jsx>{`
+                      .org-pill-hover:hover {
+                        background: rgba(147, 51, 234, 0.15) !important;
+                        border-color: rgba(147, 51, 234, 0.3) !important;
+                      }
+                    `}</style>
+                    <IconBuildingSkyscraper size={14} color="#a855f7" />
+                    <Text size="xs" c="violet.3" fw={500} style={{ flex: 1 }} truncate>
+                      {organization?.name ?? slug}
+                    </Text>
+                    <IconChevronDown size={11} color="#a855f7" />
+                  </Group>
+                </Menu.Target>
+
+                <Menu.Dropdown>
+                  <Menu.Label c="dimmed" style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    Switch Organization
+                  </Menu.Label>
+                  {userMemberships?.data?.map((m) => {
+                    const isActive = m.organization.slug === slug;
+                    return (
+                      <Menu.Item
+                        key={m.organization.id}
+                        leftSection={<IconBuildingSkyscraper size={14} color={isActive ? "#a855f7" : "rgba(255,255,255,0.4)"} />}
+                        onClick={() => {
+                          if (!isActive) {
+                            if (setActive) {
+                              setActive({ organization: m.organization.id });
+                            }
+                            router.push(`/${m.organization.slug}/chat`);
+                          }
+                        }}
+                        style={{
+                          background: isActive ? "rgba(147, 51, 234, 0.1)" : "transparent",
+                          fontWeight: isActive ? 600 : 400
+                        }}
+                      >
+                        <Group justify="space-between" wrap="nowrap" style={{ width: "100%" }}>
+                          <Text size="xs" span>{m.organization.name}</Text>
+                          {isActive && <Badge color="violet" size="xs" variant="light" tt="none">Active</Badge>}
+                        </Group>
+                      </Menu.Item>
+                    );
+                  })}
+                </Menu.Dropdown>
+              </Menu>
             </Box>
           )}
 
