@@ -27,6 +27,7 @@ import type * as messages from "../messages.js";
 import type * as organizations from "../organizations.js";
 import type * as savedQueries from "../savedQueries.js";
 import type * as seed from "../seed.js";
+import type * as semanticMemory from "../semanticMemory.js";
 import type * as semanticModels from "../semanticModels.js";
 import type * as semanticRelationships from "../semanticRelationships.js";
 import type * as spreadsheets from "../spreadsheets.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   organizations: typeof organizations;
   savedQueries: typeof savedQueries;
   seed: typeof seed;
+  semanticMemory: typeof semanticMemory;
   semanticModels: typeof semanticModels;
   semanticRelationships: typeof semanticRelationships;
   spreadsheets: typeof spreadsheets;

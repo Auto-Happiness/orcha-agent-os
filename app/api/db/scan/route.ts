@@ -67,7 +67,18 @@ export async function POST(req: NextRequest) {
       
       if (preferredKey) {
         // Decrypt the key BEFORE sending to Convex
-        const plaintextKey = KeyManager.decrypt(preferredKey.keyValue, organizationId);
+        let plaintextKey = preferredKey.keyValue;
+        if (preferredKey.storageStrategy === "convex" || !preferredKey.storageStrategy) {
+          const parts = preferredKey.keyValue.split(":");
+          if (parts.length === 3) {
+            try {
+              plaintextKey = KeyManager.decrypt(preferredKey.keyValue, organizationId);
+            } catch (err: any) {
+              console.error(`[Scan] Decryption failed, using key as-is:`, err.message);
+            }
+          }
+        }
+
         console.log(`[Scan] Triggering embedding indexing with provider: ${preferredKey.provider}`);
         
         convex.action(api.embeddings.indexConfigSchema, {
