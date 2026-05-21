@@ -55,3 +55,5 @@ datasamples/multidatabase/
 /docs/
 
 /.agent
+
+/.claude
