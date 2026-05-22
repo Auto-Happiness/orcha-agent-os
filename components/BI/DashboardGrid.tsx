@@ -7,7 +7,7 @@ import {
   useContainerWidth
 } from "react-grid-layout";
 import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center, Table, ScrollArea } from "@mantine/core";
-import { IconDotsVertical, IconTrash, IconArrowsMaximize, IconSettings, IconChartBar } from "@tabler/icons-react";
+import { IconDotsVertical, IconTrash, IconSettings, IconChartBar } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { DynamicChart } from "./DynamicChart";
 
@@ -19,7 +19,7 @@ import { WidgetIntelligencePanel } from "./WidgetIntelligencePanel";
 interface DashboardGridProps {
   widgets: any[];
   isEditMode: boolean;
-  onLayoutChange: (newLayout: Layout) => void;
+  onLayoutChange: (newLayout: Layout[]) => void;
   onRemoveWidget: (id: string) => void;
   onSaveWidget: (widgetData: any) => void;
   saas: string;
@@ -120,7 +120,6 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
     }
     const valueKey = widget.mapping?.valueKeys?.[0] || Object.keys(queryData[0])[0];
 
-    // Sum or average or count depending on type or first row
     let rawVal = 0;
     if (queryData.length > 0) {
       const isMultiple = queryData.length > 1;
@@ -182,8 +181,39 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
   const [selectedWidget, setSelectedWidget] = useState<any>(null);
   const [panelOpened, setPanelOpened] = useState(false);
 
-  // 1. Unified Dashboard Mega-Query
-  // Fetch all widget data in a single batch
+  // ─── Position Overrides ──────────────────────────────────────────────────────
+  // Stores per-widget layout positions the user has explicitly set via drag/resize.
+  // NEVER populated automatically — only on actual user interactions.
+  // New widgets (not present here) always use their authoritative DB layout.
+  const [positionOverrides, setPositionOverrides] = useState<Record<string, Layout>>({});
+
+  // ─── Layout Derivation ───────────────────────────────────────────────────────
+  // Purely computed from widgets (DB source of truth) + user position overrides.
+  // No useEffect, no setState on render — zero risk of infinite loops or stale wipes.
+  // New widgets always use the DB-stored layout (w:4, h:4) immediately on first render.
+  const layoutArray = useMemo<Layout[]>(() =>
+    widgets.map((w, index) => {
+      // If user has explicitly moved/resized this widget, honour their choice
+      if (positionOverrides[w._id]) {
+        return { ...positionOverrides[w._id] };
+      }
+      // Otherwise use the DB-stored layout (fallback to safe defaults)
+      const l = w.layout ?? { x: (index * 3) % 12, y: index * 4, w: 4, h: 4 };
+      return { i: w._id, x: l.x, y: l.y, w: Math.max(l.w, 2), h: Math.max(l.h, 2) };
+    }),
+  [widgets, positionOverrides]);
+
+  // Use a single consistent column count for all breakpoints to prevent
+  // cross-breakpoint coordinate scaling that can shrink newly added widgets.
+  const layouts = useMemo(() => ({
+    lg: layoutArray,
+    md: layoutArray,
+    sm: layoutArray,
+    xs: layoutArray,
+    xxs: layoutArray,
+  }), [layoutArray]);
+
+  // ─── Data Fetching ───────────────────────────────────────────────────────────
   const organizationId = widgets[0]?.organizationId;
   const dashboardId = widgets[0]?.dashboardId;
 
@@ -203,30 +233,31 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
       return data;
     },
     enabled: !!dashboardId && !!organizationId && widgets.length > 0,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
     retry: false,
     refetchOnWindowFocus: false,
   });
 
-  // Generate layouts from widgets
-  const layouts = useMemo(() => ({
-    lg: widgets.map(w => ({ i: w._id, ...w.layout })),
-  }), [widgets]);
+  // ─── Interaction Handlers ────────────────────────────────────────────────────
+  // Build the full overrides map from the complete layout array reported by the grid
+  // after a user finishes dragging or resizing.
+  const handleInteractionEnd = (layout: Layout[]) => {
+    const overrides: Record<string, Layout> = {};
+    layout.forEach(item => { overrides[item.i] = { ...item }; });
+    setPositionOverrides(overrides);
+    onLayoutChange(layout);
+  };
 
-  if (!mounted) {
-    return <Box ref={containerRef as any} h={400} />;
+  // ─── Render Guards ───────────────────────────────────────────────────────────
+  // Also guard against width <= 0: passing a zero/negative width to <Responsive>
+  // makes it compute negative column widths, causing Recharts to report -1 dimensions.
+  if (!mounted || width <= 0) {
+    return <Box ref={containerRef as any} style={{ minHeight: 400, width: "100%" }} />;
   }
 
-  if (isBatchLoading) {
-    return (
-      <Center h={400} w="100%">
-        <Stack align="center" gap="md">
-          <Loader color="violet" size="lg" type="bars" />
-          <Text size="sm" c="dimmed" fw={500}>Synchronizing Dashboard Canvas...</Text>
-        </Stack>
-      </Center>
-    );
-  }
+  // We removed the early-return isBatchLoading here to prevent unmounting the grid.
+  // Instead, we will render a loading overlay over the grid.
+
 
   if (batchError) {
     return (
@@ -239,27 +270,60 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
     );
   }
 
-  const handleWidgetClick = (widget: any) => {
-    setSelectedWidget(widget);
-    setPanelOpened(true);
-  };
-
   return (
-    <Box ref={containerRef as any}>
+    <Box ref={containerRef as any} style={{ position: "relative" }}>
+      {isBatchLoading && widgets.length > 0 && (
+        <Box 
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 50,
+            background: "rgba(19, 15, 34, 0.5)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 12,
+            pointerEvents: "none"
+          }}
+        >
+          <Loader color="violet" size="sm" />
+        </Box>
+      )}
+      
+      {isBatchLoading && widgets.length === 0 && (
+        <Center h={400} w="100%">
+          <Stack align="center" gap="md">
+            <Loader color="violet" size="lg" type="bars" />
+            <Text size="sm" c="dimmed" fw={500}>Synchronizing Dashboard Canvas...</Text>
+          </Stack>
+        </Center>
+      )}
+
       <Responsive
         className="layout"
         layouts={layouts}
         width={width}
-        breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-        cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+        // Single column count across all breakpoints — eliminates cross-breakpoint
+        // coordinate scaling that previously shrank freshly added widgets.
+        breakpoints={{ lg: 0, md: 0, sm: 0, xs: 0, xxs: 0 }}
+        cols={{ lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 }}
         rowHeight={100}
-        margin={[20, 20]}
+        margin={[16, 16]}
+        // Disable auto-compaction — widgets stay exactly where placed.
+        // compactType={null} prevents the grid from automatically moving
+        // new widgets up into the smallest available slot (which appears "thin").
+        {...({ compactType: null, preventCollision: false } as any)}
         {...({
           isDraggable: isEditMode,
           isResizable: isEditMode,
-          draggableHandle: ".drag-handle"
+          draggableHandle: ".drag-handle",
         } as any)}
-        onLayoutChange={(currentLayout: Layout) => onLayoutChange(currentLayout)}
+        // Only onDragStop / onResizeStop update state and persist to DB.
+        // We intentionally do NOT use onLayoutChange — it fires on every render
+        // (not just user interactions) and would cause an infinite setState loop.
+        onDragStop={(layout: Layout[]) => handleInteractionEnd(layout)}
+        onResizeStop={(layout: Layout[]) => handleInteractionEnd(layout)}
       >
         {widgets.map((widget) => (
           <div key={widget._id}>
@@ -279,7 +343,7 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
               }}
             >
               {/* Header / Drag Handle */}
-              <Group justify="space-between" mb="xs" wrap="nowrap">
+              <Group justify="space-between" mb="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
                 <Group
                   gap="xs"
                   className={isEditMode ? "drag-handle" : ""}
@@ -297,17 +361,6 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
-                    {/* <Menu.Item
-                    leftSection={<IconSettings size={14} />}
-                    c="white"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleWidgetClick(widget);
-                    }}
-                  >
-                    Configure
-                  </Menu.Item> 
-                    <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />*/}
                     <Menu.Item
                       leftSection={<IconTrash size={14} />}
                       color="red"
@@ -322,16 +375,21 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                 </Menu>
               </Group>
 
-              {/* Content Area */}
-              <Box style={{ flex: 1, position: "relative" }}>
-                <WidgetRenderer
-                  widget={widget}
-                  queryData={batchResult?.results?.[widget._id]?.rows || []}
-                  queryError={batchResult?.results?.[widget._id]?.error || null}
-                />
+              {/* Content Area — two-layer absolute fill pattern:
+                  outer: flex:1 + minHeight:0 so the flex item shrinks/grows correctly.
+                  inner: position:absolute inset:0 gives Recharts ResponsiveContainer
+                  a real pixel height to measure, fixing the width/height:-1 error. */}
+              <Box style={{ flex: 1, position: "relative", minHeight: 0 }}>
+                <Box style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+                  <WidgetRenderer
+                    widget={widget}
+                    queryData={batchResult?.results?.[widget._id]?.rows || []}
+                    queryError={batchResult?.results?.[widget._id]?.error || null}
+                  />
+                </Box>
               </Box>
 
-              {/* Edit Mode Overlay (Subtle) */}
+              {/* Edit Mode Overlay */}
               {isEditMode && (
                 <Box
                   style={{

@@ -77,7 +77,7 @@ export function DynamicChart({
 
   if (isLoading) {
     return (
-      <Center h={height}>
+      <Center style={{ height: "100%" }}>
         <Loader color="violet" size="sm" />
       </Center>
     );
@@ -85,7 +85,7 @@ export function DynamicChart({
 
   if (formattedData.length === 0) {
     return (
-      <Center h={height} style={{ border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
+      <Center style={{ height: "100%", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
         <Text size="xs" c="dimmed">No data available for visualization</Text>
       </Center>
     );
@@ -354,17 +354,22 @@ export function DynamicChart({
     }
   };
 
+  // The parent (DashboardGrid widget card) is position:absolute inset:0, so
+  // we use absolute fill here too — Recharts ResponsiveContainer will measure
+  // real pixel dimensions instead of getting -1.
   const isRecharts = type !== "table" && type !== "kpi" && type !== "counter";
 
   return (
-    <Box h={height} w="100%">
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       {isRecharts ? (
         <ResponsiveContainer width="100%" height="100%">
           {renderChart()}
         </ResponsiveContainer>
       ) : (
-        renderChart()
+        <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+          {renderChart()}
+        </div>
       )}
-    </Box>
+    </div>
   );
 }
