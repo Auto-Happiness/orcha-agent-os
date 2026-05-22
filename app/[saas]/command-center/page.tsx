@@ -119,28 +119,40 @@ export default function CommandCenterPage() {
     if (!organization || !currentDashboardId || !isEditMode) return;
 
     try {
-      // Sync each layout change back to the DB
       for (const item of newLayout) {
         const widget = widgets.find(w => w._id === item.i);
-        if (widget) {
-          await saveWidgetMutation({
-            widgetId: widget._id,
-            dashboardId: currentDashboardId as any,
-            organizationId: organization._id,
-            type: widget.type as any,
-            title: widget.title,
-            queryId: widget.queryId,
-            mapping: widget.mapping,
-            layout: { 
-              x: item.x, 
-              y: item.y, 
-              w: item.w, 
-              h: item.h 
-            },
-            order: widget.order,
-            size: widget.size,
-          });
+        // Skip widgets not yet in DB (freshly created, Convex hasn't returned them yet)
+        if (!widget) continue;
+
+        // Only persist if the layout has actually changed to avoid overwriting on automatic fires
+        const current = widget.layout;
+        if (
+          current &&
+          current.x === item.x &&
+          current.y === item.y &&
+          current.w === item.w &&
+          current.h === item.h
+        ) {
+          continue;
         }
+
+        await saveWidgetMutation({
+          widgetId: widget._id,
+          dashboardId: currentDashboardId as any,
+          organizationId: organization._id,
+          type: widget.type as any,
+          title: widget.title,
+          queryId: widget.queryId,
+          mapping: widget.mapping,
+          layout: { 
+            x: item.x, 
+            y: item.y, 
+            w: item.w, 
+            h: item.h 
+          },
+          order: widget.order,
+          size: widget.size,
+        });
       }
     } catch (err) {
       console.error("Failed to save layout:", err);
@@ -422,6 +434,7 @@ export default function CommandCenterPage() {
           ) : (
             <>
               <DashboardGrid 
+                key={currentDashboardId ?? 'no-dashboard'}
                 widgets={widgets} 
                 isEditMode={isEditMode}
                 onLayoutChange={handleLayoutChange}

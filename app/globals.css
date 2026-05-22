@@ -291,3 +291,34 @@
 .session-row:hover .session-actions {
   opacity: 1 !important;
 }
+
+/* ── React Resizable Handle Styling ── */
+.react-resizable-handle {
+  position: absolute !important;
+  width: 16px !important;
+  height: 16px !important;
+  bottom: 6px !important;
+  right: 6px !important;
+  cursor: se-resize !important;
+  z-index: 10 !important;
+  transition: all 150ms ease !important;
+}
+
+.react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid rgba(168, 85, 247, 0.45);
+  border-bottom: 2px solid rgba(168, 85, 247, 0.45);
+  transition: all 150ms ease;
+}
+
+.react-resizable-handle:hover::after {
+  border-right-color: #c084fc;
+  border-bottom-color: #c084fc;
+  width: 11px;
+  height: 11px;
+}

@@ -648,7 +648,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                 <IconChartPie size={16} color="gray" />
                 <Text size="sm" fw={600} c="dimmed">6. LIVE PREVIEW</Text>
               </Group>
-              <Paper p="md" radius="md" h={280} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(147, 51, 234, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <Paper p="md" radius="md" h={280} style={{ position: 'relative', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(147, 51, 234, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {(() => {
                   const hasData = previewRows && previewRows.length > 0;
                   const isTable = widgetType === "table";
