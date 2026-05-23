@@ -80,9 +80,15 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   const [isSaving, setIsSaving] = useState(false);
 
   const colorKeys = useMemo(() => {
-    if ((widgetType === "pie" || widgetType === "bar" || widgetType === "line") && labelKey && previewRows.length > 0) {
+    if ((widgetType === "pie" || widgetType === "bar") && labelKey && previewRows.length > 0) {
       if (widgetType === "pie" || valueKeys.length <= 1) {
-        return Array.from(new Set(previewRows.map(row => String(row[labelKey] || ""))));
+        return Array.from(new Set(previewRows.map((row: any) => {
+          if (labelKey.includes(",")) {
+            const keys = labelKey.split(",").map((k: string) => k.trim());
+            return keys.map((k: string) => String(row[k] !== undefined ? row[k] : "")).filter(Boolean).join(" - ") || "Unknown";
+          }
+          return String(row[labelKey] || "");
+        })));
       }
     }
     return valueKeys;
@@ -529,34 +535,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                 <Text size="sm" fw={600} c="dimmed">4. COLUMN MAPPING</Text>
               </Group>
               <Stack gap="sm">
-                <Select
-                  label="Visualization Type"
-                  placeholder="Select chart type..."
-                  data={[
-                    { value: "bar", label: "Bar Chart 📊" },
-                    { value: "line", label: "Line Chart 📈" },
-                    { value: "pie", label: "Pie Chart 🍕" },
-                    { value: "kpi", label: "KPI Metric 🎯" },
-                    { value: "table", label: "Data Table 📋" },
-                    { value: "counter", label: "Smart Counter 🔢" },
-                  ]}
-                  value={widgetType}
-                  onChange={(v) => {
-                    const newType = v || "bar";
-                    setWidgetType(newType);
-                    // Clear out chart-specific mapping fields if we are transitioning to a table
-                    if (newType === "table") {
-                      setLabelKey("");
-                      setValueKeys([]);
-                    }
-                  }}
-                  styles={{
-                    label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                    input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                    dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                    option: { color: "white" }
-                  }}
-                />
+
                 
                 {widgetType === "table" ? (
                   <Alert 
@@ -589,20 +568,37 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                   />
                 ) : (
                   <Group grow>
-                    <Select 
-                      label="Label Column (X-Axis)" 
-                      placeholder="Select label column..."
-                      data={discoveredColumns} 
-                      value={labelKey} 
-                      onChange={(v) => setLabelKey(v || "")} 
-                      disabled={discoveredColumns.length === 0} 
-                      styles={{
-                        label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                        option: { color: "white" }
-                      }}
-                    />
+                    {widgetType === "bar" ? (
+                      <MultiSelect
+                        label="Label Columns (X-Axis)"
+                        placeholder="Select label columns..."
+                        data={discoveredColumns}
+                        value={labelKey ? labelKey.split(",").map((s: string) => s.trim()) : []}
+                        onChange={(v) => setLabelKey(v ? v.join(",") : "")}
+                        disabled={discoveredColumns.length === 0}
+                        styles={{
+                          label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                          input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                          dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                          option: { color: "white" }
+                        }}
+                      />
+                    ) : (
+                      <Select
+                        label="Label Column (X-Axis)"
+                        placeholder="Select label column..."
+                        data={discoveredColumns}
+                        value={labelKey.includes(",") ? labelKey.split(",")[0] : labelKey}
+                        onChange={(v) => setLabelKey(v || "")}
+                        disabled={discoveredColumns.length === 0}
+                        styles={{
+                          label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                          input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                          dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                          option: { color: "white" }
+                        }}
+                      />
+                    )}
                     <MultiSelect 
                       label="Value Columns (Y-Axis)" 
                       placeholder="Select metric columns..."
