@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import {
   Responsive,
   Layout,
+  LayoutItem,
   useContainerWidth
 } from "react-grid-layout";
 import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center, Table, ScrollArea } from "@mantine/core";
@@ -19,7 +20,7 @@ import { WidgetIntelligencePanel } from "./WidgetIntelligencePanel";
 interface DashboardGridProps {
   widgets: any[];
   isEditMode: boolean;
-  onLayoutChange: (newLayout: Layout[]) => void;
+  onLayoutChange: (newLayout: Layout) => void;
   onRemoveWidget: (id: string) => void;
   onSaveWidget: (widgetData: any) => void;
   saas: string;
@@ -185,13 +186,13 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
   // Stores per-widget layout positions the user has explicitly set via drag/resize.
   // NEVER populated automatically — only on actual user interactions.
   // New widgets (not present here) always use their authoritative DB layout.
-  const [positionOverrides, setPositionOverrides] = useState<Record<string, Layout>>({});
+  const [positionOverrides, setPositionOverrides] = useState<Record<string, LayoutItem>>({});
 
   // ─── Layout Derivation ───────────────────────────────────────────────────────
   // Purely computed from widgets (DB source of truth) + user position overrides.
   // No useEffect, no setState on render — zero risk of infinite loops or stale wipes.
   // New widgets always use the DB-stored layout (w:4, h:4) immediately on first render.
-  const layoutArray = useMemo<Layout[]>(() =>
+  const layoutArray = useMemo<Layout>(() =>
     widgets.map((w, index) => {
       // If user has explicitly moved/resized this widget, honour their choice
       if (positionOverrides[w._id]) {
@@ -241,8 +242,8 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
   // ─── Interaction Handlers ────────────────────────────────────────────────────
   // Build the full overrides map from the complete layout array reported by the grid
   // after a user finishes dragging or resizing.
-  const handleInteractionEnd = (layout: Layout[]) => {
-    const overrides: Record<string, Layout> = {};
+  const handleInteractionEnd = (layout: Layout) => {
+    const overrides: Record<string, LayoutItem> = {};
     layout.forEach(item => { overrides[item.i] = { ...item }; });
     setPositionOverrides(overrides);
     onLayoutChange(layout);
@@ -322,8 +323,8 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
         // Only onDragStop / onResizeStop update state and persist to DB.
         // We intentionally do NOT use onLayoutChange — it fires on every render
         // (not just user interactions) and would cause an infinite setState loop.
-        onDragStop={(layout: Layout[]) => handleInteractionEnd(layout)}
-        onResizeStop={(layout: Layout[]) => handleInteractionEnd(layout)}
+        onDragStop={(layout: Layout) => handleInteractionEnd(layout)}
+        onResizeStop={(layout: Layout) => handleInteractionEnd(layout)}
       >
         {widgets.map((widget) => (
           <div key={widget._id}>

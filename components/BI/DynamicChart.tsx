@@ -44,6 +44,7 @@ export function DynamicChart({
   // auto-detect a better string column from the actual data as a fallback.
   const resolvedLabelKey = useMemo(() => {
     if (!data || data.length === 0) return labelKey;
+    if (labelKey.includes(",")) return labelKey;
     const sampleValues = data.slice(0, 5).map(row => row[labelKey]);
     const allNumeric = sampleValues.every(v => v !== undefined && v !== null && !isNaN(Number(v)) && String(v).trim() !== "");
     if (allNumeric) {
@@ -67,7 +68,12 @@ export function DynamicChart({
     if (!data || data.length === 0) return [];
     return data.map((item) => {
       const formattedItem: any = { ...item };
-      formattedItem[resolvedLabelKey] = String(item[resolvedLabelKey] || "Unknown");
+      if (resolvedLabelKey.includes(",")) {
+        const keys = resolvedLabelKey.split(",").map(k => k.trim());
+        formattedItem[resolvedLabelKey] = keys.map(k => String(item[k] !== undefined ? item[k] : "")).filter(Boolean).join(" - ") || "Unknown";
+      } else {
+        formattedItem[resolvedLabelKey] = String(item[resolvedLabelKey] || "Unknown");
+      }
       valueKeys.forEach(key => {
         formattedItem[key] = parseFloat(String(item[key])) || 0;
       });
@@ -346,7 +352,14 @@ export function DynamicChart({
                   fill={sColor}
                   radius={[4, 4, 0, 0]}
                   barSize={24}
-                />
+                >
+                  {valueKeys.length <= 1 && formattedData.map((entry, idx) => (
+                    <Cell
+                      key={`cell-${idx}`}
+                      fill={getSeriesColor(String(entry[resolvedLabelKey]), idx)}
+                    />
+                  ))}
+                </Bar>
               );
             })}
           </BarChart>
