@@ -79,6 +79,19 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
   const [textContent, setTextContent] = useState(widget?.description || "");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Formatting States for KPI / Counter
+  const [formatType, setFormatType] = useState<string>(widget?.mapping?.formatType || "raw");
+  const [formatValue, setFormatValue] = useState<string>(widget?.mapping?.formatValue || "");
+  const [selectedUnit, setSelectedUnit] = useState<string>(() => {
+    const val = widget?.mapping?.formatValue || "";
+    const commonUnits = ["kg", "lbs", "cm", "m", "%", "pcs"];
+    if (widget?.mapping?.formatType === "unit") {
+      return commonUnits.includes(val) ? val : (val ? "custom" : "kg");
+    }
+    return "kg";
+  });
+  const [numberFormat, setNumberFormat] = useState<string>(widget?.mapping?.numberFormat || "compact");
+
   const colorKeys = useMemo(() => {
     if ((widgetType === "pie" || widgetType === "bar") && labelKey && previewRows.length > 0) {
       if (widgetType === "pie" || valueKeys.length <= 1) {
@@ -105,6 +118,16 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
       setSeriesColors(widget?.mapping?.seriesColors || {});
       setWidgetTitle(widget?.title || "");
       setTextContent(widget?.description || "");
+      setFormatType(widget?.mapping?.formatType || "raw");
+      setFormatValue(widget?.mapping?.formatValue || "");
+      const val = widget?.mapping?.formatValue || "";
+      const commonUnits = ["kg", "lbs", "cm", "m", "%", "pcs"];
+      if (widget?.mapping?.formatType === "unit") {
+        setSelectedUnit(commonUnits.includes(val) ? val : (val ? "custom" : "kg"));
+      } else {
+        setSelectedUnit("kg");
+      }
+      setNumberFormat(widget?.mapping?.numberFormat || "compact");
       setIsSaving(false);
     } else {
       // Clear specific transient states on close
@@ -552,20 +575,126 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                     Data Tables display all query result columns automatically. No manual X/Y axis mapping is required.
                   </Alert>
                 ) : widgetType === "kpi" || widgetType === "counter" ? (
-                  <Select 
-                    label="Metric Column" 
-                    placeholder="Select column to aggregate..." 
-                    data={discoveredColumns} 
-                    value={valueKeys[0] || ""} 
-                    onChange={(v) => setValueKeys(v ? [v] : [])} 
-                    disabled={discoveredColumns.length === 0} 
-                    styles={{
-                      label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                      input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                      dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                      option: { color: "white" }
-                    }}
-                  />
+                  <Stack gap="sm">
+                    <Select 
+                      label="Metric Column" 
+                      placeholder="Select column to aggregate..." 
+                      data={discoveredColumns} 
+                      value={valueKeys[0] || ""} 
+                      onChange={(v) => setValueKeys(v ? [v] : [])} 
+                      disabled={discoveredColumns.length === 0} 
+                      styles={{
+                        label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                        option: { color: "white" }
+                      }}
+                    />
+                    <Group grow>
+                      <Select
+                        label="Format Type"
+                        data={[
+                          { value: "raw", label: "Raw Number" },
+                          { value: "currency", label: "Currency" },
+                          { value: "unit", label: "Measurement Unit" }
+                        ]}
+                        value={formatType}
+                        onChange={(v) => {
+                          const val = v || "raw";
+                          setFormatType(val);
+                          if (val === "currency") setFormatValue("USD");
+                          else if (val === "unit") setFormatValue("kg");
+                          else setFormatValue("");
+                        }}
+                        styles={{
+                          label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                          input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                          dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                          option: { color: "white" }
+                        }}
+                      />
+                      {formatType === "currency" && (
+                        <Select
+                          label="Currency"
+                          data={[
+                            { value: "USD", label: "USD ($)" },
+                            { value: "PHP", label: "PHP (₱)" },
+                            { value: "EUR", label: "EUR (€)" },
+                            { value: "CNY", label: "CNY (¥)" },
+                            { value: "JPY", label: "JPY (¥)" }
+                          ]}
+                          value={formatValue}
+                          onChange={(v) => setFormatValue(v || "USD")}
+                          styles={{
+                            label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                            input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                            dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                            option: { color: "white" }
+                          }}
+                        />
+                      )}
+                      {formatType === "unit" && (
+                        <Stack gap="xs" style={{ flex: 1 }}>
+                          <Select
+                            label="Unit"
+                            data={[
+                              { value: "kg", label: "kg (Weight - Kilograms)" },
+                              { value: "lbs", label: "lbs (Weight - Pounds)" },
+                              { value: "cm", label: "cm (Height - Centimeters)" },
+                              { value: "m", label: "m (Height - Meters)" },
+                              { value: "%", label: "% (Percentage)" },
+                              { value: "pcs", label: "pcs (Pieces)" },
+                              { value: "custom", label: "Custom Suffix..." }
+                            ]}
+                            value={selectedUnit}
+                            onChange={(v) => {
+                              const val = v || "kg";
+                              setSelectedUnit(val);
+                              if (val !== "custom") {
+                                setFormatValue(val);
+                              } else {
+                                setFormatValue("");
+                              }
+                            }}
+                            styles={{
+                              label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                              input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                              dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                              option: { color: "white" }
+                            }}
+                          />
+                          {selectedUnit === "custom" && (
+                            <TextInput
+                              label="Custom Suffix"
+                              placeholder="e.g. pixels, points"
+                              value={formatValue}
+                              onChange={(e) => setFormatValue(e.currentTarget.value)}
+                              styles={{
+                                label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                                input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" }
+                              }}
+                            />
+                          )}
+                        </Stack>
+                      )}
+                    </Group>
+                    <Select
+                      label="Number Style"
+                      data={[
+                        { value: "compact", label: "Abbreviated (e.g. 11k)" },
+                        { value: "decimal", label: "Decimal (e.g. 11,000.00)" },
+                        { value: "integer", label: "Integer (e.g. 11,000)" }
+                      ]}
+                      value={numberFormat}
+                      onChange={(v) => setNumberFormat(v || "compact")}
+                      styles={{
+                        label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
+                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                        option: { color: "white" }
+                      }}
+                    />
+                  </Stack>
                 ) : (
                   <Group grow>
                     {widgetType === "bar" ? (
@@ -654,7 +783,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                     return <DynamicChart data={previewRows} type={widgetType as any} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} />;
                   }
                   if (isKPIOrCounter && hasData && valueKeys.length > 0) {
-                    return <DynamicChart data={previewRows} type={widgetType as any} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} />;
+                    return <DynamicChart data={previewRows} type={widgetType as any} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} formatType={formatType} formatValue={formatValue} numberFormat={numberFormat} />;
                   }
                   if (!isTable && !isKPIOrCounter && hasData && labelKey && valueKeys.length > 0) {
                     return <DynamicChart data={previewRows} type={widgetType as any} labelKey={labelKey} valueKeys={valueKeys} height={240} seriesColors={seriesColors} />;
@@ -687,7 +816,7 @@ export function WidgetIntelligencePanel({ opened, onClose, widget, mode = "edit"
                         description: textContent, 
                         queryId: selectedQueryId, 
                         type: widgetType as any,
-                        mapping: { labelKey, valueKeys, seriesColors }, 
+                        mapping: { labelKey, valueKeys, seriesColors, formatType, formatValue, numberFormat }, 
                         status: 'configured' 
                       }); 
                       onClose();

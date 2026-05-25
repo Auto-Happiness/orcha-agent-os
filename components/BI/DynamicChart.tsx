@@ -28,6 +28,9 @@ interface DynamicChartProps {
   height?: number | string;
   seriesColors?: Record<string, string>;
   isLoading?: boolean;
+  formatType?: string;
+  formatValue?: string;
+  numberFormat?: string;
 }
 
 export function DynamicChart({
@@ -37,7 +40,10 @@ export function DynamicChart({
   valueKeys,
   height = 300,
   seriesColors,
-  isLoading
+  isLoading,
+  formatType,
+  formatValue,
+  numberFormat
 }: DynamicChartProps) {
 
   // Smart label key resolution: if the provided labelKey maps to numeric-looking values (IDs),
@@ -206,16 +212,38 @@ export function DynamicChart({
         }
 
         let displayVal = "";
-        if (rawVal >= 1_000_000_000) {
-          displayVal = `${(rawVal / 1_000_000_000).toFixed(1)}B`;
-        } else if (rawVal >= 1_000_000) {
-          displayVal = `${(rawVal / 1_000_000).toFixed(1)}M`;
-        } else if (rawVal >= 1_000) {
-          displayVal = `${(rawVal / 1_000).toFixed(1)}k`;
-        } else if (Number.isInteger(rawVal)) {
-          displayVal = rawVal.toLocaleString();
-        } else {
+        const style = numberFormat || "compact";
+
+        if (style === "compact") {
+          if (rawVal >= 1_000_000_000) {
+            displayVal = `${(rawVal / 1_000_000_000).toFixed(1)}B`;
+          } else if (rawVal >= 1_000_000) {
+            displayVal = `${(rawVal / 1_000_000).toFixed(1)}M`;
+          } else if (rawVal >= 1_000) {
+            displayVal = `${(rawVal / 1_000).toFixed(1)}k`;
+          } else if (Number.isInteger(rawVal)) {
+            displayVal = rawVal.toLocaleString();
+          } else {
+            displayVal = rawVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }
+        } else if (style === "decimal") {
           displayVal = rawVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        } else if (style === "integer") {
+          displayVal = Math.round(rawVal).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        }
+
+        if (formatType === "currency") {
+          const symbolMap: Record<string, string> = {
+            USD: "$",
+            PHP: "₱",
+            EUR: "€",
+            CNY: "¥",
+            JPY: "¥"
+          };
+          const symbol = symbolMap[formatValue || "USD"] || "$";
+          displayVal = `${symbol}${displayVal}`;
+        } else if (formatType === "unit" && formatValue) {
+          displayVal = `${displayVal} ${formatValue}`;
         }
 
         const firstRowLabel = resolvedLabelKey ? data[0]?.[resolvedLabelKey] : undefined;

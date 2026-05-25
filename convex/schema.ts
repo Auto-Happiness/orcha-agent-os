@@ -53,6 +53,9 @@ const WidgetMappingValidator = v.object({
   palette: v.optional(v.array(v.string())),
   seriesColors: v.optional(v.record(v.string(), v.string())),
   aggregation: v.optional(v.string()),
+  formatType: v.optional(v.string()),  // e.g. 'raw', 'currency', 'unit'
+  formatValue: v.optional(v.string()), // e.g. 'USD', 'PHP', 'kg', 'cm'
+  numberFormat: v.optional(v.string()), // e.g. 'compact', 'decimal', 'integer'
 });
 
 const WidgetLayoutValidator = v.object({

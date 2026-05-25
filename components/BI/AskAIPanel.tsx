@@ -19,9 +19,9 @@ import {
   Center,
   Tooltip,
   Menu,
-  MultiSelect,
   Checkbox,
-  Select
+  Select,
+  Popover
 } from "@mantine/core";
 import { useQuery, useMutation } from "convex/react";
 import { useMutation as useRqMutation } from "@tanstack/react-query";
@@ -43,7 +43,8 @@ import {
   IconPlus,
   IconChevronDown,
   IconTable,
-  IconHash
+  IconHash,
+  IconSettings
 } from "@tabler/icons-react";
 
 interface AskAIPanelProps {
@@ -62,13 +63,22 @@ interface ProposedWidget {
   mapping?: {
     labelKey: string;
     valueKeys: string[];
+    formatType?: string;
+    formatValue?: string;
+    numberFormat?: string;
   };
 }
 
 
 export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanelProps) {
   const [currentPrompt, setCurrentPrompt] = useState("");
-  const [draftPrompts, setDraftPrompts] = useState<{ text: string; type: string }[]>([]);
+  const [draftPrompts, setDraftPrompts] = useState<{
+    text: string;
+    type: string;
+    formatType?: string;
+    formatValue?: string;
+    numberFormat?: string;
+  }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [proposedWidgets, setProposedWidgets] = useState<ProposedWidget[]>([]);
@@ -95,14 +105,22 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
   useEffect(() => {
     if (!proposal) return;
     if (proposal.status === "ready") {
-      setProposedWidgets((proposal.widgets || []).map((w: any, i: number) => ({
-        id: String(i),
-        type: w.type as any,
-        title: w.title,
-        reason: w.reason || "AI-generated widget",
-        sql: w.sql,
-        mapping: w.mapping
-      })));
+      setProposedWidgets((proposal.widgets || []).map((w: any, i: number) => {
+        const draft = draftPrompts[i];
+        return {
+          id: String(i),
+          type: w.type as any,
+          title: w.title,
+          reason: w.reason || "AI-generated widget",
+          sql: w.sql,
+          mapping: {
+            ...w.mapping,
+            formatType: draft?.formatType || (w.type === "counter" ? "raw" : undefined),
+            formatValue: draft?.formatValue || undefined,
+            numberFormat: draft?.numberFormat || (w.type === "counter" ? "compact" : undefined),
+          }
+        };
+      }));
       setCurrentStep("ready");
       setIsGenerating(false);
       setProposalId(null);
@@ -116,13 +134,93 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
   }, [proposal]);
 
   const handleAddPrompt = () => {
-    if (!currentPrompt.trim() || draftPrompts.length >= 5) return;
+    if (!currentPrompt.trim() || draftPrompts.length >= 10) return;
     setDraftPrompts([...draftPrompts, { text: currentPrompt.trim(), type: "bar" }]);
     setCurrentPrompt("");
   };
 
   const handleRemovePrompt = (index: number) => {
     setDraftPrompts(draftPrompts.filter((_, i) => i !== index));
+  };
+
+  const commonUnits = ["kg", "lbs", "cm", "m", "%", "pcs"];
+
+  const getSelectedUnit = (mappingOrDraft: any) => {
+    const val = mappingOrDraft?.formatValue || "";
+    if (mappingOrDraft?.formatType === "unit") {
+      return commonUnits.includes(val) ? val : (val ? "custom" : "kg");
+    }
+    return "kg";
+  };
+
+  const updateDraftFormat = (index: number, key: string, value: any) => {
+    const newDrafts = [...draftPrompts];
+    newDrafts[index] = {
+      ...newDrafts[index],
+      [key]: value
+    };
+    setDraftPrompts(newDrafts);
+  };
+
+  const handleFormatTypeChange = (index: number, type: string) => {
+    const newDrafts = [...draftPrompts];
+    const draft = newDrafts[index];
+    draft.formatType = type;
+    if (type === "currency") {
+      draft.formatValue = "USD";
+    } else if (type === "unit") {
+      draft.formatValue = "kg";
+    } else {
+      draft.formatValue = "";
+    }
+    setDraftPrompts(newDrafts);
+  };
+
+  const handleUnitChange = (index: number, unit: string) => {
+    const newDrafts = [...draftPrompts];
+    newDrafts[index].formatValue = unit !== "custom" ? unit : "";
+    setDraftPrompts(newDrafts);
+  };
+
+  const updateProposedFormat = (index: number, key: string, value: any) => {
+    const newWidgets = [...proposedWidgets];
+    newWidgets[index] = {
+      ...newWidgets[index],
+      mapping: {
+        ...newWidgets[index].mapping,
+        [key]: value
+      } as any
+    };
+    setProposedWidgets(newWidgets);
+  };
+
+  const handleProposedFormatTypeChange = (index: number, type: string) => {
+    const newWidgets = [...proposedWidgets];
+    const w = newWidgets[index];
+    const currentMapping = w.mapping || { labelKey: "", valueKeys: [] };
+    let formatVal = "";
+    if (type === "currency") {
+      formatVal = "USD";
+    } else if (type === "unit") {
+      formatVal = "kg";
+    }
+    w.mapping = {
+      ...currentMapping,
+      formatType: type,
+      formatValue: formatVal
+    } as any;
+    setProposedWidgets(newWidgets);
+  };
+
+  const handleProposedUnitChange = (index: number, unit: string) => {
+    const newWidgets = [...proposedWidgets];
+    const w = newWidgets[index];
+    const currentMapping = w.mapping || { labelKey: "", valueKeys: [] };
+    w.mapping = {
+      ...currentMapping,
+      formatValue: unit !== "custom" ? unit : ""
+    } as any;
+    setProposedWidgets(newWidgets);
   };
 
   const generateDashboardMutation = useRqMutation({
@@ -151,14 +249,22 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
         setCurrentStep("designing");
         setProposalId(result.proposalId);
       } else {
-        setProposedWidgets((result.widgets || []).map((w: any, i: number) => ({
-          id: String(i),
-          type: w.type as any,
-          title: w.title,
-          reason: w.reason || "AI-generated widget",
-          sql: w.sql,
-          mapping: w.mapping,
-        })));
+        setProposedWidgets((result.widgets || []).map((w: any, i: number) => {
+          const draft = draftPrompts[i];
+          return {
+            id: String(i),
+            type: w.type as any,
+            title: w.title,
+            reason: w.reason || "AI-generated widget",
+            sql: w.sql,
+            mapping: {
+              ...w.mapping,
+              formatType: draft?.formatType || (w.type === "counter" ? "raw" : undefined),
+              formatValue: draft?.formatValue || undefined,
+              numberFormat: draft?.numberFormat || (w.type === "counter" ? "compact" : undefined),
+            },
+          };
+        }));
         setCurrentStep("ready");
         setIsGenerating(false);
       }
@@ -175,7 +281,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
     if (draftPrompts.length === 0 && !currentPrompt.trim()) return;
 
     const finalPrompts = currentPrompt.trim()
-      ? [...draftPrompts, { text: currentPrompt.trim(), type: "bar" }].slice(0, 5)
+      ? [...draftPrompts, { text: currentPrompt.trim(), type: "bar" }].slice(0, 10)
       : draftPrompts;
 
     setIsGenerating(true);
@@ -211,9 +317,14 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
           mapping: w.mapping ? {
             labelKey: w.mapping.labelKey,
             valueKeys: w.mapping.valueKeys,
+            formatType: w.mapping.formatType || ((w.type === "kpi" || w.type === "counter") ? "raw" : undefined),
+            formatValue: w.mapping.formatValue || undefined,
+            numberFormat: w.mapping.numberFormat || ((w.type === "kpi" || w.type === "counter") ? "compact" : undefined),
           } : {
             labelKey: "category",
             valueKeys: ["value"],
+            formatType: (w.type === "kpi" || w.type === "counter") ? "raw" : undefined,
+            numberFormat: (w.type === "kpi" || w.type === "counter") ? "compact" : undefined,
           },
           layout: { x, y, w: wVal, h: hVal },
           order: index,
@@ -318,12 +429,12 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                     <IconRobot size={32} color="#a855f7" />
                   </Avatar>
                   <Text fw={700} size="lg" c="white">Insight Architect</Text>
-                  <Text size="xs" c="dimmed">Draft up to 5 widgets. I&apos;ll build the full dashboard.</Text>
+                  <Text size="xs" c="dimmed"> Draft up to 10 widgets. I&apos;ll build the full dashboard.</Text>
                 </Box>
 
                 {draftPrompts.length > 0 && (
                   <Stack gap="xs">
-                    <Text size="xs" fw={800} c="dimmed" style={{ letterSpacing: "1px" }}>DRAFT INSIGHTS ({draftPrompts.length}/5)</Text>
+                    <Text size="xs" fw={800} c="dimmed" style={{ letterSpacing: "1px" }}>DRAFT INSIGHTS ({draftPrompts.length}/10)</Text>
                     {draftPrompts.map((p, i) => (
                       <Paper
                         key={i}
@@ -339,15 +450,15 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                           <Group gap={4}>
                             <Menu position="bottom-end" shadow="md" width={140}>
                               <Menu.Target>
-                                <Button 
-                                  variant="subtle" 
-                                  size="compact-xs" 
-                                  color="gray"
-                                  leftSection={getIconForType(p.type || "bar")}
-                                  styles={{ section: { marginRight: 4 } }}
-                                >
-                                  {(p.type || "bar").charAt(0).toUpperCase() + (p.type || "bar").slice(1)}
-                                </Button>
+                               <Button 
+                                 variant="subtle" 
+                                 size="compact-xs" 
+                                 color="gray"
+                                 leftSection={getIconForType(p.type || "bar")}
+                                 styles={{ section: { marginRight: 4 } }}
+                               >
+                                 {(p.type || "bar").charAt(0).toUpperCase() + (p.type || "bar").slice(1)}
+                               </Button>
                               </Menu.Target>
                               <Menu.Dropdown bg="#0c0a1a" style={{ border: "1px solid rgba(147, 51, 234, 0.2)" }}>
                                 <Menu.Label>Insight Type</Menu.Label>
@@ -411,6 +522,8 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                                   onClick={() => {
                                     const newDrafts = [...draftPrompts];
                                     newDrafts[i].type = "counter";
+                                    newDrafts[i].formatType = newDrafts[i].formatType || "raw";
+                                    newDrafts[i].numberFormat = newDrafts[i].numberFormat || "compact";
                                     setDraftPrompts(newDrafts);
                                   }}
                                   c="white"
@@ -419,6 +532,123 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                                 </Menu.Item>
                               </Menu.Dropdown>
                             </Menu>
+                            {p.type === "counter" && (
+                              <Popover width={280} position="bottom-end" withArrow shadow="xl" withinPortal trapFocus={false}>
+                                <Popover.Target>
+                                  <Tooltip label="Design Counter Format" withinPortal>
+                                    <ActionIcon variant="light" color="violet" size="xs" radius="md">
+                                      <IconSettings size={12} />
+                                    </ActionIcon>
+                                  </Tooltip>
+                                </Popover.Target>
+                                <Popover.Dropdown bg="#0c0a1a" style={{ border: "1px solid rgba(147, 51, 234, 0.2)", padding: 12 }}>
+                                  <Stack gap="xs">
+                                    <Text size="xs" fw={700} c="violet.3" mb={4}>Smart Counter Design</Text>
+                                    
+                                    <Select
+                                      label="Format Type"
+                                      size="xs"
+                                      comboboxProps={{ withinPortal: false }}
+                                      data={[
+                                        { value: "raw", label: "Raw Number" },
+                                        { value: "currency", label: "Currency" },
+                                        { value: "unit", label: "Measurement Unit" }
+                                      ]}
+                                      value={p.formatType || "raw"}
+                                      onChange={(v) => handleFormatTypeChange(i, v || "raw")}
+                                      styles={{
+                                        label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                        option: { color: "white" }
+                                      }}
+                                    />
+
+                                    {p.formatType === "currency" && (
+                                      <Select
+                                        label="Currency"
+                                        size="xs"
+                                        comboboxProps={{ withinPortal: false }}
+                                        data={[
+                                          { value: "USD", label: "USD ($)" },
+                                          { value: "PHP", label: "PHP (₱)" },
+                                          { value: "EUR", label: "EUR (€)" },
+                                          { value: "CNY", label: "CNY (¥)" },
+                                          { value: "JPY", label: "JPY (¥)" }
+                                        ]}
+                                        value={p.formatValue || "USD"}
+                                        onChange={(v) => updateDraftFormat(i, "formatValue", v || "USD")}
+                                        styles={{
+                                          label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                          input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                          dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                          option: { color: "white" }
+                                        }}
+                                      />
+                                    )}
+
+                                    {p.formatType === "unit" && (
+                                      <Stack gap="xs">
+                                        <Select
+                                          label="Unit"
+                                          size="xs"
+                                          comboboxProps={{ withinPortal: false }}
+                                          data={[
+                                            { value: "kg", label: "kg (Weight - Kilograms)" },
+                                            { value: "lbs", label: "lbs (Weight - Pounds)" },
+                                            { value: "cm", label: "cm (Height - Centimeters)" },
+                                            { value: "m", label: "m (Height - Meters)" },
+                                            { value: "%", label: "% (Percentage)" },
+                                            { value: "pcs", label: "pcs (Pieces)" },
+                                            { value: "custom", label: "Custom Suffix..." }
+                                          ]}
+                                          value={getSelectedUnit(p)}
+                                          onChange={(v) => handleUnitChange(i, v || "kg")}
+                                          styles={{
+                                            label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                            input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                            dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                            option: { color: "white" }
+                                          }}
+                                        />
+                                        {getSelectedUnit(p) === "custom" && (
+                                          <TextInput
+                                            label="Custom Suffix"
+                                            size="xs"
+                                            placeholder="e.g. pixels, points"
+                                            value={p.formatValue || ""}
+                                            onChange={(e) => updateDraftFormat(i, "formatValue", e.currentTarget.value)}
+                                            styles={{
+                                              label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                              input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" }
+                                            }}
+                                          />
+                                        )}
+                                      </Stack>
+                                    )}
+
+                                    <Select
+                                      label="Number Style"
+                                      size="xs"
+                                      comboboxProps={{ withinPortal: false }}
+                                      data={[
+                                        { value: "compact", label: "Abbreviated (e.g. 11k)" },
+                                        { value: "decimal", label: "Decimal (e.g. 11,000.00)" },
+                                        { value: "integer", label: "Integer (e.g. 11,000)" }
+                                      ]}
+                                      value={p.numberFormat || "compact"}
+                                      onChange={(v) => updateDraftFormat(i, "numberFormat", v || "compact")}
+                                      styles={{
+                                        label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                        option: { color: "white" }
+                                      }}
+                                    />
+                                  </Stack>
+                                </Popover.Dropdown>
+                              </Popover>
+                            )}
                             <ActionIcon variant="subtle" color="gray" size="xs" onClick={() => handleRemovePrompt(i)}>
                               <IconX size={12} />
                             </ActionIcon>
@@ -477,6 +707,129 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                         {getIconForType(widget.type)}
                         <Text fw={700} size="sm" c="white">{widget.title}</Text>
                       </Group>
+                      {widget.type === "counter" && (
+                        <Popover width={280} position="bottom-end" withArrow shadow="xl" withinPortal trapFocus={false}>
+                          <Popover.Target>
+                            <Tooltip label="Design Counter Format" withinPortal>
+                              <Badge 
+                                size="xs" 
+                                color="violet" 
+                                variant="light" 
+                                style={{ cursor: "pointer" }}
+                                rightSection={<IconSettings size={10} style={{ marginLeft: 2 }} />}
+                              >
+                                Customize Format
+                              </Badge>
+                            </Tooltip>
+                          </Popover.Target>
+                          <Popover.Dropdown bg="#0c0a1a" style={{ border: "1px solid rgba(147, 51, 234, 0.2)", padding: 12 }}>
+                            <Stack gap="xs">
+                              <Text size="xs" fw={700} c="violet.3" mb={4}>Smart Counter Design</Text>
+                              
+                              <Select
+                                label="Format Type"
+                                size="xs"
+                                comboboxProps={{ withinPortal: false }}
+                                data={[
+                                  { value: "raw", label: "Raw Number" },
+                                  { value: "currency", label: "Currency" },
+                                  { value: "unit", label: "Measurement Unit" }
+                                ]}
+                                value={widget.mapping?.formatType || "raw"}
+                                onChange={(v) => handleProposedFormatTypeChange(index, v || "raw")}
+                                styles={{
+                                  label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                  input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                  dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                  option: { color: "white" }
+                                }}
+                              />
+
+                              {widget.mapping?.formatType === "currency" && (
+                                <Select
+                                  label="Currency"
+                                  size="xs"
+                                  comboboxProps={{ withinPortal: false }}
+                                  data={[
+                                    { value: "USD", label: "USD ($)" },
+                                    { value: "PHP", label: "PHP (₱)" },
+                                    { value: "EUR", label: "EUR (€)" },
+                                    { value: "CNY", label: "CNY (¥)" },
+                                    { value: "JPY", label: "JPY (¥)" }
+                                  ]}
+                                  value={widget.mapping?.formatValue || "USD"}
+                                  onChange={(v) => updateProposedFormat(index, "formatValue", v || "USD")}
+                                  styles={{
+                                    label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                    input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                    dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                    option: { color: "white" }
+                                  }}
+                                />
+                              )}
+
+                              {widget.mapping?.formatType === "unit" && (
+                                <Stack gap="xs">
+                                  <Select
+                                    label="Unit"
+                                    size="xs"
+                                    comboboxProps={{ withinPortal: false }}
+                                    data={[
+                                      { value: "kg", label: "kg (Weight - Kilograms)" },
+                                      { value: "lbs", label: "lbs (Weight - Pounds)" },
+                                      { value: "cm", label: "cm (Height - Centimeters)" },
+                                      { value: "m", label: "m (Height - Meters)" },
+                                      { value: "%", label: "% (Percentage)" },
+                                      { value: "pcs", label: "pcs (Pieces)" },
+                                      { value: "custom", label: "Custom Suffix..." }
+                                    ]}
+                                    value={getSelectedUnit(widget.mapping)}
+                                    onChange={(v) => handleProposedUnitChange(index, v || "kg")}
+                                    styles={{
+                                      label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                      input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                      dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                      option: { color: "white" }
+                                    }}
+                                  />
+                                  {getSelectedUnit(widget.mapping) === "custom" && (
+                                    <TextInput
+                                      label="Custom Suffix"
+                                      size="xs"
+                                      placeholder="e.g. pixels, points"
+                                      value={widget.mapping?.formatValue || ""}
+                                      onChange={(e) => updateProposedFormat(index, "formatValue", e.currentTarget.value)}
+                                      styles={{
+                                        label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" }
+                                      }}
+                                    />
+                                  )}
+                                </Stack>
+                              )}
+
+                              <Select
+                                label="Number Style"
+                                size="xs"
+                                comboboxProps={{ withinPortal: false }}
+                                data={[
+                                  { value: "compact", label: "Abbreviated (e.g. 11k)" },
+                                  { value: "decimal", label: "Decimal (e.g. 11,000.00)" },
+                                  { value: "integer", label: "Integer (e.g. 11,000)" }
+                                ]}
+                                value={widget.mapping?.numberFormat || "compact"}
+                                onChange={(v) => updateProposedFormat(index, "numberFormat", v || "compact")}
+                                styles={{
+                                  label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                                  input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                                  dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                                  option: { color: "white" }
+                                }}
+                              />
+                            </Stack>
+                          </Popover.Dropdown>
+                        </Popover>
+                      )}
                     </Group>
                     <Text size="xs" c="dimmed" mb="md" style={{ lineHeight: 1.4 }}>
                       {widget.reason}
@@ -520,7 +873,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
         >
           <Stack gap="md">
             <TextInput
-              placeholder={draftPrompts.length >= 5 ? "Limit reached (5/5)" : "Describe an insight (e.g. Sales by Region)"}
+              placeholder={draftPrompts.length >= 10 ? "Limit reached (10/10)" : "Describe an insight (e.g. Sales by Region)"}
               size="md"
               value={currentPrompt}
               onChange={(e) => setCurrentPrompt(e.currentTarget.value)}
@@ -535,7 +888,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                   }
                 }
               }}
-              disabled={isGenerating || draftPrompts.length >= 5}
+              disabled={isGenerating || draftPrompts.length >= 10}
               styles={{
                 input: {
                   background: "rgba(255,255,255,0.03)",
@@ -553,7 +906,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
                       variant="subtle"
                       radius="md"
                       onClick={handleAddPrompt}
-                      disabled={!currentPrompt.trim() || draftPrompts.length >= 5}
+                      disabled={!currentPrompt.trim() || draftPrompts.length >= 10}
                     >
                       <IconPlus size={18} />
                     </ActionIcon>
@@ -578,36 +931,102 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
 
             <Group justify="space-between" align="center">
               <Group gap="sm">
-                <MultiSelect
-                  data={allConfigs?.map(c => ({ value: c._id, label: c.name })) || []}
-                  value={selectedConfigIds}
-                  onChange={setSelectedConfigIds}
-                  placeholder="Databases"
-                  variant="unstyled"
-                  size="xs"
-                  w={180}
-                  hidePickedOptions={false}
-                  comboboxProps={{ position: 'top-start', width: 280, shadow: 'xl' }}
-                  rightSection={<IconChevronDown size={10} color="rgba(255,255,255,0.4)" />}
-                  renderOption={({ option }) => {
-                    const config = allConfigs?.find(c => c._id === option.value);
-                    const isSelected = selectedConfigIds.includes(option.value);
-                    return (
-                      <Group gap="sm" wrap="nowrap">
-                        <Checkbox checked={isSelected} readOnly size="xs" color="violet" />
-                        <Stack gap={2}>
-                          <Text size="xs" fw={700} c="white">{option.label}</Text>
-                          <Text size="10px" c="dimmed">{config?.type?.toUpperCase()}</Text>
-                        </Stack>
-                      </Group>
-                    );
-                  }}
+                <Menu 
+                  closeOnItemClick={false} 
+                  position="top-start" 
+                  width={320} 
+                  shadow="xl"
                   styles={{
-                    input: { color: "rgba(255,255,255,0.6)", fontSize: "11px", minHeight: "unset" },
-                    dropdown: { background: "#0c0a1a", borderColor: "rgba(147, 51, 234, 0.2)" },
-                    option: { fontSize: "11px", color: "white" }
+                    dropdown: {
+                      background: "#0c0a1a",
+                      borderColor: "rgba(147, 51, 234, 0.2)",
+                      borderRadius: "8px",
+                      padding: "4px"
+                    },
+                    item: {
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      color: "white",
+                      "&:hover": {
+                        background: "rgba(255,255,255,0.05)"
+                      }
+                    }
                   }}
-                />
+                >
+                  <Menu.Target>
+                    <Group 
+                      gap={6} 
+                      px="sm" 
+                      py={6} 
+                      style={{ 
+                        cursor: "pointer", 
+                        borderRadius: "8px", 
+                        border: "1px solid rgba(147, 51, 234, 0.2)",
+                        background: "rgba(255,255,255,0.02)",
+                        height: "32px",
+                        minWidth: "150px",
+                        transition: "all 0.15s ease"
+                      }}
+                      className="db-select-pill-hover"
+                    >
+                      <style jsx>{`
+                        .db-select-pill-hover:hover {
+                          background: rgba(255,255,255,0.06) !important;
+                          border-color: rgba(147, 51, 234, 0.4) !important;
+                        }
+                      `}</style>
+                      <IconTable size={14} color="rgba(255,255,255,0.4)" />
+                      <Text size="xs" fw={600} c="rgba(255,255,255,0.8)" style={{ flex: 1 }}>
+                        {selectedConfigIds.length === 0 
+                          ? "Select Databases" 
+                          : `${selectedConfigIds.length} DB${selectedConfigIds.length > 1 ? "s" : ""} Selected`}
+                      </Text>
+                      <IconChevronDown size={10} color="rgba(255,255,255,0.4)" />
+                    </Group>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label c="dimmed" style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      Target Databases
+                    </Menu.Label>
+                    {allConfigs?.map((config) => {
+                      const isSelected = selectedConfigIds.includes(config._id);
+                      return (
+                        <Menu.Item
+                          key={config._id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedConfigIds(selectedConfigIds.filter(id => id !== config._id));
+                            } else {
+                              setSelectedConfigIds([...selectedConfigIds, config._id]);
+                            }
+                          }}
+                        >
+                          <Group gap="sm" wrap="nowrap" style={{ width: "100%" }}>
+                            <Checkbox
+                              checked={isSelected}
+                              readOnly
+                              size="xs"
+                              color="violet"
+                              styles={{ input: { cursor: 'pointer' } }}
+                            />
+                            <Avatar
+                              src={config.image || "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"}
+                              size={24}
+                              radius="xs"
+                              style={{ background: "transparent", opacity: 0.8 }}
+                            />
+                            <Stack gap={2} style={{ flex: 1 }}>
+                              <Text size="xs" fw={700} c="white">{config.name}</Text>
+                              <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+                                {config.type?.toUpperCase()}{config.description ? ` • ${config.description}` : ""}
+                              </Text>
+                            </Stack>
+                          </Group>
+                        </Menu.Item>
+                      );
+                    })}
+                  </Menu.Dropdown>
+                </Menu>
 
                 <Select
                   data={MODEL_OPTIONS}
@@ -630,7 +1049,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
 
               <Group gap={4}>
                 <IconSparkles size={10} color="#a855f7" />
-                <Text size="10px" c="dimmed">{draftPrompts.length}/5 Insights</Text>
+                <Text size="10px" c="dimmed">{draftPrompts.length}/10 Insights</Text>
               </Group>
             </Group>
           </Stack>
