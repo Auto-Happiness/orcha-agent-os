@@ -132,16 +132,40 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
     }
 
     let displayVal = "";
-    if (rawVal >= 1_000_000_000) {
-      displayVal = `${(rawVal / 1_000_000_000).toFixed(1)}B`;
-    } else if (rawVal >= 1_000_000) {
-      displayVal = `${(rawVal / 1_000_000).toFixed(1)}M`;
-    } else if (rawVal >= 1_000) {
-      displayVal = `${(rawVal / 1_000).toFixed(1)}k`;
-    } else if (Number.isInteger(rawVal)) {
-      displayVal = rawVal.toLocaleString();
-    } else {
+    const style = widget.mapping?.numberFormat || "compact";
+
+    if (style === "compact") {
+      if (rawVal >= 1_000_000_000) {
+        displayVal = `${(rawVal / 1_000_000_000).toFixed(1)}B`;
+      } else if (rawVal >= 1_000_000) {
+        displayVal = `${(rawVal / 1_000_000).toFixed(1)}M`;
+      } else if (rawVal >= 1_000) {
+        displayVal = `${(rawVal / 1_000).toFixed(1)}k`;
+      } else if (Number.isInteger(rawVal)) {
+        displayVal = rawVal.toLocaleString();
+      } else {
+        displayVal = rawVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+    } else if (style === "decimal") {
       displayVal = rawVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else if (style === "integer") {
+      displayVal = Math.round(rawVal).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+
+    const formatType = widget.mapping?.formatType;
+    const formatValue = widget.mapping?.formatValue;
+    if (formatType === "currency") {
+      const symbolMap: Record<string, string> = {
+        USD: "$",
+        PHP: "₱",
+        EUR: "€",
+        CNY: "¥",
+        JPY: "¥"
+      };
+      const symbol = symbolMap[formatValue || "USD"] || "$";
+      displayVal = `${symbol}${displayVal}`;
+    } else if (formatType === "unit" && formatValue) {
+      displayVal = `${displayVal} ${formatValue}`;
     }
 
     const firstRowLabel = widget.mapping?.labelKey ? queryData[0]?.[widget.mapping.labelKey] : undefined;
@@ -172,6 +196,9 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
       labelKey={widget.mapping.labelKey}
       valueKeys={widget.mapping.valueKeys}
       seriesColors={widget.mapping.seriesColors}
+      formatType={widget.mapping?.formatType}
+      formatValue={widget.mapping?.formatValue}
+      numberFormat={widget.mapping?.numberFormat}
       height="100%"
     />
   );
