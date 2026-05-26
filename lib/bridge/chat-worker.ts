@@ -15,6 +15,7 @@ export class ChatWorker {
   private redis: IORedis;
   private queue: Queue;
   private worker?: Worker;
+  private workerRedis?: IORedis;
 
   constructor(isWorker: boolean = false) {
     const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
@@ -23,6 +24,7 @@ export class ChatWorker {
 
     if (isWorker) {
       console.log(`🚀 [ChatWorker] Consumer initialized. Listening for jobs...`);
+      this.workerRedis = new IORedis(redisUrl, { maxRetriesPerRequest: null });
       
       this.worker = new Worker(
         "chat-queue",
@@ -90,6 +92,7 @@ export class ChatWorker {
               return collectedParts;
             };
 
+            let lastPushedLength = 0;
             const reader = result.fullStream.getReader();
             while (true) {
               const { done, value } = await reader.read();
@@ -98,8 +101,9 @@ export class ChatWorker {
               if (value.type === "text-delta") {
                 fullContent += value.text;
                 currentText += value.text;
-                if (currentText.length % 20 === 0) {
+                if (fullContent.length - lastPushedLength >= 20) {
                   await pushUpdate(fullContent, trimToolResultParts(getPartsToPush(currentText)));
+                  lastPushedLength = fullContent.length;
                 }
               } else if (value.type === "tool-call") {
                 // When a tool is called, commit the current text part into the array
@@ -147,7 +151,7 @@ export class ChatWorker {
             throw error;
           }
         },
-        { connection: this.redis, concurrency: 50 }
+        { connection: this.workerRedis, concurrency: 50 }
       );
 
       this.worker.on("failed", (job, err) => {
@@ -172,6 +176,16 @@ export class ChatWorker {
     if (this.worker) await this.worker.close();
     await this.queue.close();
     await this.redis.quit();
+    if (this.workerRedis) await this.workerRedis.quit();
   }
+}
+
+let globalChatWorker: ChatWorker | null = null;
+
+export function getChatWorker(isWorker = false) {
+  if (!globalChatWorker) {
+    globalChatWorker = new ChatWorker(isWorker);
+  }
+  return globalChatWorker;
 }
 

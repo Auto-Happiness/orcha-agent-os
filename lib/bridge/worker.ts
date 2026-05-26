@@ -10,11 +10,15 @@ import { join } from "path";
  */
 export class CSVExportWorker {
   private redis: IORedis;
+  private workerRedis: IORedis;
   private queue: Queue;
   private worker: Worker;
 
   constructor() {
-    this.redis = new IORedis(process.env.REDIS_URL || "redis://localhost:6379");
+    const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+    this.redis = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+    this.workerRedis = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+    
     this.queue = new Queue("data-exports", { connection: this.redis });
 
     this.worker = new Worker(
@@ -32,7 +36,7 @@ export class CSVExportWorker {
           throw error;
         }
       },
-      { connection: this.redis }
+      { connection: this.workerRedis }
     );
   }
 
@@ -67,6 +71,13 @@ export class CSVExportWorker {
 
   async addJob(data: any) {
     return await this.queue.add("csv-export", data);
+  }
+
+  async close() {
+    await this.worker.close();
+    await this.queue.close();
+    await this.redis.quit();
+    await this.workerRedis.quit();
   }
 }
 

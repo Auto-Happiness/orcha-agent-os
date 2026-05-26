@@ -1,4 +1,5 @@
 import { ChatWorker } from "./chat-worker";
+import { DashboardWorker } from "./dashboard-worker";
 import fs from "fs";
 import path from "path";
 
@@ -33,13 +34,15 @@ if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
   process.exit(1);
 }
 
-console.log(`🚀 Starting Orcha Chat Background Worker on ${process.env.NEXT_PUBLIC_CONVEX_URL}...`);
+console.log(`🚀 Starting Orcha Background Workers on ${process.env.NEXT_PUBLIC_CONVEX_URL}...`);
 console.log(`🔑 Key: ${process.env.ENCRYPTION_KEY ? "LOADED" : "MISSING"}`);
 
-const worker = new ChatWorker(true);
+const chatWorker = new ChatWorker(true);
+const dashboardWorker = new DashboardWorker(true);
 
 process.on("SIGINT", async () => {
-  console.log("🛑 Closing Orcha Worker gracefully...");
-  await worker.close();
+  console.log("🛑 Closing Orcha Workers gracefully...");
+  await chatWorker.close();
+  await dashboardWorker.close();
   process.exit(0);
 });
