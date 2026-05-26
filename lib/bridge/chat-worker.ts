@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { createChatAgent } from "../chat-agent";
 import { normalizeChatHistory, trimToolResultParts } from "../chat-utils";
+import { pruneMessages } from "ai";
 
 /**
  * ChatWorker handles AI Agent execution in the background
@@ -58,12 +59,22 @@ export class ChatWorker {
             });
 
             // 3. Normalize history — same logic as Sync mode (route.ts)
+            //    Then safely prune old tool-call blobs so long sessions don't
+            //    balloon input tokens. pruneMessages is tool-call-aware and
+            //    never separates a tool-call from its paired tool-result.
             const modelMessages = await normalizeChatHistory(context.messages);
+            const prunedMessages = modelMessages.length > 4
+              ? pruneMessages({
+                  messages: modelMessages,
+                  toolCalls: "before-last-2-messages", // keep last 2 turns' tool context
+                  emptyMessages: "remove",             // clean up emptied messages
+                })
+              : modelMessages;
 
-            console.log(`[ChatWorker] Turn ${context.messages.length} | Normalized history: ${modelMessages.length} ModelMessage(s)`);
+            console.log(`[ChatWorker] Turn ${context.messages.length} | History: ${modelMessages.length} → ${prunedMessages.length} msgs after pruning`);
 
             const result = await agent.stream({
-              messages: modelMessages,
+              messages: prunedMessages,
             });
 
             let fullContent = "";

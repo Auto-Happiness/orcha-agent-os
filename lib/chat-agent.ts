@@ -6,6 +6,7 @@ import { OrchaFusion } from "./engine/orcha-fusion";
 import { classifyIntent } from "./intent-classifier";
 import { getNativeDialectRule, getFederatedRule } from "./dialects";
 import { buildManifest, validateSQL, CompiledManifest } from "./sql-validator";
+import { rewriteConversationalQuery } from "./query-rewriter";
 
 const MAX_ROWS = 50;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
@@ -98,12 +99,16 @@ export async function createChatAgent(context: AgentContext) {
   let compiledManifest: CompiledManifest = { tables: [], relationships: [] };
   const lastMessage = (messages[messages.length - 1] as any)?.content || "";
 
+  // Run conversational query rewriter to expand pronoun-heavy follow-up questions using low-latency LLM completion
+  const ragSearchQuery = await rewriteConversationalQuery(messages, pruningModel);
+
   // --- INTENT CLASSIFICATION ---
   // Derive table names from allOrgModels fetched in the parallel block above — zero extra cost.
   const tableNames = allOrgModels
     .filter((m: any) => m.configId === config._id)
     .map((m: any) => m.displayName || m.tableName);
 
+  // TODO: Re-enable intent classification once we have more than one intent. For now, we assume all queries are TEXT_TO_SQL to ensure the RAG pipeline is always exercised and debugged.
   // classifyIntent is temporarily commented out for now
   // const classification = await classifyIntent(lastMessage, aiModel, tableNames, config.businessContext);
   // const messageIntent = classification.intent;
@@ -127,7 +132,7 @@ export async function createChatAgent(context: AgentContext) {
         const embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
         const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
           organizationId: organizationId as any,
-          text: lastMessage,
+          text: ragSearchQuery,
           provider: embedProvider,
           sysApiKey: apiKey,
         });
@@ -262,7 +267,7 @@ export async function createChatAgent(context: AgentContext) {
     console.warn("[Agent] RAG returned no results. Running Instant Fuzzy Matcher...");
 
     // Fuzzy match: Look for query keywords in table names
-    const queryWords = lastMessage.toLowerCase().split(/\s+/);
+    const queryWords = ragSearchQuery.toLowerCase().split(/\s+/);
     const fuzzyMatches = allModels.filter((m: any) => {
       const name = (m.displayName || m.tableName || "").toLowerCase();
       return queryWords.some((word: string) => word.length > 3 && (name.includes(word) || word.includes(name)));
@@ -286,7 +291,7 @@ export async function createChatAgent(context: AgentContext) {
     const totalColumns = filteredModels.reduce((sum: number, m: any) => sum + (m.fields?.length || 0), 0);
     if (totalColumns > 150) {
       try {
-        const pruned = await pruneColumns(lastMessage, filteredModels, relationships, pruningModel);
+        const pruned = await pruneColumns(ragSearchQuery, filteredModels, relationships, pruningModel);
         filteredModels = pruned;
       } catch (err) {
         console.warn("[Agent] Column pruning failed, using full schema context:", err);

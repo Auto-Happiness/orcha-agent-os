@@ -931,11 +931,21 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
             );
           })}
           {sqlQueries.length > 0 && (
-            <Box mt={6}>
+            <Group gap="xs" mt={6}>
               <Button size="compact-xs" variant="subtle" color="violet" radius="md" leftSection={<IconCode size={11} />} onClick={() => onViewSql(sqlQueries)} styles={{ root: { fontSize: 11, opacity: 0.6 } }}>
                 View SQL
               </Button>
-            </Box>
+              <MantineTooltip label="Estimated tokens used for this turn (prompt + response)" position="top" withArrow>
+                <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.1)", border: "1px solid rgba(147,51,234,0.2)", cursor: "help" }}>
+                  <Group gap={4}>
+                    <IconBrain size={10} color="rgba(192,132,252,0.8)" />
+                    <Text size="10px" fw={600} c="violet.3">
+                      ~{Math.ceil(JSON.stringify(m.parts).length / 4) + 850} tokens spent
+                    </Text>
+                  </Group>
+                </Box>
+              </MantineTooltip>
+            </Group>
           )}
         </Stack>
       </Group>

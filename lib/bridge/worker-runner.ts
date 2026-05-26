@@ -34,7 +34,7 @@ if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
 }
 
 console.log(`🚀 Starting Orcha Chat Background Worker on ${process.env.NEXT_PUBLIC_CONVEX_URL}...`);
-console.log(`🔑 Encryption Key: ${process.env.ENCRYPTION_KEY ? "LOADED" : "MISSING"}`);
+console.log(`🔑 Key: ${process.env.ENCRYPTION_KEY ? "LOADED" : "MISSING"}`);
 
 const worker = new ChatWorker(true);
 
