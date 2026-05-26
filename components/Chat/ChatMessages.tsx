@@ -594,13 +594,23 @@ function extractSQLFromParts(parts: any[]): string[] {
 function renderToolPart(part: any, i: number, showResults: boolean, organizationId?: string, configId?: string | null, messageId?: string, parts?: any[]) {
   const type: string = part.type ?? "";
 
+  // Resolve toolName early to check if it should be hidden from UI
+  let toolName = part.toolInvocation?.toolName || part.toolName || "query";
+  if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") {
+    toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
+  } else if (type === "tool-output-available") {
+    toolName = part.toolName || "tool";
+  }
+
+  // Hide internal schema searches and dry-runs from cluttering the user interface
+  if (toolName === "search_db_schema" || toolName === "dry_plan_sql") return null;
+
   if (
     type === "tool-call" ||
     (type === "tool-invocation" && (part.toolInvocation?.state === "call" || part.toolInvocation?.state === "partial-call")) ||
     type.startsWith("tool-input") ||
     (type === "tool-execute_sql" && part.state === "input-streaming")
   ) {
-    const toolName = part.toolInvocation?.toolName || part.toolName || "query";
     const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
     
     return (
@@ -615,23 +625,18 @@ function renderToolPart(part: any, i: number, showResults: boolean, organization
   }
 
   let result: any = null;
-  let toolName = "";
 
   if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql") && part.state === "output-available") {
     result = part.output;
-    toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
   }
   else if (type === "tool-result") {
     result = part.result;
-    toolName = part.toolName;
   }
   else if (type === "tool-invocation" && part.toolInvocation?.state === "result") {
     result = part.toolInvocation.result;
-    toolName = part.toolInvocation.toolName;
   }
   else if (type === "tool-output-available") {
     result = part.output;
-    toolName = part.toolName || "tool";
   }
 
   if (!result) return null;

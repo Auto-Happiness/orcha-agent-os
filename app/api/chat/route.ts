@@ -107,8 +107,8 @@ export async function POST(req: NextRequest) {
       }
 
       // 2. Add to BullMQ
-      const { ChatWorker } = await import("@/lib/bridge/chat-worker");
-      const worker = new ChatWorker();
+      const { getChatWorker } = await import("@/lib/bridge/chat-worker");
+      const worker = getChatWorker();
       const job = await worker.addJob({
         context: {
           organizationId,
@@ -126,9 +126,6 @@ export async function POST(req: NextRequest) {
         messageId,
         clerkToken: token,
       });
-
-      // Close the connection (Producer only needs it briefly)
-      await worker.close();
 
       return NextResponse.json({
         success: true,
