@@ -7,6 +7,7 @@ import { classifyIntent } from "./intent-classifier";
 import { getNativeDialectRule, getFederatedRule } from "./dialects";
 import { buildManifest, validateSQL, CompiledManifest } from "./sql-validator";
 import { rewriteConversationalQuery } from "./query-rewriter";
+import { transpileSemanticSQL } from "./semantic-transpiler";
 
 const MAX_ROWS = 50;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
@@ -556,8 +557,25 @@ Step 4 — STORE (automatic):
       execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
 
+        // Semantic transpilation: expand virtual columns, join conditions via Semantic MDL.
+        // Falls back silently to original SQL if WASM is not built or transpilation fails.
+        let execSql = sql;
+        try {
+          const transpiled = await transpileSemanticSQL(
+            sql,
+            allModels,
+            relationships,
+            config._id,
+            allOrgConfigs
+          );
+          console.log("[Agent] Semantic transpilation succeeded.");
+          execSql = transpiled;
+        } catch (transpileErr: any) {
+          console.warn("[Agent] Semantic transpilation skipped (falling back to raw SQL):", transpileErr?.message || transpileErr);
+        }
+
         // Pre-execution dry-plan: validate column/table references before hitting the DB
-        const dryPlan = validateSQL(sql, compiledManifest);
+        const dryPlan = validateSQL(execSql, compiledManifest);
         if (!dryPlan.valid) {
           console.warn("[Agent] execute_sql dry-plan failed:", dryPlan.errors);
           return {
@@ -570,7 +588,7 @@ Step 4 — STORE (automatic):
 
         try {
           const schemaName = config.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
-          const rows = await OrchaFusion.execute(sql, schemaName, dbConfig);
+          const rows = await OrchaFusion.execute(execSql, schemaName, dbConfig);
 
           // Store successful query in Convex semanticMemory in background
           try {
@@ -578,7 +596,7 @@ Step 4 — STORE (automatic):
               organizationId: organizationId as any,
               configId: config._id,
               question: lastMessage,
-              sql: sql,
+              sql: execSql,
               apiKey,
             }).catch((e: any) => console.error("[Agent] Memory store deferred failure:", e));
           } catch (e) {
@@ -622,8 +640,25 @@ Step 4 — STORE (automatic):
       execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
 
+        // Semantic transpilation: expand virtual columns, join conditions via Semantic MDL.
+        // Falls back silently to original SQL if WASM is not built or transpilation fails.
+        let execSql = sql;
+        try {
+          const transpiled = await transpileSemanticSQL(
+            sql,
+            allModels,
+            relationships,
+            config._id,
+            allOrgConfigs
+          );
+          console.log("[Agent] Federated semantic transpilation succeeded.");
+          execSql = transpiled;
+        } catch (transpileErr: any) {
+          console.warn("[Agent] Federated semantic transpilation skipped (falling back to raw SQL):", transpileErr?.message || transpileErr);
+        }
+
         // Pre-execution dry-plan: validate column/table references across all federated DBs
-        const dryPlan = validateSQL(sql, compiledManifest);
+        const dryPlan = validateSQL(execSql, compiledManifest);
         if (!dryPlan.valid) {
           console.warn("[Agent] execute_federated_sql dry-plan failed:", dryPlan.errors);
           return {
@@ -636,7 +671,7 @@ Step 4 — STORE (automatic):
 
         try {
           console.log("[Agent] Executing FEDERATED query across", dbConfigMap.size, "databases");
-          const rows = await OrchaFusion.executeMulti(sql, dbConfigMap);
+          const rows = await OrchaFusion.executeMulti(execSql, dbConfigMap);
 
           // Store successful query in Convex semanticMemory in background
           try {
@@ -644,7 +679,7 @@ Step 4 — STORE (automatic):
               organizationId: organizationId as any,
               configId: config._id,
               question: lastMessage,
-              sql: sql,
+              sql: execSql,
               apiKey,
             }).catch((e: any) => console.error("[Agent] Memory store deferred failure:", e));
           } catch (e) {
