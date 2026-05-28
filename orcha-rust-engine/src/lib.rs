@@ -74,3 +74,36 @@ impl OrchaSemanticEngine {
         Err(JsError::new("Failed to parse calculated column expression"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    #[wasm_bindgen_test]
+    async fn test_end_to_end_transpilation() {
+        // Create engine instance
+        let engine = OrchaSemanticEngine::new().unwrap();
+
+        // 1. Register a physical table
+        let fields_json = r#"[
+            {"name": "id", "type": "integer"},
+            {"name": "amount", "type": "double"},
+            {"name": "customer_id", "type": "integer"}
+        ]"#;
+        engine.register_table("orders", fields_json).unwrap();
+
+        // 2. Register a virtual calculated column
+        engine.register_calculated_column("orders", "amount_with_tax", "amount * 1.05")
+            .await
+            .unwrap();
+
+        // 3. Transpile/translate a query using the virtual column
+        let query = "SELECT id, amount_with_tax FROM orders";
+        let physical_sql = engine.translate_sql(query).await.unwrap();
+
+        // 4. Assert that the expression has been expanded correctly
+        assert!(physical_sql.contains("1.05"));
+        assert!(physical_sql.to_lowercase().contains("orders"));
+    }
+}
