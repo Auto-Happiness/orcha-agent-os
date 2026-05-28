@@ -95,3 +95,146 @@ test("transpileSemanticSQL translates virtual columns and joins end-to-end", asy
   assert.ok(physicalSql.toLowerCase().includes("orders"));
   assert.ok(physicalSql.toLowerCase().includes("customers"));
 });
+
+test("transpileSemanticSQL resolves nested (multi-level) virtual columns", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "amount", type: "double" },
+        // Virtual level 1
+        {
+          columnName: "amount_with_tax",
+          type: "double",
+          sqlExpression: "amount * 1.05",
+        },
+        // Virtual level 2 (referencing virtual level 1)
+        {
+          columnName: "total_cost",
+          type: "double",
+          sqlExpression: "amount_with_tax + 10.00",
+        },
+      ],
+    },
+  ];
+
+  const allOrgConfigs = [{ _id: "cfg1", name: "Sales DB" }];
+
+  const semanticSql = "SELECT total_cost FROM orders";
+  const physicalSql = await transpileSemanticSQL(
+    semanticSql,
+    allModels,
+    [],
+    "cfg1",
+    allOrgConfigs
+  );
+
+  // The output physical SQL should contain both the tax calculation and the shipping fee expansion
+  assert.ok(physicalSql.includes("1.05"));
+  assert.ok(physicalSql.includes("10"));
+  assert.ok(physicalSql.toLowerCase().includes("orders"));
+});
+
+test("transpileSemanticSQL supports conditional CASE WHEN expressions", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "amount", type: "double" },
+        {
+          columnName: "price_category",
+          type: "varchar",
+          sqlExpression: "CASE WHEN amount > 100 THEN 'expensive' ELSE 'cheap' END",
+        },
+      ],
+    },
+  ];
+
+  const allOrgConfigs = [{ _id: "cfg1", name: "Sales DB" }];
+
+  const semanticSql = "SELECT price_category FROM orders";
+  const physicalSql = await transpileSemanticSQL(
+    semanticSql,
+    allModels,
+    [],
+    "cfg1",
+    allOrgConfigs
+  );
+
+  assert.ok(physicalSql.toLowerCase().includes("case"));
+  assert.ok(physicalSql.toLowerCase().includes("expensive"));
+  assert.ok(physicalSql.toLowerCase().includes("cheap"));
+});
+
+test("transpileSemanticSQL supports function expressions like COALESCE", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "amount", type: "double" },
+        { columnName: "discount", type: "double" },
+        {
+          columnName: "net_revenue",
+          type: "double",
+          sqlExpression: "COALESCE(amount, 0.0) - COALESCE(discount, 0.0)",
+        },
+      ],
+    },
+  ];
+
+  const allOrgConfigs = [{ _id: "cfg1", name: "Sales DB" }];
+
+  const semanticSql = "SELECT net_revenue FROM orders";
+  const physicalSql = await transpileSemanticSQL(
+    semanticSql,
+    allModels,
+    [],
+    "cfg1",
+    allOrgConfigs
+  );
+
+  const sqlLower = physicalSql.toLowerCase();
+  assert.ok(sqlLower.includes("coalesce") || sqlLower.includes("case") || sqlLower.includes("amount"));
+});
+
+test("transpileSemanticSQL works with brackets and quotes in input query", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "amount", type: "double" },
+        {
+          columnName: "amount_with_tax",
+          type: "double",
+          sqlExpression: "amount * 1.05",
+        },
+      ],
+    },
+  ];
+
+  const allOrgConfigs = [{ _id: "cfg1", name: "Sales DB" }];
+
+  const semanticSql = 'SELECT [orders]."amount_with_tax" FROM [orders] WHERE [orders].id = 1';
+  const physicalSql = await transpileSemanticSQL(
+    semanticSql,
+    allModels,
+    [],
+    "cfg1",
+    allOrgConfigs
+  );
+
+  assert.ok(physicalSql.includes("1.05"));
+  assert.ok(physicalSql.toLowerCase().includes("orders"));
+});

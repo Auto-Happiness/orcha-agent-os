@@ -19,15 +19,18 @@ impl AnalyzerRule for VirtualColumnAnalyzer {
     }
 
     fn analyze(&self, plan: LogicalPlan, _config: &ConfigOptions) -> DFResult<LogicalPlan> {
+        let virtual_columns = self.virtual_columns.lock().unwrap();
+
         plan.transform_up(|node| {
             node.map_expressions(|expr| {
                 if let Expr::Column(col) = &expr {
                     if let Some(relation) = &col.relation {
                         let table_name = relation.to_string();
-                        let map = self.virtual_columns.lock().unwrap();
-                        if let Some(table_cols) = map.get(&table_name) {
+                        if let Some(table_cols) = virtual_columns.get(&table_name) {
                             if let Some(calc_expr) = table_cols.get(&col.name) {
-                                return Ok(Transformed::yes(calc_expr.clone().alias_qualified(col.relation.clone(), col.name.clone())));
+                                // Recursively expand any nested virtual columns inside this expression
+                                let expanded = expand_virtual_columns(calc_expr.clone(), &virtual_columns);
+                                return Ok(Transformed::yes(expanded.alias_qualified(col.relation.clone(), col.name.clone())));
                             }
                         }
                     }       
@@ -37,4 +40,25 @@ impl AnalyzerRule for VirtualColumnAnalyzer {
         }).map(|t| t.data)
     }
 
+}
+
+/// Helper function to recursively expand column references mapping to virtual columns
+fn expand_virtual_columns(
+    expr: Expr,
+    virtual_columns: &HashMap<String, HashMap<String, Expr>>,
+) -> Expr {
+    expr.transform_up(|e| {
+        if let Expr::Column(col) = &e {
+            if let Some(relation) = &col.relation {
+                let table_name = relation.to_string();
+                if let Some(table_cols) = virtual_columns.get(&table_name) {
+                    if let Some(calc_expr) = table_cols.get(&col.name) {
+                        let expanded = expand_virtual_columns(calc_expr.clone(), virtual_columns);
+                        return Ok(Transformed::yes(expanded.alias_qualified(col.relation.clone(), col.name.clone())));
+                    }
+                }
+            }
+        }
+        Ok(Transformed::no(e))
+    }).unwrap().data
 }

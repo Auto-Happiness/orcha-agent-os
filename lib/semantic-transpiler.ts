@@ -67,7 +67,8 @@ export function preprocessSQL(
     }
   }
 
-  let processed = sql;
+  // Convert square brackets and strip quotes to normalize SQL across dialects before preprocessing
+  let processed = sql.replace(/["\[\]]/g, "");
 
   // Sort models by length of alias + tableName descending to prevent partial replacements
   const sortedModels = [...allModels].sort((a, b) => {
