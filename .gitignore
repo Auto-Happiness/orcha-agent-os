@@ -17,6 +17,7 @@
 
 # testing
 /coverage
+/semantic-engine
 
 # next.js
 /.next/
@@ -57,3 +58,9 @@ datasamples/multidatabase/
 /.agent
 
 /.claude
+
+# custom rust engine build outputs
+target/
+pkg/
+**/target/
+**/pkg/

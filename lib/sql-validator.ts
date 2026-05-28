@@ -94,7 +94,7 @@ export function validateSQL(sql: string, manifest: CompiledManifest): Validation
     return { valid: false, errors: ["SQL is empty."], warnings: [] };
   }
 
-  const normalized = sql.replace(/\s+/g, " ").trim();
+  const normalized = sql.replace(/["\[\]]/g, "").replace(/\s+/g, " ").trim();
 
   // Build lookup maps
   // tableKey = tableName (lowercase) or alias.tableName (lowercase)
