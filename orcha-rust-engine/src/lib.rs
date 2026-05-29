@@ -1,3 +1,4 @@
+use datafusion::common::diagnostic;
 use wasm_bindgen::prelude::*;
 use datafusion::prelude::*;
 use datafusion::logical_expr::LogicalPlan;
@@ -8,6 +9,7 @@ pub mod error;
 pub mod model;
 pub mod analyzer;
 pub mod context;
+pub mod dialects;
 
 use crate::error::OrchaError;
 use crate::model::FieldInput;
@@ -29,8 +31,8 @@ impl OrchaSemanticEngine {
         Ok(OrchaSemanticEngine { ctx, virtual_columns })
     }
 
-    pub async fn translate_sql(&self, sql: &str) -> Result<String, JsError> {
-        let physical_sql = translate_sql(&self.ctx, sql)
+    pub async fn translate_sql(&self, sql: &str, dialect: &str) -> Result<String, JsError> {
+        let physical_sql = translate_sql(&self.ctx, sql, dialect)
             .await
             .map_err(OrchaError::from)?;
         Ok(physical_sql)
@@ -93,8 +95,8 @@ mod tests {
             .unwrap();
 
         let query = "SELECT id, amount_with_tax FROM orders";
-        let physical_sql = engine.translate_sql(query).await.unwrap();
-
+        let physical_sql = engine.translate_sql(query, "").await.unwrap();
+       
         assert!(physical_sql.contains("1.05"));
         assert!(physical_sql.to_lowercase().contains("orders"));
     }

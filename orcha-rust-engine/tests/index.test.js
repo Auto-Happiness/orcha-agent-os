@@ -46,7 +46,7 @@ test("OrchaSemanticEngine - registers schema and translates calculated columns",
 
     // Perform translation
     const sql = "SELECT id, amount_with_tax FROM orders";
-    const physicalSql = await engine.translate_sql(sql);
+    const physicalSql = await engine.translate_sql(sql, "");
 
     // Verify projection expands tax calculation
     assert.ok(physicalSql.includes("1.05"), "Physical SQL should contain tax multiplier");

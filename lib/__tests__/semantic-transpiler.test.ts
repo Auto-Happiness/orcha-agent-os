@@ -238,3 +238,194 @@ test("transpileSemanticSQL works with brackets and quotes in input query", async
   assert.ok(physicalSql.includes("1.05"));
   assert.ok(physicalSql.toLowerCase().includes("orders"));
 });
+
+test("transpileSemanticSQL unparses target physical SQL with mysql and postgres dialects correctly", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "amount", type: "double" },
+      ],
+    },
+  ];
+
+  const mysqlConfigs = [{ _id: "cfg1", name: "Sales DB", type: "mysql" }];
+  const pgConfigs = [{ _id: "cfg1", name: "Sales DB", type: "postgres" }];
+
+  const semanticSql = "SELECT id, amount FROM orders";
+
+  const mysqlSql = await transpileSemanticSQL(
+    semanticSql,
+    allModels,
+    [],
+    "cfg1",
+    mysqlConfigs
+  );
+  
+  const pgSql = await transpileSemanticSQL(
+    semanticSql,
+    allModels,
+    [],
+    "cfg1",
+    pgConfigs
+  );
+
+  // Assert Postgres uses double quotes and MySQL uses backticks
+  assert.ok(mysqlSql.includes("`orders`"), `Expected MySQL dialect to quote with backticks, got: ${mysqlSql}`);
+  assert.ok(pgSql.includes('"orders"'), `Expected Postgres dialect to quote with double quotes, got: ${pgSql}`);
+});
+
+test("transpileSemanticSQL auto-joins tables based on qualified column reference", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "customer_id", type: "integer" },
+      ],
+    },
+    {
+      _id: "m2",
+      configId: "cfg1",
+      tableName: "customers",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "name", type: "varchar" },
+      ],
+    },
+  ];
+
+  const relationships = [
+    {
+      name: "CustomerOrders",
+      fromModelId: "m2",
+      fromColumn: "id",
+      toModelId: "m1",
+      toColumn: "customer_id",
+      type: "one_to_many",
+    },
+  ];
+
+  const allOrgConfigs = [{ _id: "cfg1", name: "Sales DB" }];
+
+  const query = "SELECT customers.name, orders.id FROM orders";
+  const physicalSql = await transpileSemanticSQL(query, allModels, relationships, "cfg1", allOrgConfigs);
+
+  const sqlLower = physicalSql.toLowerCase();
+  assert.ok(sqlLower.includes("join"));
+  assert.ok(sqlLower.includes("customers"));
+  assert.ok(sqlLower.includes("customer_id"));
+});
+
+test("transpileSemanticSQL auto-joins tables based on unqualified column name mapping", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "amount", type: "double" },
+        { columnName: "customer_id", type: "integer" },
+      ],
+    },
+    {
+      _id: "m2",
+      configId: "cfg1",
+      tableName: "customers",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "customer_name", type: "varchar" },
+      ],
+    },
+  ];
+
+  const relationships = [
+    {
+      name: "CustomerOrders",
+      fromModelId: "m2",
+      fromColumn: "id",
+      toModelId: "m1",
+      toColumn: "customer_id",
+      type: "one_to_many",
+    },
+  ];
+
+  const allOrgConfigs = [{ _id: "cfg1", name: "Sales DB" }];
+
+  const query = "SELECT customer_name, amount FROM orders";
+  const physicalSql = await transpileSemanticSQL(query, allModels, relationships, "cfg1", allOrgConfigs);
+
+  const sqlLower = physicalSql.toLowerCase();
+  assert.ok(sqlLower.includes("join"));
+  assert.ok(sqlLower.includes("customers"));
+  assert.ok(sqlLower.includes("customer_id"));
+});
+
+test("transpileSemanticSQL auto-joins tables across a multi-hop relationship path", async () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "order_details",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "order_id", type: "integer" },
+        { columnName: "price", type: "double" },
+      ],
+    },
+    {
+      _id: "m2",
+      configId: "cfg1",
+      tableName: "orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "customer_id", type: "integer" },
+      ],
+    },
+    {
+      _id: "m3",
+      configId: "cfg1",
+      tableName: "customers",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "name", type: "varchar" },
+      ],
+    },
+  ];
+
+  const relationships = [
+    {
+      name: "OrderDetails",
+      fromModelId: "m2",
+      fromColumn: "id",
+      toModelId: "m1",
+      toColumn: "order_id",
+      type: "one_to_many",
+    },
+    {
+      name: "CustomerOrders",
+      fromModelId: "m3",
+      fromColumn: "id",
+      toModelId: "m2",
+      toColumn: "customer_id",
+      type: "one_to_many",
+    },
+  ];
+
+  const allOrgConfigs = [{ _id: "cfg1", name: "Sales DB" }];
+
+  const query = "SELECT name, price FROM order_details";
+  const physicalSql = await transpileSemanticSQL(query, allModels, relationships, "cfg1", allOrgConfigs);
+
+  const sqlLower = physicalSql.toLowerCase();
+  assert.ok(sqlLower.includes("orders"));
+  assert.ok(sqlLower.includes("customers"));
+  assert.ok(sqlLower.includes("order_id"));
+  assert.ok(sqlLower.includes("customer_id"));
+});
