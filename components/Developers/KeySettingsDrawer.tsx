@@ -11,6 +11,8 @@ import {
   Badge,
   Button,
   Select,
+  MultiSelect,
+  Checkbox,
   Avatar,
   rem
 } from "@mantine/core";
@@ -62,7 +64,7 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
   const [origins, setOrigins] = useState<string[]>([""]);
   const [rateLimit, setRateLimit] = useState<number>(60);
   const [defaultModelId, setDefaultModelId] = useState<string | null>("gemini:gemini-1.5-flash");
-  const [defaultConfigId, setDefaultConfigId] = useState<string | null>(null);
+  const [defaultConfigIds, setDefaultConfigIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   const updateKeySettings = useMutation(api.apiKeys.updateSettings);
@@ -78,7 +80,7 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
       setOrigins(apiKey.corsOrigins?.length > 0 ? apiKey.corsOrigins : [""]);
       setRateLimit(apiKey.rateLimit || 60);
       setDefaultModelId(apiKey.defaultModelId || "gemini:gemini-1.5-flash");
-      setDefaultConfigId(apiKey.defaultConfigId || null);
+      setDefaultConfigIds(apiKey.defaultConfigIds || (apiKey.defaultConfigId ? [apiKey.defaultConfigId] : []));
     }
   }, [opened, apiKey]);
 
@@ -118,7 +120,7 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
         corsOrigins: filteredOrigins,
         rateLimit: rateLimit,
         defaultModelId: defaultModelId as any,
-        defaultConfigId: defaultConfigId as any
+        defaultConfigIds: defaultConfigIds as any
       });
 
       notifications.show({
@@ -143,7 +145,9 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
     value: c._id
   })) || [];
 
-  const selectedConfig = databaseConfigs?.find(c => c._id === defaultConfigId);
+  const selectedConfig = defaultConfigIds.length === 1
+    ? databaseConfigs?.find(c => c._id === defaultConfigIds[0])
+    : null;
 
   return (
     <Drawer
@@ -186,17 +190,19 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
         <Divider color="rgba(255,255,255,0.05)" />
 
         <Box>
-          <Text size="sm" fw={600} c="white" mb={4}>Default Data Source</Text>
+          <Text size="sm" fw={600} c="white" mb={4}>Default Data Sources</Text>
           <Text size="xs" c="dimmed" mb="md">
-            Pin this API key to a specific database configuration.
-            Requests using this key won't need to specify a `configId` if this is set.
+            Pin this API key to one or more database configurations.
+            Requests using this key won't need to specify `configId` or `configIds` if these are set.
           </Text>
-          <Select
+          <MultiSelect
             data={configOptions}
-            value={defaultConfigId}
-            onChange={setDefaultConfigId}
-            placeholder="Select a data source"
+            value={defaultConfigIds}
+            onChange={setDefaultConfigIds}
+            placeholder="Select database configurations"
             clearable
+            searchable
+            hidePickedOptions={false}
             leftSection={
               selectedConfig ? (
                 <Avatar
@@ -208,24 +214,37 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
                 <IconDatabase size={16} color="#a855f7" />
               )
             }
-            renderOption={({ option }) => {
+            renderOption={({ option, checked }) => {
               const config = databaseConfigs?.find(c => c._id === option.value);
               return (
-                <Group gap="sm" wrap="nowrap">
+                <Group gap="sm" wrap="nowrap" style={{ width: "100%" }}>
+                  <Checkbox
+                    checked={checked}
+                    readOnly
+                    size="xs"
+                    color="violet"
+                    styles={{
+                      input: {
+                        borderColor: "rgba(255,255,255,0.2)",
+                        backgroundColor: checked ? "#a855f7" : "transparent",
+                      }
+                    }}
+                  />
                   <Avatar
                     src={config?.image || "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"}
                     size={20}
                     radius="xs"
                     style={{ background: "transparent" }}
                   />
-                  <Text size="xs" fw={500}>{option.label}</Text>
+                  <Text size="xs" fw={500} style={{ flex: 1 }}>{option.label}</Text>
                 </Group>
               );
             }}
             styles={{
               input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" },
               dropdown: { background: "#1a1226", borderColor: "rgba(147,51,234,0.2)", color: "white" },
-              option: { color: "rgba(255,255,255,0.7)" }
+              option: { color: "rgba(255,255,255,0.7)" },
+              pill: { background: "rgba(147, 51, 234, 0.15)", color: "white", border: "1px solid rgba(147, 51, 234, 0.3)" }
             }}
           />
         </Box>

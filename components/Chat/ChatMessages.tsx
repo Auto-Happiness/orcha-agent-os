@@ -501,6 +501,10 @@ function parseMarkdown(text: string): React.ReactNode[] {
   text = text.replace(/!?\[[^\]]*\]\(data:image\/[^)]+\)/g, "[Chart visualization hidden]");
   text = text.replace(/\(?data:image\/[^\s)]+\)?/g, "[Chart visualization hidden]");
 
+  // Strip markdown tables to prevent duplicate/cluttered rendering in chat
+  const markdownTableRegex = /((?:^|\n)[ \t]*\|[^\n]*\|[^\n]*\n[ \t]*\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|[^\n]*(?:\n[ \t]*\|[^\n]*\|[^\n]*)*)/g;
+  text = text.replace(markdownTableRegex, "").replace(/\n{3,}/g, "\n\n").trim();
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   

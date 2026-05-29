@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const clerkAuth = await auth();
     const body = await req.json();
     const { messages, organizationId: rawOrgId, configId: rawConfigId, configIds: rawConfigIds, modelId, showResults = true, sessionId } = body;
-    const configIds = (rawConfigIds as string[]) || (rawConfigId ? [rawConfigId as string] : []);
+    let configIds = (rawConfigIds as string[]) || (rawConfigId ? [rawConfigId as string] : []);
 
     let userId: string | null = clerkAuth.userId;
     let organizationId: Id<"organizations"> | undefined = rawOrgId as Id<"organizations">;
@@ -39,6 +39,10 @@ export async function POST(req: NextRequest) {
       userId = "api-user"; // System user for API requests
       defaultModelId = apiInfo.defaultModelId;
       defaultConfigId = apiInfo.defaultConfigId;
+
+      if (configIds.length === 0) {
+        configIds = apiInfo.defaultConfigIds || (apiInfo.defaultConfigId ? [apiInfo.defaultConfigId] : []);
+      }
 
       // ── CORS Origin Enforcement ──
       const origin = req.headers.get("Origin");

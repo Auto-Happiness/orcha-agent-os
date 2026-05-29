@@ -114,6 +114,7 @@ export function QuickIntegration({ organizationId }: QuickIntegrationProps) {
   -H "Content-Type: application/json" \\
   -d '{
     "organizationId": "${organizationId}",
+    "configId": "OPTIONAL_DATABASE_CONFIG_ID",
     "messages": [{"role": "user", "content": "Hello Agent"}]
   }'`}
               />
@@ -130,6 +131,7 @@ export function QuickIntegration({ organizationId }: QuickIntegrationProps) {
   },
   body: JSON.stringify({
     organizationId: "${organizationId}",
+    configId: "OPTIONAL_DATABASE_CONFIG_ID", // Optional target configId
     messages: [{ role: "user", content: "Hello Agent" }]
   })
 });
@@ -148,11 +150,14 @@ while (true) {
                 lang="typescript"
                 code={`interface ChatRequest {
   organizationId: string;
+  configId?: string; // Optional single target database config
+  configIds?: string[]; // Optional database list for federated joins
   messages: Array<{ role: string; content: string }>;
 }
 
 const req: ChatRequest = {
   organizationId: "${organizationId}",
+  configId: "OPTIONAL_DATABASE_CONFIG_ID",
   messages: [{ role: "user", content: "Hello Agent" }]
 };
 
@@ -180,6 +185,7 @@ headers = {
 }
 payload = {
     "organizationId": "${organizationId}",
+    "configId": "OPTIONAL_DATABASE_CONFIG_ID", # Optional target configId
     "messages": [{"role": "user", "content": "Hello Agent"}]
 }
 
@@ -206,6 +212,7 @@ func main() {
 	url := "https://api.orcha-agent.com/api/chat"
 	payload := map[string]interface{}{
 		"organizationId": "${organizationId}",
+		"configId":       "OPTIONAL_DATABASE_CONFIG_ID", // Optional target configId
 		"messages": []map[string]string{
 			{"role": "user", "content": "Hello Agent"},
 		},
@@ -237,7 +244,7 @@ public class Main {
             .uri(URI.create("https://api.orcha-agent.com/api/chat"))
             .header("Authorization", "Bearer YOUR_API_KEY")
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString("{\\"organizationId\\":\\"${organizationId}\\", \\"messages\\":[{\\"role\\":\\"user\\", \\"content\\":\\"Hello Agent\\"}]}"))
+            .POST(HttpRequest.BodyPublishers.ofString("{\\"organizationId\\":\\"${organizationId}\\", \\"configId\\":\\"OPTIONAL_DATABASE_CONFIG_ID\\", \\"messages\\":[{\\"role\\":\\"user\\", \\"content\\":\\"Hello Agent\\"}]}"))
             .build();
 
         client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -256,6 +263,7 @@ client.DefaultRequestHeaders.Add("Authorization", "Bearer YOUR_API_KEY");
 
 var payload = new {
     organizationId = "${organizationId}",
+    configId = "OPTIONAL_DATABASE_CONFIG_ID", // Optional target configId
     messages = new[] { new { role = "user", content = "Hello Agent" } }
 };
 
@@ -272,6 +280,7 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
     "organizationId" => "${organizationId}",
+    "configId" => "OPTIONAL_DATABASE_CONFIG_ID", // Optional target configId
     "messages" => [["role" => "user", "content" => "Hello Agent"]]
 ]));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
