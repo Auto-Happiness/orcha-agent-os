@@ -20,6 +20,12 @@ pub fn plan_to_sql_with_dialect(plan: &LogicalPlan, dialect_name: &str) -> Resul
             let unparser = Unparser::new(&dialect);
             unparser.plan_to_sql(plan)?
         }
+        "mssql" | "sqlserver" => {
+            // MSSQL executes standard ANSI SQL correctly (using double quote identifier escaping)
+            let dialect = DefaultDialect {};
+            let unparser = Unparser::new(&dialect);
+            unparser.plan_to_sql(plan)?
+        }
         _ => {
             let dialect = DefaultDialect {};
             let unparser = Unparser::new(&dialect);

@@ -19,7 +19,9 @@ impl AnalyzerRule for VirtualColumnAnalyzer {
     }
 
     fn analyze(&self, plan: LogicalPlan, _config: &ConfigOptions) -> DFResult<LogicalPlan> {
-        let virtual_columns = self.virtual_columns.lock().unwrap();
+        let virtual_columns = self.virtual_columns.lock().map_err(|e| {
+            datafusion::error::DataFusionError::Execution(format!("Virtual columns lock poisoned: {e}"))
+        })?;
 
         plan.transform_up(|node| {
             node.map_expressions(|expr| {

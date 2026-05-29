@@ -1,4 +1,3 @@
-use datafusion::common::diagnostic;
 use wasm_bindgen::prelude::*;
 use datafusion::prelude::*;
 use datafusion::logical_expr::LogicalPlan;
@@ -63,7 +62,9 @@ impl OrchaSemanticEngine {
 
         if let LogicalPlan::Projection(projection) = plan {
             if let Some(expr) = projection.expr.first() {
-                let mut map = self.virtual_columns.lock().unwrap();
+                let mut map = self.virtual_columns.lock().map_err(|e| {
+                    JsError::new(&format!("Virtual columns lock poisoned: {e}"))
+                })?;
                 map.entry(table_name.to_string())
                     .or_default()
                     .insert(column_name.to_string(), expr.clone());
