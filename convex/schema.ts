@@ -478,6 +478,7 @@ export default defineSchema({
     corsOrigins: v.optional(v.array(v.string())),
     rateLimit: v.optional(v.number()),
     defaultConfigId: v.optional(v.id("databaseConfigs")),
+    defaultConfigIds: v.optional(v.array(v.id("databaseConfigs"))),
     defaultModelId: v.optional(v.string()),
     preferredAiProvider: v.optional(v.string()), // Temporary for migration
     createdAt: v.number(),

@@ -130,6 +130,7 @@ export const updateSettings = mutation({
     rateLimit: v.optional(v.number()),
     defaultModelId: v.optional(v.string()),
     defaultConfigId: v.optional(v.id("databaseConfigs")),
+    defaultConfigIds: v.optional(v.array(v.id("databaseConfigs"))),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
@@ -140,11 +141,19 @@ export const updateSettings = mutation({
       throw new Error("Rate limit must be between 10 and 60 requests per minute.");
     }
 
+    const updatedConfigIds = args.defaultConfigIds ?? existing.defaultConfigIds;
+    const updatedConfigId = args.defaultConfigId !== undefined 
+      ? args.defaultConfigId 
+      : (args.defaultConfigIds !== undefined 
+          ? (args.defaultConfigIds[0] ?? undefined) 
+          : existing.defaultConfigId);
+
     await ctx.db.patch(args.id, {
       corsOrigins: args.corsOrigins ?? existing.corsOrigins,
       rateLimit: args.rateLimit ?? existing.rateLimit,
       defaultModelId: args.defaultModelId ?? existing.defaultModelId,
-      defaultConfigId: args.defaultConfigId ?? existing.defaultConfigId,
+      defaultConfigId: updatedConfigId,
+      defaultConfigIds: updatedConfigIds,
     });
   },
 });
@@ -213,7 +222,8 @@ export const validate = query({
         rateLimit: apiKey.rateLimit || settings?.rateLimitPerMinute || 60,
         corsOrigins: apiKey.corsOrigins || [],
         defaultModelId: apiKey.defaultModelId || (apiKey.preferredAiProvider ? `${apiKey.preferredAiProvider}:latest` : undefined),
-        defaultConfigId: apiKey.defaultConfigId
+        defaultConfigId: apiKey.defaultConfigId,
+        defaultConfigIds: apiKey.defaultConfigIds || (apiKey.defaultConfigId ? [apiKey.defaultConfigId] : [])
     };
   },
 });

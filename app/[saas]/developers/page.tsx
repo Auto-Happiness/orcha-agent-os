@@ -19,6 +19,7 @@ import {
   Code,
   Tooltip,
   Center,
+  Divider,
   rem,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -307,6 +308,8 @@ export default function DevelopersPage() {
                       </Table.Tbody>
                     </Table>
                   </Paper>
+
+                  <Divider color="rgba(255,255,255,0.05)" my="sm" />
 
                   <QuickIntegration organizationId={orgDoc._id} />
                 </Stack>
