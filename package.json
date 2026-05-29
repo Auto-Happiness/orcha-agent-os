@@ -1,5 +1,6 @@
 {
   "name": "orcha-agent-os",
+  "author" : "James A. Bondoc",
   "version": "0.1.0",
   "private": true,
   "scripts": {
