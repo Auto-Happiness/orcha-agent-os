@@ -140,17 +140,23 @@ export async function createChatAgent(context: AgentContext) {
         const indexName = dimensions === 1536 ? "by_embedding_1536" :
           dimensions === 1024 ? "by_embedding_1024" : "by_embedding_768";
 
-        const [ragResult, recallResult] = await Promise.all([
-          convex.action(api.semanticModels.retrieveSchemaContext, {
-            configId: config._id,
-            embedding,
-            indexName,
-            limit: 10,
-            apiKey,
-          }).catch((err: any) => {
-            console.warn("[Agent] retrieveSchemaContext error:", err);
-            return { models: [], relationships: [] };
-          }),
+        const ragResultsPerConfigPromise = Promise.all(
+          activeConfigIds.map((cid: string) =>
+            convex.action(api.semanticModels.retrieveSchemaContext, {
+              configId: cid as any,
+              embedding,
+              indexName,
+              limit: 10,
+              apiKey,
+            }).catch((err: any) => {
+              console.warn(`[Agent] retrieveSchemaContext error for ${cid}:`, err);
+              return { models: [], relationships: [] };
+            })
+          )
+        );
+
+        const [ragResultsPerConfig, recallResult] = await Promise.all([
+          ragResultsPerConfigPromise,
           convex.action(api.semanticMemory.recallQueries, {
             organizationId: organizationId as any,
             configId: config._id,
@@ -163,6 +169,27 @@ export async function createChatAgent(context: AgentContext) {
             return [];
           })
         ]);
+
+        const seenModelIds = new Set<string>();
+        const mergedRagModels: any[] = [];
+        const mergedRagRelationships: any[] = [];
+        const seenRelIds = new Set<string>();
+
+        for (const result of ragResultsPerConfig) {
+          for (const m of result.models) {
+            if (!seenModelIds.has(m._id)) {
+              seenModelIds.add(m._id);
+              mergedRagModels.push(m);
+            }
+          }
+          for (const r of result.relationships) {
+            if (!seenRelIds.has(r._id)) {
+              seenRelIds.add(r._id);
+              mergedRagRelationships.push(r);
+            }
+          }
+        }
+        const ragResult = { models: mergedRagModels, relationships: mergedRagRelationships };
 
         return { ragResult, recallResult };
       } catch (err) {
@@ -230,7 +257,16 @@ export async function createChatAgent(context: AgentContext) {
     // Stage 2: DEPENDENCY EXPANSION 
     // Pull in 1st-degree relationships for any table we've found so far
     if (filteredModels.length > 0) {
-      const allRels = await convex.query(api.semanticRelationships.listByConfig, { configId: config._id, apiKey });
+      const allRelsPerConfig = await Promise.all(
+        activeConfigIds.map((cid: string) =>
+          convex.query(api.semanticRelationships.listByConfig, { configId: cid as any, apiKey })
+            .catch((err: any) => {
+              console.warn(`[Agent] listByConfig error for ${cid}:`, err);
+              return [] as any[];
+            })
+        )
+      );
+      const allRels = allRelsPerConfig.flat();
       const expandedIds = new Set(filteredModels.map(m => m._id));
 
       for (const rel of allRels) {

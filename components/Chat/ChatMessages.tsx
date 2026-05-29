@@ -496,14 +496,16 @@ const ChartBlock = memo(function ChartBlock({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function parseMarkdown(text: string): React.ReactNode[] {
+function parseMarkdown(text: string, stripTables?: boolean): React.ReactNode[] {
   // Pre-filter: Remove massive data URIs that Gemini sometimes generates despite prompt instructions
   text = text.replace(/!?\[[^\]]*\]\(data:image\/[^)]+\)/g, "[Chart visualization hidden]");
   text = text.replace(/\(?data:image\/[^\s)]+\)?/g, "[Chart visualization hidden]");
 
   // Strip markdown tables to prevent duplicate/cluttered rendering in chat
-  const markdownTableRegex = /((?:^|\n)[ \t]*\|[^\n]*\|[^\n]*\n[ \t]*\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|[^\n]*(?:\n[ \t]*\|[^\n]*\|[^\n]*)*)/g;
-  text = text.replace(markdownTableRegex, "").replace(/\n{3,}/g, "\n\n").trim();
+  if (stripTables) {
+    const markdownTableRegex = /((?:^|\n)[ \t]*\|[^\n]*\|[^\n]*\n[ \t]*\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|[^\n]*(?:\n[ \t]*\|[^\n]*\|[^\n]*)*)/g;
+    text = text.replace(markdownTableRegex, "").replace(/\n{3,}/g, "\n\n").trim();
+  }
 
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -593,6 +595,35 @@ function extractSQLFromParts(parts: any[]): string[] {
     if (sql && !queries.includes(sql)) queries.push(sql);
   }
   return queries;
+}
+
+function hasSuccessfulSQLResult(parts: any[]): boolean {
+  if (!parts) return false;
+  return parts.some((part) => {
+    const type = part.type ?? "";
+    let toolName = part.toolInvocation?.toolName || part.toolName || "query";
+    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") {
+      toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
+    } else if (type === "tool-output-available") {
+      toolName = part.toolName || "tool";
+    }
+
+    const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
+    if (!isSQL) return false;
+
+    let result: any = null;
+    if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql") && part.state === "output-available") {
+      result = part.output;
+    } else if (type === "tool-result") {
+      result = part.result;
+    } else if (type === "tool-invocation" && part.toolInvocation?.state === "result") {
+      result = part.toolInvocation.result;
+    } else if (type === "tool-output-available") {
+      result = part.output;
+    }
+
+    return result && result.success !== false && !result.error && result.data?.length > 0;
+  });
 }
 
 function renderToolPart(part: any, i: number, showResults: boolean, organizationId?: string, configId?: string | null, messageId?: string, parts?: any[]) {
@@ -886,6 +917,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
   m: any; showResults: boolean; organizationId?: string; configId?: string | null; onViewSql: (q: string[]) => void;
 }) {
   const sqlQueries = m.role === "assistant" ? extractSQLFromParts(m.parts as any[]) : [];
+  const hasSqlResult = showResults && hasSuccessfulSQLResult(m.parts || []);
   return (
     <Stack gap="sm">
       <Group gap="md" align="flex-start" wrap="nowrap">
@@ -925,9 +957,9 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
 
               return (
                 <React.Fragment key={i}>
-                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{parseMarkdown(before)}</Text> : null}
+                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{parseMarkdown(before, hasSqlResult)}</Text> : null}
                   <ReasoningBlock text={MARKER + "\n" + reasoningContent} />
-                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }}>{parseMarkdown(afterAnswer)}</Text> : null}
+                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }}>{parseMarkdown(afterAnswer, hasSqlResult)}</Text> : null}
                 </React.Fragment>
               );
             }
@@ -935,7 +967,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
             // Plain text part — no reasoning marker
             return (
               <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-                {parseMarkdown(part.text)}
+                {parseMarkdown(part.text, hasSqlResult)}
               </Text>
             );
           })}
