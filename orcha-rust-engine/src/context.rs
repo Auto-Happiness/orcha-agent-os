@@ -3,8 +3,6 @@ use std::sync::{Arc, Mutex};
 use datafusion::prelude::*;
 use datafusion::datasource::MemTable;
 use datafusion::arrow::datatypes::{Field, Schema};
-use datafusion::sql::unparser::Unparser;
-use datafusion::sql::unparser::dialect::DefaultDialect;
 use crate::error::OrchaError;
 use crate::model::FieldInput;
 use crate::analyzer::VirtualColumnAnalyzer;
@@ -33,12 +31,9 @@ pub fn register_table(ctx: &SessionContext, table_name: &str, fields: Vec<FieldI
 }
 
 
-pub async fn translate_sql(ctx: &SessionContext, sql: &str) -> Result<String, OrchaError> {
+pub async fn translate_sql(ctx: &SessionContext, sql: &str, dialect: &str) -> Result<String, OrchaError> {
     let state = ctx.state();
     let plan = state.create_logical_plan(sql).await?;
     let optimized_plan = state.optimize(&plan)?;
-    let dialect = DefaultDialect {};
-    let unparser = Unparser::new(&dialect);
-    let physical_sql = unparser.plan_to_sql(&optimized_plan)?;
-    Ok(physical_sql.to_string())
+    crate::dialects::plan_to_sql_with_dialect(&optimized_plan, dialect)
 }

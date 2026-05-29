@@ -113,6 +113,229 @@ export function preprocessSQL(
  * virtual columns, applying join conditions, and formatting queries to the 
  * target database dialect.
  */
+interface Edge {
+  target: string;
+  fromCol: string;
+  toCol: string;
+}
+
+interface PathStep {
+  fromTable: string;
+  toTable: string;
+  fromCol: string;
+  toCol: string;
+}
+
+function extractIdentifiers(sql: string): { tables: Set<string>; columns: Set<string> } {
+  const tables = new Set<string>();
+  const columns = new Set<string>();
+  
+  const normalized = sql.replace(/["\[\]]/g, "").replace(/\s+/g, " ");
+  const tokenPattern = /\b([a-zA-Z_][a-zA-Z0-9_]*)(?:\.([a-zA-Z_][a-zA-Z0-9_]*))?\b/g;
+  
+  const keywords = new Set([
+    "SELECT", "FROM", "WHERE", "JOIN", "ON", "AND", "OR", "GROUP", "BY",
+    "ORDER", "HAVING", "LIMIT", "OFFSET", "AS", "WITH", "INNER", "LEFT",
+    "RIGHT", "OUTER", "CROSS", "FULL", "NULL", "NOT", "IN", "LIKE",
+    "BETWEEN", "EXISTS", "DISTINCT", "ASC", "DESC", "CASE", "WHEN", "THEN",
+    "ELSE", "END", "UNION", "ALL", "EXCEPT", "INTERSECT", "SUM", "AVG",
+    "COUNT", "MIN", "MAX", "COALESCE"
+  ]);
+
+  let match;
+  while ((match = tokenPattern.exec(normalized)) !== null) {
+    const first = match[1];
+    const second = match[2];
+    
+    if (second) {
+      if (!keywords.has(first.toUpperCase())) {
+        tables.add(first.toLowerCase());
+      }
+      if (!keywords.has(second.toUpperCase())) {
+        columns.add(second.toLowerCase());
+      }
+    } else {
+      if (!keywords.has(first.toUpperCase()) && !/^\d+$/.test(first)) {
+        columns.add(first.toLowerCase());
+      }
+    }
+  }
+  
+  return { tables, columns };
+}
+
+function extractExplicitJoinedTables(sql: string): { tables: Set<string>; rootTable: string | null } {
+  const normalized = sql.replace(/["\[\]]/g, "").replace(/\s+/g, " ");
+  const fromJoinPattern = /\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_.]*)/gi;
+  const tables = new Set<string>();
+  let rootTable: string | null = null;
+  
+  let match;
+  while ((match = fromJoinPattern.exec(normalized)) !== null) {
+    const rawRef = match[1];
+    const parts = rawRef.split(".");
+    const tableName = parts[parts.length - 1].toLowerCase();
+    tables.add(tableName);
+    if (!rootTable) {
+      rootTable = tableName;
+    }
+  }
+  
+  return { tables, rootTable };
+}
+
+function findShortestPath(
+  graph: Map<string, Edge[]>,
+  startNodes: string[],
+  targetNode: string
+): PathStep[] | null {
+  const queue: string[] = [...startNodes];
+  const visited = new Set<string>(startNodes);
+  const parentMap = new Map<string, { parent: string; edge: Edge }>();
+  
+  let found = false;
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    if (curr === targetNode) {
+      found = true;
+      break;
+    }
+    
+    const edges = graph.get(curr) || [];
+    for (const edge of edges) {
+      if (!visited.has(edge.target)) {
+        visited.add(edge.target);
+        parentMap.set(edge.target, { parent: curr, edge });
+        queue.push(edge.target);
+      }
+    }
+  }
+  
+  if (!found) return null;
+  
+  const path: PathStep[] = [];
+  let curr = targetNode;
+  while (parentMap.has(curr)) {
+    const { parent, edge } = parentMap.get(curr)!;
+    path.unshift({
+      fromTable: parent,
+      toTable: curr,
+      fromCol: edge.fromCol,
+      toCol: edge.toCol
+    });
+    curr = parent;
+  }
+  
+  return path;
+}
+
+export function injectJoinPaths(
+  sql: string,
+  allModels: any[],
+  relationships: any[]
+): string {
+  const explicitJoined = extractExplicitJoinedTables(sql);
+  if (!explicitJoined.rootTable) {
+    return sql;
+  }
+
+  const explicitIdent = extractIdentifiers(sql);
+  
+  const referencedTables = new Set<string>();
+  for (const t of explicitIdent.tables) {
+    referencedTables.add(t);
+  }
+  
+  for (const col of explicitIdent.columns) {
+    for (const model of allModels) {
+      const hasCol = model.fields?.some(
+        (f: any) => f.columnName.toLowerCase() === col || (f.displayName && f.displayName.toLowerCase() === col)
+      );
+      if (hasCol) {
+        referencedTables.add(model.tableName.toLowerCase());
+      }
+    }
+  }
+
+  const missingTables: string[] = [];
+  for (const t of referencedTables) {
+    if (!explicitJoined.tables.has(t)) {
+      missingTables.push(t);
+    }
+  }
+
+  if (missingTables.length === 0) {
+    return sql;
+  }
+
+  const modelIdToTableName = new Map<string, string>();
+  for (const m of allModels) {
+    modelIdToTableName.set(m._id, m.tableName.toLowerCase());
+  }
+
+  const graph = new Map<string, Edge[]>();
+  for (const rel of relationships) {
+    const fromTable = modelIdToTableName.get(rel.fromModelId);
+    const toTable = modelIdToTableName.get(rel.toModelId);
+    if (!fromTable || !toTable) continue;
+
+    if (!graph.has(fromTable)) graph.set(fromTable, []);
+    if (!graph.has(toTable)) graph.set(toTable, []);
+
+    graph.get(fromTable)!.push({
+      target: toTable,
+      fromCol: rel.fromColumn,
+      toCol: rel.toColumn,
+    });
+    graph.get(toTable)!.push({
+      target: fromTable,
+      fromCol: rel.toColumn,
+      toCol: rel.fromColumn,
+    });
+  }
+
+  const joinsToInject: string[] = [];
+  const alreadyJoined = new Set<string>(explicitJoined.tables);
+
+  for (const missingTable of missingTables) {
+    if (alreadyJoined.has(missingTable)) continue;
+
+    const path = findShortestPath(graph, Array.from(alreadyJoined), missingTable);
+    if (path) {
+      for (const step of path) {
+        if (!alreadyJoined.has(step.toTable)) {
+          joinsToInject.push(`JOIN ${step.toTable} ON ${step.fromTable}.${step.fromCol} = ${step.toTable}.${step.toCol}`);
+          alreadyJoined.add(step.toTable);
+        }
+      }
+    }
+  }
+
+  if (joinsToInject.length === 0) {
+    return sql;
+  }
+
+  const rootEscaped = explicitJoined.rootTable.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const fromPattern = new RegExp(`\\bFROM\\s+(?:[a-zA-Z_][a-zA-Z0-9_.]*\\s+\\.)?${rootEscaped}(?:\\s+(?:AS\\s+)?[a-zA-Z_][a-zA-Z0-9_]*)?`, 'i');
+
+  const match = fromPattern.exec(sql);
+  if (match) {
+    const insertPos = match.index + match[0].length;
+    const before = sql.slice(0, insertPos);
+    const after = sql.slice(insertPos);
+    
+    const joinSql = " " + joinsToInject.join(" ");
+    return before + joinSql + after;
+  }
+
+  return sql;
+}
+
+/**
+ * Transpiles a semantic SQL query into a physical SQL statement by expanding 
+ * virtual columns, applying join conditions, and formatting queries to the 
+ * target database dialect.
+ */
 export async function transpileSemanticSQL(
   sql: string,
   allModels: any[],
@@ -139,14 +362,19 @@ export async function transpileSemanticSQL(
     // 2. Compile MDL manifest
     const mdl = compileToMdl(allModels, relationships, primaryConfigId, allOrgConfigs);
 
-    // 3. Preprocess SQL to map database aliases and unqualified names to MDL model names
-    const processedSql = preprocessSQL(sql, allModels, primaryConfigId, allOrgConfigs);
+    // 3. Auto-inject missing join conditions from relationship paths
+    const sqlWithJoins = injectJoinPaths(sql, allModels, relationships);
 
-    // 4. Load MDL manifest into the engine
+    // 4. Preprocess SQL to map database aliases and unqualified names to MDL model names
+    const processedSql = preprocessSQL(sqlWithJoins, allModels, primaryConfigId, allOrgConfigs);
+
+    // 5. Load MDL manifest into the engine
     await engine.loadMDL(mdl, { source: "" });
 
-    // 5. Transpile using transformSql
-    const transpiledSql = await engine.transformSql(processedSql);
+    // 6. Transpile using transformSql with the resolved dialect
+    const primaryConfig = allOrgConfigs.find((c: any) => c._id === primaryConfigId);
+    const dialect = primaryConfig?.type || "";
+    const transpiledSql = await engine.transformSql(processedSql, dialect);
 
     return transpiledSql;
   } finally {
