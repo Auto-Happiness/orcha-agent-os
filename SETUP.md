@@ -170,6 +170,52 @@ Edit `convex/schema.ts` to define your tables and run:
 npm run convex:dev
 ```
 
+## 🦀 Rust WASM Engine Compilation
+
+The core query transpilation engine is built in Rust and compiled to WebAssembly (WASM). This binary parses queries, resolves virtual/calculated columns, and translates them to native database dialects (MySQL, Postgres, SQLite, MSSQL).
+
+If you make modifications to the Rust files under `orcha-rust-engine/src/`, or are running a fresh `git clone`, you must compile the WASM binary.
+
+### Prerequisites
+
+1. **Install Rust**:
+   Ensure you have Rust and `cargo` installed. If not, install via [rustup](https://rustup.rs/):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+2. **Install `wasm-pack`**:
+   `wasm-pack` compiles Rust code into WebAssembly packages suitable for Node.js.
+   ```bash
+   cargo install wasm-pack
+   ```
+
+### Building & Deploying the WASM Binary
+
+1. **Build the crate**:
+   From the repository root, run the compilation script:
+   ```bash
+   cd orcha-rust-engine
+   wasm-pack build --target nodejs
+   ```
+   This compiles the project and generates WebAssembly bindings in `orcha-rust-engine/pkg/`.
+
+2. **Copy to the application**:
+   Since Next.js accesses the WASM engine from `lib/wasm-engine/` (which is ignored by Git), you must copy the generated build outputs:
+   ```bash
+   # From the repository root
+   mkdir -p lib/wasm-engine
+   cp orcha-rust-engine/pkg/orcha_semantic_engine_bg.wasm lib/wasm-engine/
+   cp orcha-rust-engine/pkg/orcha_semantic_engine.js lib/wasm-engine/
+   cp orcha-rust-engine/pkg/orcha_semantic_engine.d.ts lib/wasm-engine/
+   ```
+
+3. **Verify the installation**:
+   Verify everything compiles and passes tests:
+   ```bash
+   npm run test
+   ```
+
 ## 📄 License
 
 MIT
+
