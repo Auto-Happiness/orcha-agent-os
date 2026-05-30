@@ -50,11 +50,13 @@ import {
 import { inputStyles, selectStyles } from "@/lib/styles";
 
 const TYPE_OPTIONS = [
-  { value: "postgres", label: "PostgreSQL", icon: IconSql },
-  { value: "mysql", label: "MySQL", icon: IconBrandMysql },
-  { value: "mssql", label: "MSSQL", icon: IconServer },
+  { value: "postgres", label: "PostgreSQL", icon: "/dbicons/postgresql-logo-svgrepo-com.svg" },
+  { value: "mysql", label: "MySQL", icon: "/dbicons/mysql-logo-svgrepo-com.svg" },
+  { value: "mariadb",  label: "MariaDB",    icon: "/dbicons/mariadb-icon-svgrepo-com.svg" },
+  { value: "mssql", label: "MSSQL", icon: "/dbicons/microsoft-sql-server-logo-svgrepo-com.svg" },
   { value: "mongodb", label: "MongoDB", icon: IconBrandMongodb },
   { value: "bigquery", label: "BigQuery", icon: IconTableFilled },
+  { value: "sqlite",   label: "SQLite",     icon: IconDatabase },
   { value: "model", label: "AI Models", icon: IconRobot },
 ];
 
@@ -186,10 +188,17 @@ export function SavedConfigsList() {
             onChange={setTypeFilter}
             renderOption={(item) => {
               const option = TYPE_OPTIONS.find(opt => opt.value === item.option.value);
-              const Icon = option?.icon || IconDatabase;
+              const icon = option?.icon;
               return (
                 <Group gap="xs">
-                  <Icon size={14} />
+                  {typeof icon === "string" ? (
+                    <img src={icon} alt={item.option.label} style={{ width: 14, height: 14, objectFit: "contain" }} />
+                  ) : (
+                    (() => {
+                      const Icon = icon || IconDatabase;
+                      return <Icon size={14} />;
+                    })()
+                  )}
                   <Text size="sm">{item.option.label}</Text>
                 </Group>
               );
@@ -232,7 +241,7 @@ export function SavedConfigsList() {
           {filteredConfigs.map((config, index) => {
             const isOnline = config.status === "ready" || config.status === undefined;
             const engineInfo = TYPE_OPTIONS.find(o => o.value === config.type);
-            const EngineIcon = engineInfo?.icon || IconDatabase;
+            const icon = engineInfo?.icon;
 
             return (
               <Box
@@ -299,7 +308,14 @@ export function SavedConfigsList() {
                       <Group gap={40}>
                         <Stack gap={0} w={150}>
                           <Group gap="xs">
-                            <EngineIcon size={14} color="#9333ea" />
+                            {typeof icon === "string" ? (
+                              <img src={icon} alt={config.type} style={{ width: 14, height: 14, objectFit: "contain" }} />
+                            ) : (
+                              (() => {
+                                const EngineIcon = icon || IconDatabase;
+                                return <EngineIcon size={14} color="#9333ea" />;
+                              })()
+                            )}
                             <Text size="11px" fw={500} c="white" style={{ textTransform: "capitalize" }}>{config.type}</Text>
                           </Group>
                           {config.indexingStatus === "processing" ? (

@@ -2,12 +2,17 @@ import { MySQLDialect } from './dialects/mysql';
 import { PostgresDialect } from './dialects/postgres';
 import { MSSQLDialect } from './dialects/mssql';
 import { SQLiteDialect } from './dialects/sqlite';
+import { MariaDBDialect } from './dialects/mariadb';
 import { ScanResult } from './types';
 
 export class DatabaseScanner {
 
   static async scanMySQL(config: any): Promise<ScanResult> {
     return MySQLDialect.scan(config);
+  }
+
+  static async scanMariaDB(config: any): Promise<ScanResult> {
+    return MariaDBDialect.scan(config);
   }
 
   static async scanPostgres(config: any): Promise<ScanResult> {
@@ -26,6 +31,8 @@ export class DatabaseScanner {
   static async executeQuery(type: string, config: any, sqlStr: string): Promise<{ rows: any[], columns: string[] }> {
     if (type === "mysql") {
       return MySQLDialect.executeQuery(config, sqlStr);
+    } else if (type === "mariadb") {
+      return MariaDBDialect.executeQuery(config, sqlStr);
     } else if (type === "mssql") {
       return MSSQLDialect.executeQuery(config, sqlStr);
     } else if (type === "sqlite") {

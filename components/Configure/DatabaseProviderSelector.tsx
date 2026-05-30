@@ -20,9 +20,10 @@ import {
 } from "@tabler/icons-react";
 
 const PROVIDERS = [
-  { id: "postgres", label: "PostgreSQL", icon: IconSql, color: "blue" },
-  { id: "mysql",    label: "MySQL",      icon: IconBrandMysql, color: "cyan" },
-  { id: "mssql",    label: "MSSQL",      icon: IconServer, color: "red" },
+  { id: "postgres", label: "PostgreSQL", icon: "/dbicons/postgresql-logo-svgrepo-com.svg", color: "blue" },
+  { id: "mysql",    label: "MySQL",      icon: "/dbicons/mysql-logo-svgrepo-com.svg", color: "cyan" },
+  { id: "mariadb",  label: "MariaDB",    icon: "/dbicons/mariadb-icon-svgrepo-com.svg", color: "teal" },
+  { id: "mssql",    label: "MSSQL",      icon: "/dbicons/microsoft-sql-server-logo-svgrepo-com.svg", color: "red" },
   { id: "mongodb",  label: "MongoDB",    icon: IconBrandMongodb, color: "green" },
   { id: "bigquery", label: "BigQuery",   icon: IconTableFilled, color: "indigo" },
   { id: "sqlite",   label: "SQLite",     icon: IconDatabase, color: "gray" },
@@ -41,6 +42,7 @@ const getColorRGB = (color: string) => {
     case "green": return "76, 175, 80";
     case "indigo": return "63, 81, 181";
     case "violet": return "147, 51, 234";
+    case "teal": return "20, 184, 166";
     default: return "255, 255, 255";
   }
 };
@@ -84,7 +86,11 @@ export function DatabaseProviderSelector({ selected, onSelect }: ProviderSelecto
                     background: selected === p.id ? `rgba(${getColorRGB(p.color)}, 0.15)` : "rgba(255,255,255,0.04)" 
                   }}
                 >
-                  <p.icon size={18} style={{ color: selected === p.id ? `var(--mantine-color-${p.color}-filled)` : "rgba(255,255,255,0.3)" }} />
+                  {typeof p.icon === "string" ? (
+                    <img src={p.icon} alt={p.label} style={{ width: 18, height: 18, objectFit: "contain" }} />
+                  ) : (
+                    <p.icon size={18} style={{ color: selected === p.id ? `var(--mantine-color-${p.color}-filled)` : "rgba(255,255,255,0.3)" }} />
+                  )}
                 </ThemeIcon>
                 <Text size="sm" fw={selected === p.id ? 700 : 500} c={selected === p.id ? "white" : "dimmed"} style={{ whiteSpace: "nowrap" }}>
                   {p.label}

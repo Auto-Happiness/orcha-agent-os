@@ -220,8 +220,22 @@ export default function ChatPage() {
     const restored = persistedMessages.map((m) => {
       const parts = m.parts ?? [{ type: "text", text: m.content }];
       const toolInvocations = parts
-        .filter((p: any) => p.type === "tool-invocation" && p.toolInvocation)
-        .map((p: any) => p.toolInvocation);
+        .map((p: any) => {
+          if (p.type === "tool-invocation" && p.toolInvocation) {
+            return p.toolInvocation;
+          }
+          if (p.type && p.type.startsWith("tool-") && p.toolCallId) {
+            return {
+              state: p.state === "output-available" ? "result" : p.state,
+              toolCallId: p.toolCallId,
+              toolName: p.toolName || p.type.substring(5),
+              args: p.input,
+              result: p.output,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
 
       return {
         id: m._id,

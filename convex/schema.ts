@@ -15,6 +15,7 @@ const SemanticFieldValidator = v.object({
   // BI Layer Metadata
   fieldType: v.optional(v.union(v.literal("dimension"), v.literal("measure"))),
   dataType: v.optional(v.string()),   // Semantic type (e.g. 'currency', 'percentage')
+  rawType: v.optional(v.string()),    // Raw DB data type
   defaultAggregation: v.optional(v.string()), // 'sum', 'avg', 'count', etc.
   sqlExpression: v.optional(v.string()),      // For calculated virtual columns
   isTimeDimension: v.optional(v.boolean()),
@@ -69,6 +70,7 @@ const WidgetLayoutValidator = v.object({
 const DbTypeValidator = v.union(
   v.literal("postgres"),
   v.literal("mysql"),
+  v.literal("mariadb"),
   v.literal("bigquery"),
   v.literal("mssql"),
   v.literal("mongodb"),

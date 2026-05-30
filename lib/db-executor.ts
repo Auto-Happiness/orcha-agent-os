@@ -4,7 +4,7 @@ import * as mssql from "mssql";
 import Database from "better-sqlite3";
 
 export type DbConfig = {
-  type: "mysql" | "postgres" | "mssql" | "sqlite";
+  type: "mysql" | "mariadb" | "postgres" | "mssql" | "sqlite";
   // Network-based databases
   host?: string;
   port?: number;
@@ -52,7 +52,7 @@ export class DbExecutor {
   static async execute(config: DbConfig, query: string, params: any[] = []): Promise<any[]> {
     console.log(`[DbExecutor] Executing ${config.type} query: ${query.substring(0, 50)}...`);
     try {
-      if (config.type === "mysql") return await this.executeMysql(config, query, params);
+      if (config.type === "mysql" || config.type === "mariadb") return await this.executeMysql(config, query, params);
       if (config.type === "postgres") return await this.executePostgres(config, query, params);
       if (config.type === "mssql") return await this.executeMssql(config, query, params);
       if (config.type === "sqlite") return await this.executeSqlite(config, query, params);

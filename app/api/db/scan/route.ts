@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
     // 1. Perform database scanning based on type
     if (type === "mysql") {
       scanResult = await DatabaseScanner.scanMySQL(config);
+    } else if (type === "mariadb") {
+      scanResult = await DatabaseScanner.scanMariaDB(config);
     } else if (type === "postgres") {
       scanResult = await DatabaseScanner.scanPostgres(config);
     } else if (type === "mssql") {
