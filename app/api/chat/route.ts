@@ -5,7 +5,6 @@ import { auth } from "@clerk/nextjs/server";
 import { createChatAgent } from "@/lib/chat-agent";
 import { Id } from "@/convex/_generated/dataModel";
 import { normalizeChatHistory } from "@/lib/chat-utils";
-import { pruneMessages } from "ai";
 
 export async function POST(req: NextRequest) {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -160,15 +159,9 @@ export async function POST(req: NextRequest) {
     // tool-result, which prevents 400 API errors from orphaned tool results.
     // Short sessions (≤4 messages / ≤2 turns) pass through unchanged.
     const normalizedMessages = await normalizeChatHistory(body.messages);
-    const prunedMessages = normalizedMessages.length > 4
-      ? pruneMessages({
-          messages: normalizedMessages,
-          toolCalls: "before-last-2-messages", // keep last 2 turns' tool context; prune older blobs
-          emptyMessages: "remove",             // clean up any messages emptied by pruning
-        })
-      : normalizedMessages;
+    const prunedMessages = normalizedMessages;
 
-    console.log(`[Chat] History: ${normalizedMessages.length} → ${prunedMessages.length} messages after pruning`);
+    console.log(`[Chat] History: ${normalizedMessages.length} messages`);
 
     const result = await agent.stream({
       messages: prunedMessages,

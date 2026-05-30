@@ -37,6 +37,9 @@ export async function normalizeChatHistory(messages: any[]) {
         };
       }
 
+      // Flat tool format (e.g. tool-execute_sql) — pass through as-is
+      if (p.type && p.type.startsWith("tool-")) return p;
+
       // Other known passthrough types
       if (p.type === "file" || p.type === "reasoning") return p;
 

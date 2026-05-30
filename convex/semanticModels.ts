@@ -248,6 +248,7 @@ export const updateModel = mutation({
           type: v.string(),
           fieldType: v.optional(v.union(v.literal("dimension"), v.literal("measure"))),
           dataType: v.optional(v.string()),
+          rawType: v.optional(v.string()),
           defaultAggregation: v.optional(v.string()),
           sqlExpression: v.optional(v.string()),
           isTimeDimension: v.optional(v.boolean()),
