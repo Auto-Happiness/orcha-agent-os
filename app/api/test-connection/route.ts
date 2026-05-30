@@ -16,11 +16,11 @@ function extractErrorMessage(error: any): string {
 
 /** Suggest the correct provider when a port mismatch is detected. */
 function portProviderHint(type: string, port: number): string | null {
-  if (type === "mysql" && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
-  if (type === "mysql" && port === 5432) return "Port 5432 is the PostgreSQL default port. Did you mean to select the PostgreSQL provider?";
-  if (type === "postgres" && port === 3306) return "Port 3306 is the MySQL default port. Did you mean to select the MySQL provider?";
+  if ((type === "mysql" || type === "mariadb") && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
+  if ((type === "mysql" || type === "mariadb") && port === 5432) return "Port 5432 is the PostgreSQL default port. Did you mean to select the PostgreSQL provider?";
+  if (type === "postgres" && port === 3306) return "Port 3306 is the MySQL/MariaDB default port. Did you mean to select the MySQL or MariaDB provider?";
   if (type === "postgres" && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
-  if (type === "mssql" && port === 3306) return "Port 3306 is the MySQL default port. Did you mean to select the MySQL provider?";
+  if (type === "mssql" && port === 3306) return "Port 3306 is the MySQL/MariaDB default port. Did you mean to select the MySQL or MariaDB provider?";
   return null;
 }
 

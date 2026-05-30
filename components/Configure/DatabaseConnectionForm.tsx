@@ -23,6 +23,7 @@ import { useOrganization, useUser } from "@clerk/nextjs";
 // Individual Form Components
 import { PostgreSQLForm } from "./Forms/PostgreSQL";
 import { MySQLForm } from "./Forms/MySQL";
+import { MariaDBForm } from "./Forms/MariaDB";
 import { MSSQLForm } from "./Forms/MSSQL";
 import { MongoDBForm } from "./Forms/MongoDB";
 import { BigQueryForm } from "./Forms/BigQuery";
@@ -88,6 +89,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
     switch (provider) {
       case "postgres": return <PostgreSQLForm />;
       case "mysql": return <MySQLForm />;
+      case "mariadb": return <MariaDBForm />;
       case "mssql": return <MSSQLForm />;
       case "mongodb": return <MongoDBForm />;
       case "bigquery": return <BigQueryForm />;

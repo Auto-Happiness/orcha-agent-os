@@ -1,4 +1,4 @@
-export type DatabaseType = "postgres" | "mysql" | "mssql" | "bigquery" | "mongodb" | "sqlite" | "oracle" | "mariadb" | "couchdb";
+export type DatabaseType = "postgres" | "mysql" | "mariadb" | "mssql" | "bigquery" | "mongodb" | "sqlite" | "oracle" | "couchdb";
 
 
 export const getNativeDialectRule = (type: string): string => {

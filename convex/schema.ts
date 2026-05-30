@@ -69,6 +69,7 @@ const WidgetLayoutValidator = v.object({
 const DbTypeValidator = v.union(
   v.literal("postgres"),
   v.literal("mysql"),
+  v.literal("mariadb"),
   v.literal("bigquery"),
   v.literal("mssql"),
   v.literal("mongodb"),

@@ -373,7 +373,10 @@ export async function transpileSemanticSQL(
 
     // 6. Transpile using transformSql with the resolved dialect
     const primaryConfig = allOrgConfigs.find((c: any) => c._id === primaryConfigId);
-    const dialect = primaryConfig?.type || "";
+    let dialect = primaryConfig?.type || "";
+    if (dialect === "mariadb") {
+      dialect = "mysql"; // MariaDB uses the same SQL dialect/syntax as MySQL
+    }
     const transpiledSql = await engine.transformSql(processedSql, dialect);
 
     return transpiledSql;

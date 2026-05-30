@@ -239,7 +239,7 @@ test("transpileSemanticSQL works with brackets and quotes in input query", async
   assert.ok(physicalSql.toLowerCase().includes("orders"));
 });
 
-test("transpileSemanticSQL unparses target physical SQL with mysql and postgres dialects correctly", async () => {
+test("transpileSemanticSQL unparses target physical SQL with mysql, postgres, and mariadb dialects correctly", async () => {
   const allModels = [
     {
       _id: "m1",
@@ -254,6 +254,7 @@ test("transpileSemanticSQL unparses target physical SQL with mysql and postgres 
 
   const mysqlConfigs = [{ _id: "cfg1", name: "Sales DB", type: "mysql" }];
   const pgConfigs = [{ _id: "cfg1", name: "Sales DB", type: "postgres" }];
+  const mariadbConfigs = [{ _id: "cfg1", name: "Sales DB", type: "mariadb" }];
 
   const semanticSql = "SELECT id, amount FROM orders";
 
@@ -273,9 +274,18 @@ test("transpileSemanticSQL unparses target physical SQL with mysql and postgres 
     pgConfigs
   );
 
-  // Assert Postgres uses double quotes and MySQL uses backticks
+  const mariadbSql = await transpileSemanticSQL(
+    semanticSql,
+    allModels,
+    [],
+    "cfg1",
+    mariadbConfigs
+  );
+
+  // Assert Postgres uses double quotes and MySQL/MariaDB use backticks
   assert.ok(mysqlSql.includes("`orders`"), `Expected MySQL dialect to quote with backticks, got: ${mysqlSql}`);
   assert.ok(pgSql.includes('"orders"'), `Expected Postgres dialect to quote with double quotes, got: ${pgSql}`);
+  assert.ok(mariadbSql.includes("`orders`"), `Expected MariaDB dialect to quote with backticks, got: ${mariadbSql}`);
 });
 
 test("transpileSemanticSQL auto-joins tables based on qualified column reference", async () => {

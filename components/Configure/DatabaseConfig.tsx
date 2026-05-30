@@ -28,6 +28,7 @@ export function DatabaseConfig() {
     // Default port per provider so the form starts with the right value
     const defaultPorts: Record<string, string> = {
       mysql: "3306",
+      mariadb: "3306",
       postgres: "5432",
       mssql: "1433",
       mongodb: "27017",
