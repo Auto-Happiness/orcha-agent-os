@@ -5,7 +5,7 @@ use crate::error::OrchaError;
 
 pub fn plan_to_sql_with_dialect(plan: &LogicalPlan, dialect_name: &str) -> Result<String, OrchaError> {
     let physical_sql = match dialect_name.to_lowercase().as_str() {
-        "mysql" => {
+        "mysql" | "mariadb" => {
             let dialect = MySqlDialect {};
             let unparser = Unparser::new(&dialect);
             unparser.plan_to_sql(plan)?
