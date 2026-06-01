@@ -19,11 +19,28 @@ import {
   IconChevronRight
 } from "@tabler/icons-react";
 
+const OracleIcon = ({ size = 18, ...props }: { size?: number; [key: string]: any }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <ellipse cx="12" cy="12" rx="9" ry="5" />
+  </svg>
+);
+
 const PROVIDERS = [
   { id: "postgres", label: "PostgreSQL", icon: "/dbicons/postgresql-logo-svgrepo-com.svg", color: "blue" },
   { id: "mysql",    label: "MySQL",      icon: "/dbicons/mysql-logo-svgrepo-com.svg", color: "cyan" },
   { id: "mariadb",  label: "MariaDB",    icon: "/dbicons/mariadb-icon-svgrepo-com.svg", color: "teal" },
   { id: "mssql",    label: "MSSQL",      icon: "/dbicons/microsoft-sql-server-logo-svgrepo-com.svg", color: "red" },
+  { id: "oracle",   label: "Oracle",     icon: OracleIcon, color: "red" },
   { id: "mongodb",  label: "MongoDB",    icon: IconBrandMongodb, color: "green" },
   { id: "bigquery", label: "BigQuery",   icon: IconTableFilled, color: "indigo" },
   { id: "sqlite",   label: "SQLite",     icon: IconDatabase, color: "gray" },

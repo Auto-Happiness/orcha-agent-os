@@ -79,8 +79,13 @@ export function DatabaseSelector({
         <Menu.Label c="dimmed" style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
           Target Databases
         </Menu.Label>
-        {allConfigs?.map((config) => {
-          const isSelected = selectedConfigIds.includes(config._id);
+        {allConfigs
+          ?.filter((config) => {
+            const dbType = config.type?.toLowerCase();
+            return dbType !== "bigquery" && dbType !== "mongodb";
+          })
+          .map((config) => {
+            const isSelected = selectedConfigIds.includes(config._id);
           return (
             <Menu.Item key={config._id} onClick={() => handleToggleConfig(config._id)}>
               <Group gap="sm" wrap="nowrap" style={{ width: "100%" }}>

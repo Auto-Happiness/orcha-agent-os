@@ -74,7 +74,8 @@ const DbTypeValidator = v.union(
   v.literal("bigquery"),
   v.literal("mssql"),
   v.literal("mongodb"),
-  v.literal("sqlite")
+  v.literal("sqlite"),
+  v.literal("oracle")
 );
 
 const DbStatusValidator = v.optional(v.union(v.literal("draft"), v.literal("ready")));

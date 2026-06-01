@@ -3,6 +3,7 @@ import { PostgresDialect } from './dialects/postgres';
 import { MSSQLDialect } from './dialects/mssql';
 import { SQLiteDialect } from './dialects/sqlite';
 import { MariaDBDialect } from './dialects/mariadb';
+import { OracleDialect } from './dialects/oracle';
 import { ScanResult } from './types';
 
 export class DatabaseScanner {
@@ -28,6 +29,10 @@ export class DatabaseScanner {
     return SQLiteDialect.scan(config);
   }
 
+  static async scanOracle(config: any): Promise<ScanResult> {
+    return OracleDialect.scan(config);
+  }
+
   static async executeQuery(type: string, config: any, sqlStr: string): Promise<{ rows: any[], columns: string[] }> {
     if (type === "mysql") {
       return MySQLDialect.executeQuery(config, sqlStr);
@@ -37,6 +42,8 @@ export class DatabaseScanner {
       return MSSQLDialect.executeQuery(config, sqlStr);
     } else if (type === "sqlite") {
       return SQLiteDialect.executeQuery(config, sqlStr);
+    } else if (type === "oracle") {
+      return OracleDialect.executeQuery(config, sqlStr);
     } else {
       // postgres for PostgreSQL
       return PostgresDialect.executeQuery(config, sqlStr);

@@ -18,9 +18,15 @@ function extractErrorMessage(error: any): string {
 function portProviderHint(type: string, port: number): string | null {
   if ((type === "mysql" || type === "mariadb") && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
   if ((type === "mysql" || type === "mariadb") && port === 5432) return "Port 5432 is the PostgreSQL default port. Did you mean to select the PostgreSQL provider?";
+  if ((type === "mysql" || type === "mariadb") && port === 1521) return "Port 1521 is the Oracle default port. Did you mean to select the Oracle provider?";
   if (type === "postgres" && port === 3306) return "Port 3306 is the MySQL/MariaDB default port. Did you mean to select the MySQL or MariaDB provider?";
   if (type === "postgres" && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
+  if (type === "postgres" && port === 1521) return "Port 1521 is the Oracle default port. Did you mean to select the Oracle provider?";
   if (type === "mssql" && port === 3306) return "Port 3306 is the MySQL/MariaDB default port. Did you mean to select the MySQL or MariaDB provider?";
+  if (type === "mssql" && port === 1521) return "Port 1521 is the Oracle default port. Did you mean to select the Oracle provider?";
+  if (type === "oracle" && port === 3306) return "Port 3306 is the MySQL/MariaDB default port. Did you mean to select the MySQL or MariaDB provider?";
+  if (type === "oracle" && port === 1433) return "Port 1433 is the MSSQL default port. Did you mean to select the MSSQL provider?";
+  if (type === "oracle" && port === 5432) return "Port 5432 is the PostgreSQL default port. Did you mean to select the PostgreSQL provider?";
   return null;
 }
 
@@ -58,10 +64,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: `SQLite connection successful! (${duration}ms)` });
     }
 
-    // ── Network databases (MySQL, PostgreSQL, MSSQL) ───────────────────────
+    // ── Network databases (MySQL, PostgreSQL, MSSQL, Oracle) ───────────────────────
     const config: DbConfig = {
       ...body,
-      port: body.port ? parseInt(body.port, 10) : (type === "postgres" ? 5432 : type === "mssql" ? 1433 : 3306),
+      port: body.port ? parseInt(body.port, 10) : (type === "postgres" ? 5432 : type === "mssql" ? 1433 : type === "oracle" ? 1521 : 3306),
     };
 
     // Basic validation

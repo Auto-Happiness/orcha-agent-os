@@ -1,6 +1,6 @@
 "use client";
 
-import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal, Popover, ColorPicker, ActionIcon, ColorInput, Divider, Tooltip as MantineTooltip, UnstyledButton, Collapse, TextInput } from "@mantine/core";
+import { Stack, Group, Avatar, Text, Box, Button, ScrollArea, Loader, Modal, Popover, ColorPicker, ActionIcon, ColorInput, Divider, Tooltip as MantineTooltip, UnstyledButton, Collapse, TextInput, HoverCard } from "@mantine/core";
 import { IconUser, IconSparkles, IconTableExport, IconDatabase, IconCode, IconDownload, IconBookmark, IconCheck, IconChartBar, IconPalette, IconBrain, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import { UIMessage } from "ai";
 import React, { useCallback, useState, memo, useEffect, useRef } from "react";
@@ -19,6 +19,166 @@ interface ChatMessagesProps {
   organizationId?: string;
   configId?: string | null;
 }
+
+// ── Image Cell Helpers ────────────────────────────────────────────────────────
+
+const isImageUrl = (url: any): boolean => {
+  if (typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) return false;
+  return /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\?.*)?$/i.test(trimmed);
+};
+
+const TableCellImage = memo(function TableCellImage({ url }: { url: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <Text
+        component="a"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        c="violet.3"
+        style={{ textDecoration: "underline", cursor: "pointer", fontSize: 11 }}
+      >
+        {url}
+      </Text>
+    );
+  }
+
+  return (
+    <HoverCard width={280} position="top" withArrow shadow="md" openDelay={200} closeDelay={100}>
+      <HoverCard.Target>
+        <Box
+          component="a"
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-block",
+            cursor: "pointer",
+            borderRadius: 4,
+            overflow: "hidden",
+            border: "1px solid rgba(147, 51, 234, 0.3)",
+            height: 36,
+            verticalAlign: "middle",
+            transition: "transform 0.15s ease, border-color 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.05)";
+            e.currentTarget.style.borderColor = "rgba(147, 51, 234, 0.8)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.borderColor = "rgba(147, 51, 234, 0.3)";
+          }}
+        >
+          <img
+            src={url}
+            alt="thumbnail"
+            style={{
+              height: "100%",
+              width: "auto",
+              maxWidth: 80,
+              objectFit: "cover",
+              display: "block",
+            }}
+            onError={() => setHasError(true)}
+          />
+        </Box>
+      </HoverCard.Target>
+      <HoverCard.Dropdown style={{ padding: 6, background: "rgba(19, 16, 42, 0.95)", border: "1px solid rgba(147, 51, 234, 0.25)", zIndex: 1000 }}>
+        <img
+          src={url}
+          alt="preview"
+          style={{
+            width: "100%",
+            height: "auto",
+            maxHeight: 240,
+            borderRadius: 4,
+            objectFit: "contain",
+            display: "block",
+          }}
+        />
+      </HoverCard.Dropdown>
+    </HoverCard>
+  );
+});
+
+const ChatImagePreview = memo(function ChatImagePreview({ url, alt }: { url: string; alt: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <Text
+        component="a"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        c="violet.3"
+        style={{ textDecoration: "underline", cursor: "pointer", fontSize: 13 }}
+      >
+        {alt || url}
+      </Text>
+    );
+  }
+
+  return (
+    <Box
+      style={{
+        marginTop: 8,
+        marginBottom: 8,
+        maxWidth: "100%",
+        width: 320,
+        borderRadius: 10,
+        overflow: "hidden",
+        border: "1px solid rgba(147, 51, 234, 0.2)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+        background: "rgba(10,8,20,0.5)",
+        display: "block",
+      }}
+    >
+      <Box
+        component="a"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: "block",
+          cursor: "pointer",
+          transition: "opacity 0.2s ease, transform 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = "0.9";
+          e.currentTarget.style.transform = "scale(1.01)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = "1";
+          e.currentTarget.style.transform = "scale(1)";
+        }}
+      >
+        <img
+          src={url}
+          alt={alt || "Image preview"}
+          style={{
+            width: "100%",
+            height: "auto",
+            maxHeight: 240,
+            objectFit: "contain",
+            display: "block",
+          }}
+          onError={() => setHasError(true)}
+        />
+      </Box>
+      {alt && alt !== url && (
+        <Box style={{ padding: "6px 12px", borderTop: "1px solid rgba(147, 51, 234, 0.1)", background: "rgba(19,16,42,0.95)" }}>
+          <Text size="xs" c="rgba(192,132,252,0.7)" style={{ fontStyle: "italic", fontSize: 11 }}>{alt}</Text>
+        </Box>
+      )}
+    </Box>
+  );
+});
 
 // ── DataTable ────────────────────────────────────────────────────────────────
 
@@ -143,9 +303,10 @@ const DataTable = memo(function DataTable({ data, sql, organizationId, configId 
                     const numericValue = !isNull && isNum ? Number(val) : NaN;
                     const isNegative = !isNaN(numericValue) && numericValue < 0;
 
+                    const isImg = isImageUrl(val);
                     return (
                       <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
-                        {displayVal}
+                        {isImg ? <TableCellImage url={val} /> : displayVal}
                       </td>
                     );
                   })}
@@ -532,8 +693,8 @@ function parseMarkdown(text: string, stripTables?: boolean): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   
-  // Match bold (**text**), italic (*text*), code (`text`), and links [text](url)
-  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\)/g;
+  // Match bold (**text**), italic (*text*), code (`text`), and links [text](url) or images ![text](url)
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|(!)?\[(.+?)\]\((.+?)\)/g;
   let match;
 
   while ((match = regex.exec(text)) !== null) {
@@ -575,21 +736,32 @@ function parseMarkdown(text: string, stripTables?: boolean): React.ReactNode[] {
           {match[3]}
         </Text>
       );
-    } else if (match[4] && match[5]) {
-      // Link
-      parts.push(
-        <Text
-          key={`link-${match.index}`}
-          component="a"
-          href={match[5]}
-          target="_blank"
-          rel="noopener noreferrer"
-          c="violet.3"
-          style={{ textDecoration: "underline", cursor: "pointer" }}
-        >
-          {match[4]}
-        </Text>
-      );
+    } else if (match[5] && match[6]) {
+      // Link or Image
+      const hasExclamation = !!match[4];
+      const linkText = match[5];
+      const linkUrl = match[6];
+      const isImg = hasExclamation || isImageUrl(linkUrl);
+
+      if (isImg) {
+        parts.push(
+          <ChatImagePreview key={`img-${match.index}`} url={linkUrl} alt={linkText} />
+        );
+      } else {
+        parts.push(
+          <Text
+            key={`link-${match.index}`}
+            component="a"
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            c="violet.3"
+            style={{ textDecoration: "underline", cursor: "pointer" }}
+          >
+            {linkText}
+          </Text>
+        );
+      }
     }
 
     lastIndex = regex.lastIndex;
@@ -924,7 +1096,7 @@ function ReasoningBlock({ text }: { text: string }) {
       
       <Collapse expanded={opened}>
         <Box p="xs" px="sm" pb="sm">
-          <Text size="xs" c="rgba(255, 255, 255, 0.65)" style={{ lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          <Text size="xs" c="rgba(255, 255, 255, 0.65)" style={{ lineHeight: 1.6, whiteSpace: "pre-wrap" }} component="div">
             {parseMarkdown(content)}
           </Text>
         </Box>
@@ -979,16 +1151,16 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
 
               return (
                 <React.Fragment key={i}>
-                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }}>{parseMarkdown(before, hasSqlResult)}</Text> : null}
+                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }} component="div">{parseMarkdown(before, hasSqlResult)}</Text> : null}
                   <ReasoningBlock text={MARKER + "\n" + reasoningContent} />
-                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }}>{parseMarkdown(afterAnswer, hasSqlResult)}</Text> : null}
+                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }} component="div">{parseMarkdown(afterAnswer, hasSqlResult)}</Text> : null}
                 </React.Fragment>
               );
             }
 
             // Plain text part — no reasoning marker
             return (
-              <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+              <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }} component="div">
                 {parseMarkdown(part.text, hasSqlResult)}
               </Text>
             );

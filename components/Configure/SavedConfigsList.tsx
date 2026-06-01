@@ -49,11 +49,28 @@ import {
 } from "@tabler/icons-react";
 import { inputStyles, selectStyles } from "@/lib/styles";
 
+const OracleIcon = ({ size = 18, ...props }: { size?: number; [key: string]: any }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <ellipse cx="12" cy="12" rx="9" ry="5" />
+  </svg>
+);
+
 const TYPE_OPTIONS = [
   { value: "postgres", label: "PostgreSQL", icon: "/dbicons/postgresql-logo-svgrepo-com.svg" },
   { value: "mysql", label: "MySQL", icon: "/dbicons/mysql-logo-svgrepo-com.svg" },
   { value: "mariadb",  label: "MariaDB",    icon: "/dbicons/mariadb-icon-svgrepo-com.svg" },
   { value: "mssql", label: "MSSQL", icon: "/dbicons/microsoft-sql-server-logo-svgrepo-com.svg" },
+  { value: "oracle", label: "Oracle", icon: OracleIcon },
   { value: "mongodb", label: "MongoDB", icon: IconBrandMongodb },
   { value: "bigquery", label: "BigQuery", icon: IconTableFilled },
   { value: "sqlite",   label: "SQLite",     icon: IconDatabase },

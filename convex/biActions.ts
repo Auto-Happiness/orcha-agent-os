@@ -76,6 +76,7 @@ export const executeWidgetQuery = action({
       // 4. Secure SQL wrapping (engine aware)
       let innerSql = savedQuery.sql.trim().replace(/;?\s*$/, "");
       const isMssql = config.type === "mssql";
+      const isOracle = config.type === "oracle";
       let finalSql = "";
 
       // We wrap in a subquery to enforce a 1,000 row safety limit for dashboards.
@@ -84,6 +85,8 @@ export const executeWidgetQuery = action({
           innerSql = innerSql.replace(/(\bSELECT\b(\s+DISTINCT)?)/i, "$1 TOP 100 PERCENT ");
         }
         finalSql = `SELECT TOP 1000 * FROM (${innerSql}) AS _bi_source`;
+      } else if (isOracle) {
+        finalSql = `SELECT * FROM (${innerSql}) _bi_source FETCH FIRST 1000 ROWS ONLY`;
       } else {
         finalSql = `SELECT * FROM (${innerSql}) AS _bi_source LIMIT 1000`;
       }

@@ -4,7 +4,7 @@ import * as mssql from "mssql";
 import Database from "better-sqlite3";
 
 export type DbConfig = {
-  type: "mysql" | "mariadb" | "postgres" | "mssql" | "sqlite";
+  type: "mysql" | "mariadb" | "postgres" | "mssql" | "sqlite" | "oracle";
   // Network-based databases
   host?: string;
   port?: number;
@@ -13,6 +13,8 @@ export type DbConfig = {
   database?: string;
   schema?: string;
   ssl?: boolean;
+  // Oracle specific
+  connectString?: string;
   // MSSQL specific
   encrypt?: boolean;
   trustServerCertificate?: boolean;
@@ -56,6 +58,7 @@ export class DbExecutor {
       if (config.type === "postgres") return await this.executePostgres(config, query, params);
       if (config.type === "mssql") return await this.executeMssql(config, query, params);
       if (config.type === "sqlite") return await this.executeSqlite(config, query, params);
+      if (config.type === "oracle") return await this.executeOracle(config, query, params);
       throw new Error(`Unsupported database type: ${(config as any).type}`);
     } catch (err: any) {
       console.error(`[DbExecutor] ${config.type} execution error:`, err.message);
@@ -150,6 +153,38 @@ export class DbExecutor {
       return result as any[];
     } finally {
       db.close();
+    }
+  }
+
+  private static async executeOracle(config: DbConfig, sqlStr: string, params: any[]): Promise<any[]> {
+    console.log(`[DbExecutor] Connecting to Oracle at ${config.host}:${config.port || 1521}/${config.database} (ssl=${!!config.ssl})...`);
+    const oracledb = require("oracledb");
+    const connAttrs: any = {
+      user: config.user,
+      password: config.password,
+    };
+    if (config.connectString) {
+      connAttrs.connectString = config.connectString;
+    } else {
+      connAttrs.connectString = `${config.host}:${config.port || 1521}/${config.database}`;
+    }
+
+    let connection;
+    try {
+      connection = await oracledb.getConnection(connAttrs);
+      const result = await connection.execute(sqlStr, params, {
+        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        autoCommit: true,
+      });
+      return result.rows || [];
+    } finally {
+      if (connection) {
+        try {
+          await connection.close();
+        } catch (err) {
+          console.error("[DbExecutor] Error closing Oracle connection:", err);
+        }
+      }
     }
   }
 }

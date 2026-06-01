@@ -102,10 +102,12 @@ export class OrchaFusion {
 
     // Skip if already attached with the EXACT SAME configuration in this singleton connection
     if (this.attachedDatabases.get(alias) === configHash) {
-      // For MSSQL databases, we still need to check if there are new tables referenced
+      // For MSSQL and Oracle databases, we still need to check if there are new tables referenced
       // in this query that haven't been bridged yet, and bridge them incrementally.
       if (config.type === "mssql") {
         await this.bridgeMssql(conn, alias, config, sql);
+      } else if (config.type === "oracle") {
+        await this.bridgeOracle(conn, alias, config, sql);
       }
       return;
     }
@@ -119,6 +121,8 @@ export class OrchaFusion {
       // We must still ensure that any tables referenced in THIS query are bridged incrementally
       if (config.type === "mssql") {
         await this.bridgeMssql(conn, alias, config, sql);
+      } else if (config.type === "oracle") {
+        await this.bridgeOracle(conn, alias, config, sql);
       }
       return;
     }
@@ -146,6 +150,8 @@ export class OrchaFusion {
         await this.runQuery(conn, `ATTACH IF NOT EXISTS '${cs}' AS ${alias} (TYPE MYSQL);`);
       } else if (config.type === "mssql") {
         await this.bridgeMssql(conn, alias, config, sql);
+      } else if (config.type === "oracle") {
+        await this.bridgeOracle(conn, alias, config, sql);
       }
 
       this.attachedDatabases.set(alias, configHash);
@@ -249,6 +255,75 @@ export class OrchaFusion {
         else resolve(this.sanitizeRows(rows));
       });
     });
+  }
+
+  /**
+   * Oracle Hybrid Bridge — incremental and deduplicated.
+   */
+  private static async bridgeOracle(conn: any, alias: string, config: any, sql: string) {
+    // Regex matches: alias.table or just table if it's a single DB execute
+    const tableRegex = new RegExp(`(?:FROM|JOIN)\\s+["\\[]?${alias}["\\]]?\\.["\\[]?([a-zA-Z0-9_]+)["\\]]?`, "gi");
+    let match;
+    const found: string[] = [];
+    while ((match = tableRegex.exec(sql)) !== null) {
+      found.push(match[1]);
+    }
+
+    // Fallback for single-db queries where alias might be missing in SQL
+    if (found.length === 0) {
+      const simpleRegex = /(?:FROM|JOIN)\s+["\\[]?([a-zA-Z0-9_]+)["\\]]?/gi;
+      while ((match = simpleRegex.exec(sql)) !== null) {
+        if (!this.attachedDatabases.has(match[1])) found.push(match[1]);
+      }
+    }
+
+    const allTables = [...new Set(found)];
+    if (allTables.length === 0) return;
+
+    // DEDUPLICATION: Only bridge tables that are NOT already loaded in DuckDB memory
+    const tablesToBridge = allTables.filter(table => !this.bridgedTables.has(`${alias}.${table}`));
+
+    if (tablesToBridge.length === 0) {
+      console.log(`[OrchaFusion] All Oracle tables for [${alias}] already bridged. Skipping fetch.`);
+      return;
+    }
+
+    if (tablesToBridge.length < allTables.length) {
+      console.log(`[OrchaFusion] Incremental bridge: ${tablesToBridge.length}/${allTables.length} new table(s) for [${alias}].`);
+    }
+
+    await this.runQuery(conn, `CREATE SCHEMA IF NOT EXISTS ${alias};`);
+
+    // Bridge only the new, un-bridged tables in parallel
+    await Promise.all(tablesToBridge.map(async (table) => {
+      let tempPath = "";
+      try {
+        console.log(`[OrchaFusion] Bridging Oracle: ${alias}.${table}`);
+        const rows = await DbExecutor.execute(config, `SELECT * FROM ${table} FETCH FIRST 1000 ROWS ONLY`);
+        if (rows.length === 0) return;
+
+        // Use a temporary file to avoid SQL injection/serialization errors with large JSON strings
+        const tempDir = join(tmpdir(), "orcha-fusion");
+        if (!existsSync(tempDir)) mkdirSync(tempDir, { recursive: true });
+        tempPath = join(tempDir, `${alias}_${table}_${Date.now()}.json`);
+        
+        writeFileSync(tempPath, JSON.stringify(rows));
+        
+        // DuckDB read_json_auto from file is much more robust than passing strings
+        await this.runQuery(conn, `CREATE OR REPLACE TABLE ${alias}_${table} AS SELECT * FROM read_json_auto('${tempPath.replace(/\\/g, "/")}');`);
+        await this.runQuery(conn, `CREATE OR REPLACE VIEW ${alias}.${table} AS SELECT * FROM ${alias}_${table};`);
+
+        // Mark this table as bridged so subsequent queries skip the fetch entirely
+        this.bridgedTables.add(`${alias}.${table}`);
+        console.log(`[OrchaFusion] Successfully bridged Oracle table [${alias}.${table}].`);
+      } catch (e) {
+        console.warn(`[OrchaFusion] Failed to bridge Oracle table ${table}:`, (e as any).message);
+      } finally {
+        if (tempPath && existsSync(tempPath)) {
+          try { unlinkSync(tempPath); } catch (err) { /* ignore cleanup errors */ }
+        }
+      }
+    }));
   }
 
   /**

@@ -29,6 +29,7 @@ export function SqlEditor({
     const lang = String(language || "mysql").toLowerCase();
     if (lang.includes("postgre")) return PostgreSQL;
     if (lang === "mssql") return MSSQL;
+    if (lang === "oracle") return PostgreSQL;
     return MySQL;
   };
 
