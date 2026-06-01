@@ -40,6 +40,18 @@ export default function ChatPage() {
     }
   }, [allConfigs, selectedConfigIds]);
 
+  // Clean up selectedConfigIds to filter out any IDs that are not present in allConfigs (e.g. deleted/draft environments)
+  useEffect(() => {
+    if (allConfigs && allConfigs.length > 0 && selectedConfigIds.length > 0) {
+      const allIds = new Set(allConfigs.map((c) => c._id as string));
+      const filtered = selectedConfigIds.filter((id) => allIds.has(id));
+      const uniqueFiltered = Array.from(new Set(filtered));
+      if (JSON.stringify(uniqueFiltered) !== JSON.stringify(selectedConfigIds)) {
+        setSelectedConfigIds(uniqueFiltered);
+      }
+    }
+  }, [allConfigs, selectedConfigIds]);
+
   const isConnected = useQuery(
     api.databaseConfigs.isConnected,
     activeOrg?._id && isSignedIn ? { organizationId: activeOrg._id } : "skip"
@@ -107,9 +119,11 @@ export default function ChatPage() {
   useEffect(() => {
     if (!activeSession) return;
     
-    if (activeSession.configIds && JSON.stringify(activeSession.configIds) !== JSON.stringify(selectedConfigIds)) {
-      console.log("[Chat] Syncing session configIds:", activeSession.configIds);
-      setSelectedConfigIds(activeSession.configIds);
+    const uniqueSessionIds = Array.from(new Set((activeSession.configIds || []).filter(Boolean)));
+    
+    if (activeSession.configIds && JSON.stringify(uniqueSessionIds) !== JSON.stringify(selectedConfigIds)) {
+      console.log("[Chat] Syncing session configIds:", uniqueSessionIds);
+      setSelectedConfigIds(uniqueSessionIds);
     } else if (activeSession.configId && selectedConfigIds.length === 0) {
       setSelectedConfigIds([activeSession.configId]);
     }
@@ -122,11 +136,12 @@ export default function ChatPage() {
 
   // Persist changes to the session when the user manually changes the selector
   const handleConfigChange = useCallback((ids: string[]) => {
-    setSelectedConfigIds(ids);
-    if (activeSessionId && ids.length > 0) {
+    const uniqueIds = Array.from(new Set((ids || []).filter(Boolean)));
+    setSelectedConfigIds(uniqueIds);
+    if (activeSessionId && uniqueIds.length > 0) {
       updateSessionConfig({ 
         sessionId: activeSessionId as Id<"chatSessions">, 
-        configIds: ids as Id<"databaseConfigs">[] 
+        configIds: uniqueIds as Id<"databaseConfigs">[] 
       }).catch(console.error);
     }
   }, [activeSessionId, updateSessionConfig]);

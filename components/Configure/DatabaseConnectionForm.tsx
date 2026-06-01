@@ -28,6 +28,7 @@ import { MSSQLForm } from "./Forms/MSSQL";
 import { MongoDBForm } from "./Forms/MongoDB";
 import { BigQueryForm } from "./Forms/BigQuery";
 import { SQLiteForm } from "./Forms/SQLite";
+import { OracleForm } from "./Forms/Oracle";
 
 interface ConnectionFormProps {
   provider: string;
@@ -91,6 +92,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
       case "mysql": return <MySQLForm />;
       case "mariadb": return <MariaDBForm />;
       case "mssql": return <MSSQLForm />;
+      case "oracle": return <OracleForm />;
       case "mongodb": return <MongoDBForm />;
       case "bigquery": return <BigQueryForm />;
       case "sqlite": return <SQLiteForm />;
@@ -102,9 +104,12 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
     if (provider === "sqlite") {
       return `sqlite://${data.dbConfig?.filePath || "[file-path]"}`;
     }
-    const { host, port, user, database } = data.dbConfig;
+    const { host, port, user, database, connectString } = data.dbConfig;
+    if (provider === "oracle" && connectString) {
+      return `oracle://[custom-connect-string]`;
+    }
     const h = host || "[host]";
-    const p = port || (provider === "postgres" ? "5432" : provider === "mssql" ? "1433" : "3306");
+    const p = port || (provider === "postgres" ? "5432" : provider === "mssql" ? "1433" : provider === "oracle" ? "1521" : "3306");
     const u = user || "[user]";
     const d = database || "[database]";
 

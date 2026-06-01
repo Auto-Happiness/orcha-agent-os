@@ -36,6 +36,7 @@ export function QuerySelectorSection({
     const config = configs?.find((c) => c._id === selectedConfigId);
     if (config?.type === "mysql") return "blue";
     if (config?.type === "mssql") return "red";
+    if (config?.type === "oracle") return "orange";
     return "gray";
   };
 

@@ -55,6 +55,12 @@ export function ChatPromptBox({
   showResults,
   setShowResults,
 }: ChatPromptBoxProps) {
+  const uniqueConfigIds = React.useMemo(() => {
+    const rawUnique = Array.from(new Set((selectedConfigIds || []).filter(Boolean)));
+    if (!allConfigs || allConfigs.length === 0) return rawUnique;
+    const allIds = new Set(allConfigs.map((c: any) => c._id));
+    return rawUnique.filter((id) => allIds.has(id));
+  }, [selectedConfigIds, allConfigs]);
 
   // Defensive local state to ensure typing is ALWAYS fluid
   const [localValue, setLocalValue] = useState(input || "");
@@ -188,9 +194,9 @@ export function ChatPromptBox({
                       `}</style>
                       <IconTable size={14} color="rgba(255,255,255,0.4)" />
                       <Text size="xs" fw={600} c="rgba(255,255,255,0.8)" style={{ flex: 1 }}>
-                        {selectedConfigIds.length === 0 
+                        {uniqueConfigIds.length === 0 
                           ? "Select Databases" 
-                          : `${selectedConfigIds.length} DB${selectedConfigIds.length > 1 ? "s" : ""} Selected`}
+                          : `${uniqueConfigIds.length} DB${uniqueConfigIds.length > 1 ? "s" : ""} Selected`}
                       </Text>
                       <IconChevronDown size={10} color="rgba(255,255,255,0.4)" />
                     </Group>
@@ -200,15 +206,15 @@ export function ChatPromptBox({
                       Target Databases
                     </Menu.Label>
                     {allConfigs?.map((config) => {
-                      const isSelected = selectedConfigIds.includes(config._id);
+                      const isSelected = uniqueConfigIds.includes(config._id);
                       return (
                         <Menu.Item
                           key={config._id}
                           onClick={() => {
                             if (isSelected) {
-                              setSelectedConfigIds(selectedConfigIds.filter(id => id !== config._id));
+                              setSelectedConfigIds(uniqueConfigIds.filter(id => id !== config._id));
                             } else {
-                              setSelectedConfigIds([...selectedConfigIds, config._id]);
+                              setSelectedConfigIds([...uniqueConfigIds, config._id]);
                             }
                           }}
                         >

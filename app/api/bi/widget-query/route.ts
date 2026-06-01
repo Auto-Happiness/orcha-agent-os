@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
 
     let innerSql = savedQuery.sql.trim().replace(/;?\s*$/, "");
     const isMssql = config.type === "mssql";
+    const isOracle = config.type === "oracle";
     const finalSql = isMssql
       ? (() => {
           if (/ORDER\s+BY/i.test(innerSql) && !/TOP\s+\d+/i.test(innerSql)) {
@@ -77,6 +78,8 @@ export async function POST(req: NextRequest) {
           }
           return `SELECT TOP 1000 * FROM (${innerSql}) AS _bi_source`;
         })()
+      : isOracle
+      ? `SELECT * FROM (${innerSql}) _bi_source FETCH FIRST 1000 ROWS ONLY`
       : `SELECT * FROM (${innerSql}) AS _bi_source LIMIT 1000`;
 
     const rows = await DbExecutor.execute(dbConfig as any, finalSql);

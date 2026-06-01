@@ -154,6 +154,7 @@ export function WidgetIntelligencePanel({
 
       let innerSql = query.sql.trim().replace(/;?\s*$/, "");
       const isMssql = config.type === "mssql";
+      const isOracle = config.type === "oracle";
       let limitedSql = "";
 
       if (isMssql) {
@@ -161,6 +162,8 @@ export function WidgetIntelligencePanel({
           innerSql = innerSql.replace(/(\bSELECT\b(\s+DISTINCT)?)/i, "$1 TOP 100 PERCENT ");
         }
         limitedSql = `SELECT TOP 10 * FROM (${innerSql}) AS _orcha_preview`;
+      } else if (isOracle) {
+        limitedSql = `SELECT * FROM (${innerSql}) _orcha_preview FETCH FIRST 10 ROWS ONLY`;
       } else {
         limitedSql = `SELECT * FROM (${innerSql}) AS _orcha_preview LIMIT 10`;
       }
