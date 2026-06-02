@@ -9,6 +9,8 @@ import {
   IconHash,
   IconSettings,
   IconX,
+  IconChartArea,
+  IconChartRadar,
 } from "@tabler/icons-react";
 import { DraftPrompt } from "./types";
 
@@ -36,8 +38,12 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
         return <IconChartBar size={18} color="#a855f7" />;
       case "line":
         return <IconChartLine size={18} color="#0ea5e9" />;
+      case "area":
+        return <IconChartArea size={18} color="#6366f1" />;
       case "pie":
         return <IconChartPie size={18} color="#ec4899" />;
+      case "radar":
+        return <IconChartRadar size={18} color="#d946ef" />;
       case "kpi":
         return <IconNumbers size={18} color="#f59e0b" />;
       case "table":
@@ -132,11 +138,25 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                 Line Chart
               </Menu.Item>
               <Menu.Item
+                leftSection={<IconChartArea size={14} color="#6366f1" />}
+                onClick={() => handleTypeChange("area")}
+                c="white"
+              >
+                Area Chart
+              </Menu.Item>
+              <Menu.Item
                 leftSection={<IconChartPie size={14} color="#ec4899" />}
                 onClick={() => handleTypeChange("pie")}
                 c="white"
               >
                 Pie Chart
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconChartRadar size={14} color="#d946ef" />}
+                onClick={() => handleTypeChange("radar")}
+                c="white"
+              >
+                Radar Chart
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconNumbers size={14} color="#f59e0b" />}

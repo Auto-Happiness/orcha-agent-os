@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 import { useDisclosure } from "@mantine/hooks";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
@@ -368,7 +369,7 @@ const axisStyle = {
 const ChartBlock = memo(function ChartBlock({
   chartType, title, xKey, yKeys, data, initialColors, messageId, parts, partIndex
 }: {
-  chartType: "bar" | "line" | "area" | "pie";
+  chartType: "bar" | "line" | "area" | "pie" | "radar";
   title: string;
   xKey: string;
   yKeys: string[];
@@ -545,6 +546,39 @@ const ChartBlock = memo(function ChartBlock({
             <Area key={k} type="monotone" dataKey={k} stroke={seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length]} fill={`url(#grad-${k})`} strokeWidth={2} />
           ))}
         </AreaChart>
+      );
+    }
+    if (chartType === "radar") {
+      return (
+        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
+          <PolarGrid stroke="rgba(255,255,255,0.06)" />
+          <PolarAngleAxis
+            dataKey={xKey}
+            tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+          />
+          <PolarRadiusAxis
+            angle={90}
+            domain={[0, "auto"]}
+            tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 8 }}
+            axisLine={false}
+          />
+          <Tooltip {...chartTooltipStyle} />
+          {yKeys.map((k, i) => {
+            const color = seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length];
+            return (
+              <Radar
+                key={k}
+                name={k}
+                dataKey={k}
+                stroke={color}
+                strokeWidth={2}
+                fill={color}
+                fillOpacity={0.15}
+              />
+            );
+          })}
+          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+        </RadarChart>
       );
     }
     // default: bar

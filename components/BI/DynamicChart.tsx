@@ -17,12 +17,17 @@ import {
   Pie,
   Cell,
   Legend,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
 } from "recharts";
 import { Box, Text, Center, Loader, Stack, Group, Table, ScrollArea } from "@mantine/core";
 
 interface DynamicChartProps {
   data: any[];
-  type: "bar" | "line" | "pie" | "area" | "kpi" | "table" | "counter";
+  type: "bar" | "line" | "pie" | "area" | "radar" | "kpi" | "table" | "counter";
   labelKey: string;
   valueKeys: string[];
   height?: number | string;
@@ -328,6 +333,44 @@ export function DynamicChart({
           </AreaChart>
         );
 
+      case "radar":
+        return (
+          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={formattedData}>
+            <PolarGrid stroke="rgba(255,255,255,0.06)" />
+            <PolarAngleAxis
+              dataKey={resolvedLabelKey}
+              tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+            />
+            <PolarRadiusAxis
+              angle={90}
+              domain={[0, "auto"]}
+              tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 8 }}
+              axisLine={false}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            {valueKeys.map((key, index) => {
+              const sColor = getSeriesColor(key, index);
+              return (
+                <Radar
+                  key={key}
+                  name={key}
+                  dataKey={key}
+                  stroke={sColor}
+                  strokeWidth={2}
+                  fill={sColor}
+                  fillOpacity={0.15}
+                />
+              );
+            })}
+            <Legend
+              verticalAlign="bottom"
+              align="center"
+              iconType="circle"
+              wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}
+            />
+          </RadarChart>
+        );
+
       case "pie":
         const primaryValueKey = valueKeys[0];
         return (
@@ -398,6 +441,8 @@ export function DynamicChart({
   // The parent (DashboardGrid widget card) is position:absolute inset:0, so
   // we use absolute fill here too — Recharts ResponsiveContainer will measure
   // real pixel dimensions instead of getting -1.
+  // Radar chart needs a fixed-size container (not absolute fill) for PolarGrid to measure correctly.
+  // All other chart types (bar, line, area, pie) use the absolute fill pattern.
   const isRecharts = type !== "table" && type !== "kpi" && type !== "counter";
 
   return (

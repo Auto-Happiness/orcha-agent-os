@@ -1,6 +1,6 @@
 export interface ProposedWidget {
   id: string;
-  type: "bar" | "line" | "pie" | "kpi" | "area" | "table" | "counter";
+  type: "bar" | "line" | "pie" | "kpi" | "area" | "radar" | "table" | "counter";
   title: string;
   reason: string;
   sql: string;

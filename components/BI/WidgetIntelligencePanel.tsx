@@ -386,6 +386,10 @@ function getAdviceForType(type?: string) {
       return "Bar charts work best for comparing categories. Select one categorical column (String) and one numeric value.";
     case "line":
       return "Line charts are ideal for trends over time. Please select a Date/Time column for the X-Axis.";
+    case "area":
+      return "Area charts show trends with shaded volume under the line. Select a Date/Time or sequential column for the X-Axis and one or more numeric value columns.";
+    case "radar":
+      return "Radar charts compare multiple variables across categories. Select a categorical column for the spoke labels and one or more numeric value columns for the axes.";
     case "pie":
       return "Pie charts show proportions. Best with 2-5 distinct categories to keep the visual clean.";
     case "kpi":

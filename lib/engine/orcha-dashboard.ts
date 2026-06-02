@@ -195,17 +195,67 @@ export class OrchaDashboard {
           sql = sql.replace(topRegex, "SELECT ").trim() + ` LIMIT ${limit}`;
         }
 
-        // Ensure SQL has a final LIMIT to prevent massive payload transfers
-        if (!/LIMIT\s+\d+/i.test(sql)) {
-          sql = `SELECT * FROM (${sql}) AS _bi_source LIMIT 1000`;
-        }
+        let rows;
+        let columns;
 
-        const rows = await OrchaFusion.executeMulti(sql, dbConfigMap);
-        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+        const alias = q.defaultAlias;
+        const hasOtherAliases = Array.from(dbConfigMap.keys()).some(a => a !== alias && new RegExp(`\\b${a}\\b`, 'i').test(sql));
+
+        if (alias && dbConfigMap.has(alias) && !hasOtherAliases) {
+          console.log(`[OrchaDashboard] Executing single-database query natively for widget ${q.id} on ${alias}...`);
+          const config = dbConfigMap.get(alias);
+          const cleanSql = sql.replace(new RegExp(`["\`\\[]?${alias}["\`\\]]?\\.`, 'gi'), "");
+          
+          // Apply native limit logic based on database type to prevent massive payload transfers
+          let limitedSql = cleanSql;
+          if (!/LIMIT\s+\d+/i.test(limitedSql) && !/TOP\s+\d+/i.test(limitedSql) && !/FETCH\s+FIRST/i.test(limitedSql)) {
+            if (config.type === "mssql") {
+              if (/ORDER\s+BY/i.test(limitedSql) && !/OFFSET/i.test(limitedSql)) {
+                limitedSql = limitedSql.replace(/(\bSELECT\b(\s+DISTINCT)?)/i, "$1 TOP 100 PERCENT ");
+              }
+              limitedSql = `SELECT TOP 1000 * FROM (${limitedSql}) AS _bi_source`;
+            } else if (config.type === "oracle") {
+              limitedSql = `SELECT * FROM (${limitedSql}) _bi_source FETCH FIRST 1000 ROWS ONLY`;
+            } else {
+              limitedSql = `SELECT * FROM (${limitedSql}) AS _bi_source LIMIT 1000`;
+            }
+          }
+
+          rows = await DbExecutor.execute(config, limitedSql);
+          columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+        } else {
+          console.log(`[OrchaDashboard] Executing federated/DuckDB query for widget ${q.id}...`);
+          let duckDbSql = sql;
+          if (!/LIMIT\s+\d+/i.test(duckDbSql)) {
+            duckDbSql = `SELECT * FROM (${duckDbSql}) AS _bi_source LIMIT 1000`;
+          }
+          rows = await OrchaFusion.executeMulti(duckDbSql, dbConfigMap);
+          columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+        }
 
         results[q.id] = { rows, columns, queryName: q.queryName };
       } catch (err: any) {
         console.error(`[OrchaDashboard] Query ${q.id} failed:`, err.message);
+        
+        // Try fallback to native DbExecutor for single-database queries first to bypass DuckDB engine errors
+        if (q.defaultAlias && dbConfigMap.has(q.defaultAlias)) {
+          console.log(`[OrchaDashboard] Attempting native DbExecutor fallback for query ${q.id}...`);
+          try {
+            const config = dbConfigMap.get(q.defaultAlias);
+            // Clean SQL query by stripping the database alias prefix (e.g. "my_alias." or "[my_alias].") 
+            // since native databases do not know about Orcha's internal configuration aliases.
+            const alias = q.defaultAlias;
+            const cleanSql = q.sql.replace(new RegExp(`["\`\\[]?${alias}["\`\\]]?\\.`, 'gi'), "");
+              
+            console.log(`[OrchaDashboard] Native fallback SQL (alias stripped): ${cleanSql}`);
+            const rows = await DbExecutor.execute(config, cleanSql);
+            const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+            results[q.id] = { rows, columns, queryName: q.queryName };
+            return; // Successfully recovered
+          } catch (fallbackErr: any) {
+            console.error(`[OrchaDashboard] Fallback to DbExecutor failed for query ${q.id}:`, fallbackErr.message);
+          }
+        }
         
         // SELF-HEALING RETRY MECHANISM:
         // If DuckDB throws a Catalog Error due to a hallucinated table name and suggests a correction,

@@ -79,7 +79,7 @@ export const saveWidget = mutation({
     widgetId: v.optional(v.id("dashboardWidgets")),
     dashboardId: v.id("dashboards"),
     organizationId: v.id("organizations"),
-    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter")),
+    type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter"), v.literal("area"), v.literal("radar")),
     title: v.string(),
     description: v.optional(v.string()),
     queryId: v.optional(v.id("savedQueries")),
@@ -159,7 +159,7 @@ export const createDashboardWithWidgets = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     widgets: v.array(v.object({
-      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter")),
+      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter"), v.literal("area"), v.literal("radar")),
       title: v.string(),
       description: v.optional(v.string()),
       sql: v.string(),
@@ -262,7 +262,7 @@ export const updateProposal = mutation({
     status: v.union(v.literal("ready"), v.literal("failed")),
     error: v.optional(v.string()),
     widgets: v.optional(v.array(v.object({
-      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter")),
+      type: v.union(v.literal("bar"), v.literal("line"), v.literal("pie"), v.literal("kpi"), v.literal("text"), v.literal("table"), v.literal("counter"), v.literal("area"), v.literal("radar")),
       title: v.string(),
       reason: v.optional(v.string()),
       sql: v.string(),

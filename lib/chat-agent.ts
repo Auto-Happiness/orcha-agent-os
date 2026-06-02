@@ -479,6 +479,7 @@ Step 4 — STORE (automatic):
   - "line" → trends over time or ordered sequences
   - "area" → cumulative trends
   - "pie"  → proportions / part-of-whole (use only if there are ≤ 8 categories)
+  - "radar" → comparisons of multiple variables across categories (multi-variable comparison)
 - xKey must be the EXACT column name or alias for the X-axis (or pie labels) as returned by your SQL query.
 - yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query (e.g. "revenue"). Use AS aliases in your SQL to ensure clean keys.
 
@@ -582,7 +583,7 @@ Step 4 — STORE (automatic):
             type: "object",
             description: "CRITICAL: Provide this ONLY if the user explicitly asked for a visualization. Defaults to null.",
             properties: {
-              chartType: { type: "string", enum: ["bar", "line", "area", "pie"], description: "The type of chart to render." },
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie", "radar"], description: "The type of chart to render." },
               title: { type: "string", description: "A short descriptive title for the chart." },
               xKey: { type: "string", description: "The column name to use for the X-axis (or labels in a pie chart)." },
               yKey: { type: "string", description: "The column name for the Y-axis values (or value in a pie chart). Example: 'sales'" }
@@ -665,7 +666,7 @@ Step 4 — STORE (automatic):
             type: "object",
             description: "CRITICAL: Provide this ONLY if the user explicitly asked for a visualization.",
             properties: {
-              chartType: { type: "string", enum: ["bar", "line", "area", "pie"] },
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie", "radar"] },
               title: { type: "string" },
               xKey: { type: "string" },
               yKey: { type: "string" }

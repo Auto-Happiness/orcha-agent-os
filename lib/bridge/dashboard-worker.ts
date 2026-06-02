@@ -7,10 +7,11 @@ import { resolveModel } from "@/lib/model-resolver";
 import { pruneColumns, getPruningModelId } from "@/lib/column-pruner";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { getNativeDialectRule } from "@/lib/dialects";
 
 // Zod Schema for strict AI responses matching Mantine and dashboard widgets
 const proposedWidgetSchema = z.object({
-  type: z.enum(["bar", "line", "pie", "kpi", "table", "counter"]),
+  type: z.enum(["bar", "line", "pie", "kpi", "table", "counter", "area", "radar"]),
   title: z.string(),
   reason: z.string(),
   sql: z.string(),
@@ -173,6 +174,13 @@ export async function executeGeneration({
     combinedRelationships.push(...(relationships || []));
   }
 
+  // Get the target database dialect rule if we are generating for a single database config
+  const singleConfigId = configIds.length === 1 ? configIds[0] : null;
+  const singleConfig = singleConfigId ? configMap.get(singleConfigId) : null;
+  const dialectRule = singleConfig 
+    ? getNativeDialectRule(singleConfig.type) 
+    : "- Native Dialect: Standard SQL.";
+
   // 2. Perform intelligent column pruning to stay well within token limits
   const consolidatedQuestion = draftPrompts.map(p => `[${p.type}] ${p.text}`).join(" | ");
   const pruningModelId = getPruningModelId(selectedModel);
@@ -212,7 +220,9 @@ export async function executeGeneration({
     ### INSTRUCTIONS ###
     1. For each requested insight in the list, design one high-fidelity widget.
     2. Respect the user's requested chart type ("type").
-    3. Generate standard, valid DuckDB SQL queries that will execute cleanly against the schema.
+    3. Generate valid SQL queries matching the target database dialect rules:
+       ${dialectRule}
+       Ensure dates and times are formatted appropriately (e.g. using DATE_FORMAT for MySQL, TO_CHAR for Postgres, etc.) as required by the native dialect.
     4. CRITICAL: Use the exact table names provided (prefixed with their aliases, e.g., \`alias.table_name\`). Do not invent or assume any tables or columns outside the schema catalog.
     5. Map the results correctly in the "mapping" field:
        - "labelKey": the SQL column ALIAS that contains HUMAN-READABLE category names (e.g. customer name, product name, month, category). NEVER use ID or integer columns as labelKey.
