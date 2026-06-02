@@ -8,6 +8,8 @@ import {
   IconTable,
   IconHash,
   IconSettings,
+  IconChartArea,
+  IconChartRadar,
 } from "@tabler/icons-react";
 import { ProposedWidget } from "./types";
 
@@ -34,8 +36,12 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
         return <IconChartBar size={18} color="#a855f7" />;
       case "line":
         return <IconChartLine size={18} color="#0ea5e9" />;
+      case "area":
+        return <IconChartArea size={18} color="#6366f1" />;
       case "pie":
         return <IconChartPie size={18} color="#ec4899" />;
+      case "radar":
+        return <IconChartRadar size={18} color="#d946ef" />;
       case "kpi":
         return <IconNumbers size={18} color="#f59e0b" />;
       case "table":
@@ -98,8 +104,12 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
         return "#0ea5e9";
       case "bar":
         return "#a855f7";
+      case "area":
+        return "#6366f1";
       case "pie":
         return "#ec4899";
+      case "radar":
+        return "#d946ef";
       case "kpi":
         return "#f59e0b";
       case "table":

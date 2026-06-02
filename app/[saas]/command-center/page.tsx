@@ -39,7 +39,9 @@ import {
   IconTrash,
   IconDotsVertical,
   IconSparkles,
-  IconTable
+  IconTable,
+  IconChartArea,
+  IconChartRadar
 } from "@tabler/icons-react";
 import { Menu } from "@mantine/core";
 import { useQuery, useMutation } from "convex/react";
@@ -353,6 +355,20 @@ export default function CommandCenterPage() {
                   disabled={widgets.length >= 7}
                 >
                   Line Chart
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconChartArea size={16} />} 
+                  onClick={() => handleAddWidgetStart("area")}
+                  disabled={widgets.length >= 7}
+                >
+                  Area Chart
+                </Menu.Item>
+                <Menu.Item 
+                  leftSection={<IconChartRadar size={16} />} 
+                  onClick={() => handleAddWidgetStart("radar")}
+                  disabled={widgets.length >= 7}
+                >
+                  Radar Chart
                 </Menu.Item>
                 <Menu.Item 
                   leftSection={<IconChartPie size={16} />} 

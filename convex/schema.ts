@@ -115,7 +115,9 @@ const WidgetTypeValidator = v.union(
   v.literal("kpi"),
   v.literal("text"),
   v.literal("table"),
-  v.literal("counter")
+  v.literal("counter"),
+  v.literal("area"),
+  v.literal("radar")
 );
 
 const WidgetSizeValidator = v.union(

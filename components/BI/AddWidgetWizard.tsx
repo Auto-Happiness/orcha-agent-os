@@ -22,7 +22,9 @@ import {
   IconCircleNumber1,
   IconTable,
   IconCheck,
-  IconChevronRight
+  IconChevronRight,
+  IconChartArea,
+  IconChartRadar
 } from "@tabler/icons-react";
 
 interface AddWidgetWizardProps {
@@ -32,12 +34,14 @@ interface AddWidgetWizardProps {
 }
 
 const WIDGET_TYPES = [
-  { id: "bar", title: "Bar Chart", description: "Compare quantities across categories", icon: IconChartBar, color: "blue" },
-  { id: "line", title: "Line Chart", description: "Visualize trends over time", icon: IconChartLine, color: "violet" },
-  { id: "pie", title: "Pie Chart", description: "Show proportions of a whole", icon: IconChartPie, color: "orange" },
-  { id: "kpi", title: "KPI Metric", description: "A single important number", icon: IconCircleNumber1, color: "cyan" },
-  { id: "table", title: "Data Table", description: "View raw tabular data cleanly", icon: IconTable, color: "teal" },
-  { id: "counter", title: "Smart Counter", description: "A sum or average count metric", icon: IconCircleNumber1, color: "pink" },
+  { id: "bar",     title: "Bar Chart",     description: "Compare quantities across categories",       icon: IconChartBar,        color: "blue" },
+  { id: "line",    title: "Line Chart",    description: "Visualize trends over time",                 icon: IconChartLine,       color: "violet" },
+  { id: "area",    title: "Area Chart",    description: "Trends with filled volume below the line",   icon: IconChartArea,       color: "indigo" },
+  { id: "pie",     title: "Pie Chart",     description: "Show proportions of a whole",                icon: IconChartPie,        color: "orange" },
+  { id: "radar",   title: "Radar Chart",   description: "Compare multivariate data across spokes",   icon: IconChartRadar,      color: "grape" },
+  { id: "kpi",     title: "KPI Metric",    description: "A single important number",                  icon: IconCircleNumber1,   color: "cyan" },
+  { id: "table",   title: "Data Table",    description: "View raw tabular data cleanly",              icon: IconTable,           color: "teal" },
+  { id: "counter", title: "Smart Counter", description: "A sum or average count metric",              icon: IconCircleNumber1,   color: "pink" },
 ];
 
 export function AddWidgetWizard({ opened, onClose, onAdd }: AddWidgetWizardProps) {
