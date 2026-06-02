@@ -33,7 +33,16 @@ export const syncMembership = mutation({
     }
 
     if (!user) {
-      throw new Error("User record not found. Please sync user first.");
+      const userId = await ctx.db.insert("users", {
+        tokenIdentifier: identity.tokenIdentifier,
+        name: identity.name || "Anonymous",
+        email: identity.email || "",
+        avatarUrl: identity.pictureUrl,
+        role: "member",
+        createdAt: Date.now(),
+        lastSeenAt: Date.now(),
+      });
+      user = (await ctx.db.get(userId))!;
     }
 
     // Check if membership already exists
