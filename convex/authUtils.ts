@@ -46,7 +46,13 @@ export async function checkMembership(
   }
 
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) return null;
+  if (!identity) {
+    const isMutation = typeof (ctx.db as any).insert === "function";
+    if (isMutation) {
+      throw new Error("Unauthenticated. Access Denied.");
+    }
+    return null;
+  }
 
   // 1. Parallelize User (both formats) and Org lookups.
   // We run two user queries simultaneously to handle both storage formats:
@@ -63,7 +69,14 @@ export async function checkMembership(
 
   const user = userBySubject ?? userByToken;
 
-  if (!user) throw new Error("User not found in system.");
+  if (!user) {
+    const isMutation = typeof (ctx.db as any).insert === "function";
+    if (isMutation) {
+      throw new Error("User not found in system.");
+    }
+    return null;
+  }
+  
   if (!org) throw new Error("Organization not found.");
 
   // 2. Check Membership (Optimized Index)

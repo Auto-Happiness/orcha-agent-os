@@ -77,18 +77,6 @@ The Agent OS acts as a bridge between your local databases and your models.
 └── public/             # Static files
 ```
 
-## 🎨 Using shadcn UI
-
-Add components with:
-
-```bash
-npx shadcn@latest add button
-npx shadcn@latest add card
-npx shadcn@latest add input
-```
-
-See [shadcn/ui docs](https://ui.shadcn.com) for available components.
-
 ## ⚡ Convex Basics
 
 ### Query Example

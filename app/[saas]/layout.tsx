@@ -204,10 +204,10 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
 
   // ─── Search implementation ──────────────────────────────────────────
   const orgDoc = useQuery(api.organizations.getSafeBySlug, slug ? { slug } : "skip");
-  const isMember = useQuery(api.memberships.checkMembershipStatus, orgDoc?._id ? { organizationId: orgDoc._id } : "skip");
+  const isMember = useQuery(api.memberships.checkMembershipStatus, orgDoc?._id && user ? { organizationId: orgDoc._id } : "skip");
   const dbConfigs = useQuery(
     api.databaseConfigs.listByOrganization,
-    orgDoc?._id ? { organizationId: orgDoc._id } : "skip"
+    orgDoc?._id && user ? { organizationId: orgDoc._id } : "skip"
   );
 
   // Developer Diagnostics
