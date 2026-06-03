@@ -78,7 +78,6 @@ const NAV_SECTIONS = [
     items: [
       { href: "chat", label: "Chat", icon: IconSparkles, badge: null },
       { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
-      { href: "spreadsheet", label: "Reports", icon: IconChartBar, badge: "Experimental", badgeColor: "orange" },
       { href: "command-center", label: "Command Center", icon: IconLayoutDashboard, badge: null },
     ],
   },
