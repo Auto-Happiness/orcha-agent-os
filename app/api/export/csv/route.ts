@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import postgres from "postgres";
 import serverlessMysql from "serverless-mysql";
+import mysql2 from "mysql2";
 
 export const maxDuration = 300;
 
@@ -20,6 +21,19 @@ function stripLimit(sql: string): string {
     .replace(/\bLIMIT\s+\d+(\s+OFFSET\s+\d+)?(\s*;?\s*)$/im, "")
     .trim()
     .replace(/;$/, "");
+}
+
+function adjustLimitForExport(sql: string): string {
+  const limitRegex = /\bLIMIT\s+(\d+)\b/i;
+  const match = sql.match(limitRegex);
+  if (match) {
+    const originalLimit = parseInt(match[1], 10);
+    const newLimit = originalLimit === 50 ? 500 : Math.min(originalLimit, 500);
+    return sql.replace(/\b(LIMIT\s+)\d+\b/i, `$1${newLimit}`);
+  } else {
+    const cleanSql = sql.trim().replace(/;$/, "");
+    return `${cleanSql} LIMIT 500`;
+  }
 }
 
 function escapeCell(v: any): string {
@@ -63,7 +77,7 @@ export async function POST(req: NextRequest) {
     const raw = JSON.parse(config.encryptedUri);
     const dbConfig = { ...raw, type: config.type, port: raw.port ? parseInt(raw.port, 10) : undefined };
 
-    const exportSql = stripLimit(sql);
+    const exportSql = adjustLimitForExport(sql);
     console.log(`[Export] ${dbConfig.type} | SQL: ${exportSql.replace(/\s+/g, " ").substring(0, 120)}`);
 
     const filename = `export_${Date.now()}.csv`;
@@ -123,16 +137,15 @@ export async function POST(req: NextRequest) {
     if (dbConfig.type === "mysql") {
       const stream = new ReadableStream({
         async start(controller) {
-          const db = serverlessMysql({
-            config: {
-              host: dbConfig.host, port: dbConfig.port, user: dbConfig.user,
-              password: dbConfig.password, database: dbConfig.database,
-              ssl: dbConfig.ssl ? { rejectUnauthorized: false } : undefined,
-            },
+          const conn = mysql2.createConnection({
+            host: dbConfig.host,
+            port: dbConfig.port,
+            user: dbConfig.user,
+            password: dbConfig.password,
+            database: dbConfig.database,
+            ssl: dbConfig.ssl ? { rejectUnauthorized: false } : undefined,
           });
 
-          // mysql2 streaming via connection.query().stream()
-          const conn = await (db as any).getConnection();
           const mysqlSql = exportSql.replace(/\$\d+/g, "?");
           const rowStream = conn.query(mysqlSql).stream();
 
@@ -150,15 +163,15 @@ export async function POST(req: NextRequest) {
             rowCount++;
           });
 
-          rowStream.on("end", async () => {
+          rowStream.on("end", () => {
             console.log(`[Export] Streamed ${rowCount} rows`);
-            await db.quit();
+            conn.end();
             controller.close();
           });
 
-          rowStream.on("error", async (err: Error) => {
+          rowStream.on("error", (err: Error) => {
             console.error("[Export] Stream error:", err.message);
-            await db.quit();
+            conn.end();
             controller.error(err);
           });
         },

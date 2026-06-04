@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useState } from "react";
 import { Box, Group, Text, Button, ScrollArea } from "@mantine/core";
 import { IconTableExport, IconDownload } from "@tabler/icons-react";
 import { TableCellImage, isImageUrl } from "./TableCellImage";
@@ -11,6 +11,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
   organizationId?: string;
   configId?: string | null;
 }) {
+  const [isExporting, setIsExporting] = useState(false);
   const columns = Object.keys(data[0]);
   const hasMore = data.length >= 50;
 
@@ -35,6 +36,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
   // Full export via API — fetch with streaming, no full blob buffering
   const exportFullCsv = useCallback(async () => {
     if (!sql || !organizationId) return;
+    setIsExporting(true);
     try {
       const res = await fetch("/api/export/csv", {
         method: "POST",
@@ -53,6 +55,8 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
       URL.revokeObjectURL(url);
     } catch (e: any) {
       alert(`Export failed: ${e.message}`);
+    } finally {
+      setIsExporting(false);
     }
   }, [sql, organizationId, configId]);
 
@@ -73,9 +77,16 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
               <Text size="10px" fw={700} c="violet.4">{data.length.toLocaleString()} rows · {columns.length} cols</Text>
             </Box>
           </Group>
-          <Button variant="subtle" size="compact-xs" color="violet" radius="md" leftSection={<IconTableExport size={11} />} onClick={exportPreviewCsv} styles={{ root: { fontSize: 11, opacity: 0.7 } }}>
-            Export preview
-          </Button>
+          <Group gap={8}>
+            <Button variant="subtle" size="compact-xs" color="violet" radius="md" leftSection={<IconTableExport size={11} />} onClick={exportPreviewCsv} styles={{ root: { fontSize: 11, opacity: 0.7 } }}>
+              Export preview
+            </Button>
+            {sql && (
+              <Button variant="subtle" size="compact-xs" color="violet" radius="md" loading={isExporting} leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11, opacity: 0.7 } }}>
+                Full dataset
+              </Button>
+            )}
+          </Group>
         </Group>
       </Box>
 
@@ -148,7 +159,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
             <Text size="11px" c="dimmed">Showing {data.length} rows (limit reached — download for full dataset)</Text>
           </Group>
           {sql && (
-            <Button size="compact-xs" variant="light" color="violet" radius="md" leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11 } }}>
+            <Button size="compact-xs" variant="light" color="violet" radius="md" loading={isExporting} leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11 } }}>
               Download full dataset
             </Button>
           )}
