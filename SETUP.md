@@ -48,6 +48,14 @@ Run the development sync against your local instance. **Do not use the standard 
 npx.cmd convex dev --url http://localhost:3210 --admin-key "convex-self-hosted|01204f53c7b09a60cdd9975785ec0ce915b75dcef849ac14185aa49edbd5f302c9298c0274"
 ```
 
+### 5b. Set Up Convex Environment Variables (CRITICAL)
+Before running the application, you must configure the database encryption key inside your Convex environment. If you skip this, Convex will be unable to decrypt your stored database configurations or API keys.
+
+In a separate terminal, run:
+```bash
+npx convex env set ENCRYPTION_KEY "7;RUp1Y+R.1>N.(hqs_C[RnO5pL#46zj" --url http://localhost:3210 --admin-key "convex-self-hosted|01204f53c7b09a60cdd9975785ec0ce915b75dcef849ac14185aa49edbd5f302c9298c0274"
+```
+
 ### 6. Run Next.js
 In a separate terminal:
 ```bash
