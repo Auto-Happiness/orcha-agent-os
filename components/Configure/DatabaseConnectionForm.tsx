@@ -25,8 +25,6 @@ import { PostgreSQLForm } from "./Forms/PostgreSQL";
 import { MySQLForm } from "./Forms/MySQL";
 import { MariaDBForm } from "./Forms/MariaDB";
 import { MSSQLForm } from "./Forms/MSSQL";
-import { MongoDBForm } from "./Forms/MongoDB";
-import { BigQueryForm } from "./Forms/BigQuery";
 import { SQLiteForm } from "./Forms/SQLite";
 import { OracleForm } from "./Forms/Oracle";
 
@@ -93,8 +91,6 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
       case "mariadb": return <MariaDBForm />;
       case "mssql": return <MSSQLForm />;
       case "oracle": return <OracleForm />;
-      case "mongodb": return <MongoDBForm />;
-      case "bigquery": return <BigQueryForm />;
       case "sqlite": return <SQLiteForm />;
       default: return <PostgreSQLForm />;
     }
@@ -113,8 +109,6 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
     const u = user || "[user]";
     const d = database || "[database]";
 
-    if (provider === "mongodb") return `mongodb+srv://${u}:****@${h}/${d}`;
-    if (provider === "bigquery") return `google-cloud://${h}/${d}`;
     return `${provider}://${u}:****@${h}:${p}/${d}`;
   };
 

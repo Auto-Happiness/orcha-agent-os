@@ -349,7 +349,7 @@ export async function createChatAgent(context: AgentContext) {
     if (model.remarks) modelCtx += `Notes: ${model.remarks}\n`;
 
     const fields = model.fields.map((f: any) => {
-      let d = `- ${f.displayName} (USE THIS IN SQL: ${f.columnName}): ${f.type}`;
+      let d = `- ${f.displayName} (USE THIS IN SQL: ${f.columnName}): ${f.rawType || f.dataType || f.type}`;
 
       // BI Metadata & Semantic Hints
       if (f.fieldType === "measure") d += ` [MEASURE: default aggregation=${f.defaultAggregation || 'sum'}]`;
@@ -398,7 +398,7 @@ export async function createChatAgent(context: AgentContext) {
       // For secondary databases: include full column schema so the agent never guesses
       const tableSchemas = dbModels.map((m: any) => {
         const cols = (m.fields || []).map((f: any) => {
-          let col = `    - ${f.columnName} (${f.type})`;
+          let col = `    - ${f.columnName} (${f.rawType || f.dataType || f.type})`;
           if (f.isPrimary) col += " PRIMARY KEY";
           if (f.description) col += ` | ${f.description}`;
           return col;
