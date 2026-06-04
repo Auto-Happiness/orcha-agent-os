@@ -55,7 +55,7 @@ export function compileToMdl(
     const cols = (m.fields || []).map((f: any) => {
       const col: any = {
         name: f.columnName,
-        type: (f.type || "VARCHAR").toUpperCase(),
+        type: (f.rawType || f.dataType || f.type || "VARCHAR").toUpperCase(),
       };
       if (f.sqlExpression) {
         col.expression = f.sqlExpression;

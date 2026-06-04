@@ -10,11 +10,9 @@ import {
 } from "@mantine/core";
 import { 
   IconBrandMysql, 
-  IconBrandMongodb, 
   IconSql, 
   IconDatabase, 
   IconCloud,
-  IconTableFilled,
   IconServer,
   IconChevronRight
 } from "@tabler/icons-react";
@@ -41,8 +39,6 @@ const PROVIDERS = [
   { id: "mariadb",  label: "MariaDB",    icon: "/dbicons/mariadb-icon-svgrepo-com.svg", color: "teal" },
   { id: "mssql",    label: "MSSQL",      icon: "/dbicons/microsoft-sql-server-logo-svgrepo-com.svg", color: "red" },
   { id: "oracle",   label: "Oracle",     icon: OracleIcon, color: "red" },
-  { id: "mongodb",  label: "MongoDB",    icon: IconBrandMongodb, color: "green" },
-  { id: "bigquery", label: "BigQuery",   icon: IconTableFilled, color: "indigo" },
   { id: "sqlite",   label: "SQLite",     icon: IconDatabase, color: "gray" },
 ];
 
