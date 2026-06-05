@@ -4,10 +4,11 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { auth } from "@clerk/nextjs/server";
 import { KeyManager } from "@/lib/key-manager";
+import { withMetrics } from "@/lib/metrics";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const { configId, organizationId, type, config: rawConfig } = await req.json();
     const config = {
@@ -113,8 +114,10 @@ export async function POST(req: NextRequest) {
     console.error("Scan error:", error);
     return NextResponse.json({ 
       success: false, 
-      message: error.message || "An error occurred during database scanning." 
+      message: error.message || "An error occurred during database scanning."
     }, { status: 500 });
   }
 }
+
+export const POST = withMetrics("/api/db/scan", postHandler);
 

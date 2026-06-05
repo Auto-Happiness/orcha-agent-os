@@ -1,0 +1,26 @@
+# Prometheus scrape configuration for the Orcha Next.js API routes.
+#
+# The Next.js app runs on the host (e.g. `npm run dev` on port 3000), while
+# Prometheus runs inside Docker, so we reach the host via host.docker.internal.
+# An extra_hosts mapping in docker-compose.yml makes this resolve on Linux too.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "orcha-api"
+    metrics_path: /api/metrics
+    scheme: http
+    static_configs:
+      - targets: ["host.docker.internal:3000"]
+        labels:
+          service: "orcha-agent-os"
+    # If METRICS_AUTH_TOKEN is set on the app, uncomment and set the token here:
+    # authorization:
+    #   type: Bearer
+    #   credentials: "<METRICS_AUTH_TOKEN>"
+
+  # Prometheus scraping itself (handy for sanity-checking the stack).
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

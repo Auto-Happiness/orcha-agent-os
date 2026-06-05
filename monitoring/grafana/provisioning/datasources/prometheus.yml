@@ -1,0 +1,11 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    # Service name + port from docker-compose.yml (containers share a network).
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

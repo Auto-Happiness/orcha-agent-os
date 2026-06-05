@@ -63,6 +63,43 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000).
 
+## 📊 Observability (Grafana + Prometheus)
+
+The API routes are instrumented with Prometheus metrics (request rate, latency, error rate). Prometheus scrapes them and Grafana visualizes them. Both run as part of the Docker stack.
+
+### 1. Start the monitoring stack
+The `prometheus` and `grafana` services are defined in `docker-compose.yml`, so `docker-compose up -d` (from the Quick Start) already starts them. To start just these:
+```bash
+docker-compose up -d prometheus grafana
+```
+
+### 2. Make sure the app is exposing metrics
+With the Next.js app running (`npm run dev` on port 3000), the metrics endpoint is live at:
+```
+http://localhost:3000/api/metrics
+```
+Prometheus scrapes this every 15s via `host.docker.internal:3000` (configured in `monitoring/prometheus.yml`).
+
+### 3. Open Grafana
+Grafana is mapped to host port **3001** (container 3000 is remapped to avoid clashing with Next.js):
+```
+http://localhost:3001
+```
+Default login is `admin` / `admin`. Override via env vars before starting the stack:
+```bash
+# .env
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=change-me
+```
+The **Orcha API Routes** dashboard (request rate, p95 latency, 5xx rate, error ratio, total RPS, memory) is provisioned automatically — no manual import needed.
+
+### 4. Verify the scrape
+Confirm Prometheus is collecting from the app at [http://localhost:9090/targets](http://localhost:9090/targets) — the `orcha-api` target should be **UP**.
+
+> **Note:** The scrape target assumes the Next.js app runs on the **host** (`host.docker.internal:3000`). If you containerize the app, update the target in `monitoring/prometheus.yml` to the service name.
+>
+> **Optional:** Lock down `/api/metrics` by setting `METRICS_AUTH_TOKEN` in the app's environment, then add the matching `authorization` block in `monitoring/prometheus.yml`.
+
 ## 🌉 AI Bridge Configuration
 The Agent OS acts as a bridge between your local databases and your models.
 

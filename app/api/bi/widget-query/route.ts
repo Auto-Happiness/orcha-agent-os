@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { KeyManager } from "@/lib/key-manager";
 import { DbExecutor } from "@/lib/db-executor";
+import { withMetrics } from "@/lib/metrics";
 
 function looksLikeEncryptedPayload(value: string): boolean {
   const parts = value.split(":");
@@ -21,7 +22,7 @@ function looksLikeEncryptedPayload(value: string): boolean {
   );
 }
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const clerkAuth = await auth();
     const { userId } = clerkAuth;
@@ -99,3 +100,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export const POST = withMetrics("/api/bi/widget-query", postHandler);

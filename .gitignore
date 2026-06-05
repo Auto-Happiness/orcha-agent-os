@@ -10,6 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 
+# convex
+convex/_generated/
 
 /fortune-sheet
 /Zenta

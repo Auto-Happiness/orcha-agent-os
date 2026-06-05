@@ -3,8 +3,9 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { auth } from "@clerk/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
+import { withMetrics } from "@/lib/metrics";
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
   const isAsync = process.env.ASYNC === "on";
 
@@ -96,3 +97,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Unexpected error." }, { status: 500 });
   }
 }
+
+export const POST = withMetrics("/api/bi/generate-dashboard", postHandler);

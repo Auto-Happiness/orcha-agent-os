@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DatabaseScanner } from "@/lib/db/introspection";
+import { withMetrics } from "@/lib/metrics";
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const { type, config, sql } = await req.json();
 
@@ -22,7 +23,9 @@ export async function POST(req: NextRequest) {
     console.error("Query execution error:", error);
     return NextResponse.json({ 
       success: false, 
-      message: error.message || "An error occurred during SQL execution." 
+      message: error.message || "An error occurred during SQL execution."
     }, { status: 500 });
   }
 }
+
+export const POST = withMetrics("/api/db/query", postHandler);
