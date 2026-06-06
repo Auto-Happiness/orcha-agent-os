@@ -1,7 +1,7 @@
 export default {
   providers: [
     {
-      domain: "https://divine-sturgeon-6.clerk.accounts.dev",
+      domain: process.env.CLERK_ISSUER_DOMAIN,
       applicationID: "convex",
     },
   ]
