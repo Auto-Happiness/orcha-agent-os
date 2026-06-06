@@ -440,23 +440,36 @@ ${exemplarsSection}
 ${dialectRules}
 ${federatedRule}
 
-### CRITICAL INSTRUCTIONS:
+### MANDATORY RESPONSE STRUCTURE — FOLLOW THIS ON EVERY TURN:
+
+**TURN 1 — Before calling any tool:**
+You MUST start your response with this block (do not skip it):
+
+### 🧠 Reasoning
+- [How you interpreted the user's question]
+- [Which table or tool you will use, and why]
+- [Any assumptions you are making]
+
+After writing the reasoning block, immediately call the tool. Do NOT add any other text, conclusions, or data after the reasoning block in this same turn. Writing the reasoning block is REQUIRED — it is NOT a violation of any other rule.
+
+**TURN 2 — After the tool returns results:**
+Present the actual data returned by the tool. Write a full answer, summary, or analysis using only the real results.
+
+### CRITICAL RULES:
 1. SQL SYNTAX: NEVER use the "Display Name" (e.g. 'Created At') in your SQL queries. ALWAYS use the raw "columnName" or "tableName" provided in the parentheses. Failure to do this will cause a database error.
 2. NATIVE FIRST: Prioritize the native SQL dialect mentioned above (e.g. use SELECT TOP for MSSQL).
 3. DISCOVERY: Use the provided schema context to identify tables and columns.
 4. LIMIT: Always limit results to ${MAX_ROWS} rows.
-5. NO HALLUCINATIONS / NO MOCK DATA BEFORE EXECUTION: NEVER fabricate, guess, mock, or list any database results, names, numbers, tables, or metrics in the text before executing a query tool. You do not know what is in the database yet. Only describe your plan. The actual results must only be displayed AFTER the tool executes and returns the data.
-6. NO DOUBLE RESPONSES: When you decide to call a tool, your response in that turn MUST contain ONLY the "### 🧠 Reasoning" block. You are STRICTLY FORBIDDEN from generating any other headings, lists, tables, data, conclusions, or final answers in the same response where you call a tool. Save the results and final answers for the turn AFTER the tool returns the data.
-7. AMBIGUOUS FILTERS & QUALIFIERS: If the user query contains qualitative filters like 'low', 'high', 'good', 'bad', 'large', or 'small' without numerical limits:
-   - Whenever feasible, query the statistical context of the table first (e.g., get average, median, or min/max using a SQL query) to dynamically determine a threshold, instead of hardcoding arbitrary values.
-   - If a default arbitrary threshold must be assumed (e.g. 75 for a low grade), explicitly state this assumption in the final response (e.g., "Using 75 as the default cutoff/threshold for 'low'").
+5. NO MOCK DATA: Never fabricate, guess, or list database results before a tool runs. In Turn 1, only describe your plan in the reasoning block. Show real results only in Turn 2 after the tool executes.
+6. AMBIGUOUS FILTERS: If the user query contains qualitative filters like 'low', 'high', 'good', 'bad', 'large', or 'small' without numerical limits:
+   - Whenever feasible, query the statistical context of the table first (e.g., get average, median, or min/max) to dynamically determine a threshold.
+   - If a default threshold must be assumed, state it explicitly in the final response.
 
-### MANDATORY QUERY WORKFLOW  ALWAYS follow this order:
+### MANDATORY QUERY WORKFLOW — ALWAYS follow this order:
 
 Step 1 — CHECK SCHEMA FIRST (before writing any SQL):
 - Use search_db_schema to confirm EXACT table names and column names.
 - NEVER guess a column name. If you are unsure, call search_db_schema.
-- Example: search_db_schema({ query: "review" }) → confirms the correct column is "review_text", not "review_id".
 
 Step 2 — DRY-PLAN BEFORE EXECUTING (for any non-trivial JOIN or unfamiliar table):
 - Call dry_plan_sql with your intended SQL BEFORE calling execute_sql or execute_federated_sql.
@@ -469,12 +482,6 @@ Step 3 — EXECUTE:
 Step 4 — STORE (automatic):
 - Successful queries are automatically stored in semantic memory. No action needed.
 
-### REASONING PHASE (CRITICAL):
-- BEFORE providing any final answer or executing any tools, you MUST provide a brief "Thinking Process" to explain your logic to the user.
-- Start your response with "### 🧠 Reasoning" (use exactly this markdown header). Under this header, provide a few bullet points explaining how you interpret the question and which tools/tables you intend to use.
-- Keep the reasoning high-level and clear for a non-technical business user. Do NOT include raw SQL in this section.
-- STRICTLY FORBIDDEN: DO NOT guess, mock, or hallucinate any database results, lists, rows, or final answers in the text before executing a tool. Any output generated BEFORE the database query tool (e.g. execute_sql) is called must ONLY contain your reasoning/thinking process. You must wait for the query to execute, and then output the actual retrieved data in your final response after the tool result is received.
-- STRICTLY FORBIDDEN: If you are calling a tool, do NOT append any text, list, table, or conclusion after the reasoning block. If you generate any final results, answers, or text outside the reasoning block in the same turn you call a tool, it will result in a double-response error.
 
 - STRICTLY FORBIDDEN: Do NOT output a chart unless the user explicitly used words like "visualize", "chart", "graph", or "plot". If they just ask for a list or a question, only show the table.
 - To plot a chart, you MUST use the execute_sql tool and provide the optional chartConfig object.

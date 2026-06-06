@@ -1,6 +1,6 @@
 "use node";
 
-import { action, internalMutation, internalAction } from "./_generated/server";
+import { action, internalAction, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -125,6 +125,40 @@ export const generateEmbedding = action({
       organizationId: args.organizationId,
       provider: args.provider,
       apiKey: args.sysApiKey
+    });
+
+    if (!keyDoc && args.provider !== "local") {
+      throw new Error(`API Key for ${args.provider} not found in organization.`);
+    }
+
+    const rawKey = keyDoc ? decryptKeyIfNeeded(keyDoc.keyValue, args.organizationId) : undefined;
+
+    return await fetchEmbedding(
+      args.organizationId,
+      args.text,
+      args.provider,
+      rawKey,
+      args.model
+    );
+  },
+});
+
+/**
+ * internalGenerateEmbedding — same as generateEmbedding but uses internalGetByProvider
+ * to bypass session auth. Safe to call from background jobs (schedulers, internalActions)
+ * that have no Clerk user identity.
+ */
+export const internalGenerateEmbedding = internalAction({
+  args: {
+    organizationId: v.id("organizations"),
+    text: v.string(),
+    provider: v.union(v.literal("gemini"), v.literal("openai"), v.literal("local")),
+    model: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<EmbeddingResult> => {
+    const keyDoc = await ctx.runQuery(internal.aiKeys.internalGetByProvider, {
+      organizationId: args.organizationId,
+      provider: args.provider,
     });
 
     if (!keyDoc && args.provider !== "local") {

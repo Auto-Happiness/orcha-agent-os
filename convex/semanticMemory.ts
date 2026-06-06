@@ -82,11 +82,10 @@ export const generateMemoryEmbedding = internalAction({
   handler: async (ctx, args) => {
     console.log(`[SemanticMemory] Generating embedding for memory ${args.memoryId} via ${args.provider}`);
     try {
-      const { embedding, dimensions } = await ctx.runAction(api.embeddings.generateEmbedding, {
+      const { embedding, dimensions } = await ctx.runAction(internal.embeddings.internalGenerateEmbedding, {
         organizationId: args.organizationId,
         text: args.question,
         provider: args.provider,
-        sysApiKey: args.apiKey,
       });
 
       await ctx.runMutation(internal.semanticMemory.internalUpdateMemoryEmbedding, {
