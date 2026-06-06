@@ -197,9 +197,34 @@ export default function ChatPage() {
       const params = chatParamsRef.current;
       if (!params.activeSessionId) return;
       try {
-        const textContent = (message.parts as any[])?.find((p: any) => p.type === "text")?.text ?? "";
-        // Use shared trimToolResultParts — same logic as Async mode (chat-worker.ts)
-        const safeParts = trimToolResultParts(message.parts as any[]);
+        const REASONING_MARKER = "### \uD83E\uDDE0 Reasoning";
+        let parts: any[] = (message.parts as any[]) || [];
+
+        // BULLETPROOF REASONING INJECTION (sync path):
+        // The AI may skip the reasoning block. Guarantee one exists before saving to Convex.
+        const hasTool = parts.some((p: any) => p.type === "tool-invocation" || (p.type && p.type.startsWith("tool-")));
+        const hasReasoning = parts.some((p: any) => p.type === "text" && p.text?.toLowerCase().includes("reasoning"));
+
+        if (hasTool && !hasReasoning) {
+          const firstTextIdx = parts.findIndex((p: any) => p.type === "text");
+          if (firstTextIdx !== -1) {
+            // Wrap existing pre-tool text with the reasoning header
+            parts = [...parts];
+            parts[firstTextIdx] = { ...parts[firstTextIdx], text: `${REASONING_MARKER}\n${parts[firstTextIdx].text.trim()}` };
+          } else {
+            // No text at all before the tool — inject a default reasoning part
+            const firstTool = parts.find((p: any) => p.type === "tool-invocation" || (p.type && p.type.startsWith("tool-")));
+            const toolName = firstTool?.toolInvocation?.toolName || firstTool?.toolName || "tool";
+            const toolLabel = toolName.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+            parts = [
+              { type: "text", text: `${REASONING_MARKER}\n- Calling \`${toolLabel}\` to retrieve the information needed to answer your question.` },
+              ...parts,
+            ];
+          }
+        }
+
+        const textContent = parts.find((p: any) => p.type === "text")?.text ?? "";
+        const safeParts = trimToolResultParts(parts);
         await appendMessage({
           sessionId: params.activeSessionId as Id<"chatSessions">,
           role: "assistant",

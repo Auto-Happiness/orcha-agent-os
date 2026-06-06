@@ -32,6 +32,42 @@ async function getWasmModuleAndSDK() {
 }
 
 /**
+ * Returns a typed dummy value for a column based on its raw DB data type string.
+ * DataFusion infers Arrow schema from the first JSON row registered — providing
+ * correctly-typed values ensures SUM/AVG/date operations plan correctly instead
+ * of failing with Null or Utf8 type mismatches.
+ */
+function typedDummyValue(rawType: string): any {
+  const t = rawType.toLowerCase().trim();
+
+  // Numeric types → 0 (Int64 / Float64)
+  if (
+    t.includes("int") ||       // int, bigint, smallint, tinyint, integer
+    t.includes("decimal") ||
+    t.includes("numeric") ||
+    t.includes("float") ||
+    t.includes("double") ||
+    t.includes("real") ||
+    t.includes("money") ||
+    t.includes("number")
+  ) return 0;
+
+  // Boolean types → false
+  if (t.includes("bool") || t === "bit") return false;
+
+  // Date/time types → ISO date/timestamp strings that DataFusion can parse
+  if (t.includes("timestamp") || t.includes("datetime")) return "2026-01-01T00:00:00Z";
+  if (t === "date") return "2026-01-01";
+  if (t.includes("time")) return "00:00:00";
+
+  // JSON / structured types → empty object string
+  if (t === "json" || t === "jsonb") return "{}";
+
+  // Everything else (varchar, text, char, uuid, enum, etc.) → empty string
+  return "";
+}
+
+/**
  * Preprocesses a SQL query to map qualified and unqualified table references
  * to their corresponding MDL model names.
  */
@@ -349,11 +385,13 @@ export async function transpileSemanticSQL(
   const engine = await SemanticEngine.init({ wasmUrl: wasmModule });
 
   try {
-    // 1. Register physical tables with dummy rows so DataFusion knows their schemas
+    // 1. Register physical tables with typed dummy rows so DataFusion infers correct schemas.
+    //    Using null for every column causes DataFusion to infer all types as Null/Utf8,
+    //    which breaks SUM(), AVG(), date_add(), and other typed operations at plan time.
     for (const m of allModels) {
       const dummyRow: Record<string, any> = {};
       for (const f of m.fields || []) {
-        dummyRow[f.columnName] = null;
+        dummyRow[f.columnName] = typedDummyValue(f.rawType || f.dataType || f.type || "");
       }
       // Register under the physical table name
       await engine.registerJson(m.tableName, [dummyRow]);
