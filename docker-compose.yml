@@ -138,6 +138,21 @@ services:
   #   depends_on:
   #     - redis
 
+  orcha-embeddings:
+    build:
+      context: ./orcha-embedding-transformer
+      dockerfile: Dockerfile
+    container_name: orcha-embeddings
+    ports:
+      - "5001:5001"
+    restart: always
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/api/health')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
 volumes:
   data:
   prometheus-data:

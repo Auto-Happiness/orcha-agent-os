@@ -54,20 +54,21 @@ export async function checkMembership(
     return null;
   }
 
-  // 1. Parallelize User (both formats) and Org lookups.
-  // We run two user queries simultaneously to handle both storage formats:
-  // - identity.subject       → short-form  (e.g. "user_abc123")
-  // - identity.tokenIdentifier → long-form (e.g. "https://accounts.dev|user_abc123")
-  // Existing users in the DB may be stored under either format.
-  const [userBySubject, userByToken, org] = await Promise.all([
-    identity.subject
-      ? ctx.db.query("users").withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject!)).unique()
-      : Promise.resolve(null),
+  // 1. Fetch user by long-form tokenIdentifier and organization in parallel (the standard case)
+  const [userByToken, org] = await Promise.all([
     ctx.db.query("users").withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier)).unique(),
     ctx.db.get(organizationId)
   ]);
 
-  const user = userBySubject ?? userByToken;
+  let user = userByToken;
+
+  // 2. Fallback to short-form subject only if not found (keeps DB operations minimal)
+  if (!user && identity.subject) {
+    user = await ctx.db
+      .query("users")
+      .withIndex("by_tokenIdentifier", (q) => q.eq("tokenIdentifier", identity.subject!))
+      .unique();
+  }
 
   if (!user) {
     const isMutation = typeof (ctx.db as any).insert === "function";

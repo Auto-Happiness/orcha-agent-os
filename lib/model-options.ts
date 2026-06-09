@@ -21,8 +21,11 @@ export const MODEL_OPTIONS = [
   {
     group: "Anthropic Claude",
     items: [
+      { value: "claude:claude-opus-4-8", label: "Claude 4.8 Opus (Flagship)" },
+      { value: "claude:claude-sonnet-4-6", label: "Claude 4.6 Sonnet (Prod)" },
+      { value: "claude:claude-haiku-4-5", label: "Claude Haiku 4.5 (Fast)" },
       { value: "claude:claude-3-7-sonnet-latest", label: "Claude 3.7 Sonnet" },
-      { value: "claude:claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet (New)" },
+      { value: "claude:claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
       { value: "claude:claude-3-opus-20240229", label: "Claude 3 Opus" },
     ],
   },

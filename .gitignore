@@ -66,3 +66,19 @@ target/
 pkg/
 **/target/
 **/pkg/
+
+# Python ignores
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+orcha-embedding-transformer/.env
+orcha-embedding-transformer/.pytest_cache/
+orcha-embedding-transformer/dist/
+orcha-embedding-transformer/build/
+orcha-embedding-transformer/*.egg-info/

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { preprocessSQL, transpileSemanticSQL } from "../semantic-transpiler";
+import { preprocessSQLCompat as preprocessSQL, transpileSemanticSQLCompat as transpileSemanticSQL } from "../semantic-transpiler";
 
 test("preprocessSQL maps table references correctly", () => {
   const allModels = [

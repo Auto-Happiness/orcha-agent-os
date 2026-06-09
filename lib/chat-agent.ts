@@ -1,9 +1,9 @@
-import { UIMessage, jsonSchema, ToolLoopAgent, stepCountIs, convertToModelMessages } from "ai";
+import { UIMessage, jsonSchema, ToolLoopAgent, stepCountIs, generateObject } from "ai";
+import { z } from "zod";
 import { resolveModel } from "./model-resolver";
 import { pruneColumns, getPruningModelId } from "./column-pruner";
 import { api } from "@/convex/_generated/api";
 import { OrchaFusion } from "./engine/orcha-fusion";
-import { classifyIntent } from "./intent-classifier";
 import { getNativeDialectRule, getFederatedRule } from "./dialects";
 import { buildManifest, validateSQL, CompiledManifest } from "./sql-validator";
 import { rewriteConversationalQuery } from "./query-rewriter";
@@ -32,30 +32,108 @@ export interface AgentContext {
   defaultConfigId?: string;
 }
 
+async function selectTablesWithLLM(
+  question: string,
+  allModels: any[],
+  model: any
+): Promise<any[]> {
+  console.log(`[Agent] Running LLM-based table selection for ${allModels.length} tables...`);
+  try {
+    const tableMetadata = allModels.map((m: any) => ({
+      tableName: m.tableName,
+      description: m.description || m.remarks || "No description provided."
+    }));
+
+    const response = await generateObject({
+      model: model,
+      schema: z.object({
+        selectedTables: z.array(z.string().describe("The exact tableName of the table that is relevant to the question."))
+      }),
+      system: `You are a database expert. Your task is to analyze the user's natural language question and select the relevant database tables from the list that are needed to answer the question.
+Select any tables that might contain the fields, categories, or relations needed to build the query.
+Only return tables that actually exist in the provided list.`,
+      prompt: `User Question: "${question}"\n\nAvailable Tables:\n${JSON.stringify(tableMetadata, null, 2)}`
+    });
+
+    const selectedNames = new Set((response.object.selectedTables || []).map(t => t.toLowerCase()));
+    const matched = allModels.filter((m: any) => selectedNames.has(m.tableName.toLowerCase()));
+    console.log(`[Agent] LLM selected ${matched.length} tables: ${matched.map(m => m.tableName).join(", ")}`);
+    return matched;
+  } catch (err) {
+    console.error("[Agent] LLM-based table selection failed:", err);
+    return [];
+  }
+}
+
 export async function createChatAgent(context: AgentContext) {
   const { convex, organizationId, configId: rawConfigId, configIds: rawConfigIds, modelId, showResults, messages, userId, orgIdStr, apiKey, defaultModelId, defaultConfigId } = context;
 
-  // If multiple IDs provided, the first one is the "primary" context
   const activeConfigIds = rawConfigIds && rawConfigIds.length > 0
     ? rawConfigIds
     : (rawConfigId ? [rawConfigId] : (defaultConfigId ? [defaultConfigId] : []));
 
   const configId = activeConfigIds[0];
 
-  // ── PARALLEL FETCH: Fire all org-level queries simultaneously ──
-  // allConfigs, aiKeys, integrationKeys, and allOrgModels are fully independent —
-  // bundling them into one Promise.all saves ~3 sequential network round-trips per request.
-  const [allConfigs, aiKeys, integrationKeys, allOrgModels] = await Promise.all([
+  // 1. Parallel fetch configurations, AI keys, integrations, and the MDL manifest document
+  let [allConfigs, aiKeys, integrationKeys, manifest] = await Promise.all([
     convex.query(api.databaseConfigs.listByOrganization, { organizationId, apiKey }),
     convex.query(api.aiKeys.listByOrganization, { organizationId, apiKey }),
     convex.query(api.integrationKeys.listByOrganization, { organizationId, apiKey }),
-    convex.query(api.semanticModels.listAllModelsInOrg, { organizationId, apiKey }),
+    convex.query(api.mdlManifests.get, { configId, apiKey }),
   ]);
+
+  if (!manifest) {
+    console.log(`[Agent] No V2 manifest found for config ${configId}. Attempting on-the-fly compilation from V1 semantic models...`);
+    const [v1Models, v1Rels] = await Promise.all([
+      convex.query(api.semanticModels.listModelsByConfig, { configId, apiKey }),
+      convex.query(api.semanticRelationships.listByConfig, { configId, apiKey }),
+    ]);
+
+    if (!v1Models || v1Models.length === 0) {
+      throw new Error("No database schema scan found. Please scan the database schema first to build the semantic layer.");
+    }
+
+    // Build models list for manifest
+    const models = v1Models.map((m: any) => ({
+      name: m.tableName,
+      description: m.description || "",
+      remarks: m.remarks || "",
+      primaryKey: m.fields?.find((f: any) => f.isPrimary)?.columnName || "",
+      columns: (m.fields || []).map((f: any) => ({
+        name: f.columnName,
+        type: f.dataType || f.rawType || "VARCHAR",
+        description: f.description || "",
+        remarks: f.remarks || "",
+        notNull: !f.isNullable,
+      })),
+    }));
+
+    // Build relationships list for manifest
+    const relationships = v1Rels.map((r: any) => {
+      const fromModel = v1Models.find((m: any) => m._id === r.fromModelId);
+      const toModel = v1Models.find((m: any) => m._id === r.toModelId);
+      const fromName = fromModel ? fromModel.tableName : "unknown";
+      const toName = toModel ? toModel.tableName : "unknown";
+      return {
+        name: r.name,
+        models: [fromName, toName],
+        joinType: r.type === "many_to_one" ? "MANY_TO_ONE" : "ONE_TO_MANY",
+        condition: `${fromName}.${r.fromColumn} = ${toName}.${r.toColumn}`,
+      };
+    });
+
+    manifest = {
+      catalog: "",
+      schema: "",
+      models,
+      relationships,
+      views: [],
+    };
+  }
 
   // Resolve the primary database config from the already-fetched list
   let config: any = allConfigs.find((c: any) => c._id === configId);
   if (!config) {
-    // Fallback: fetch any ready config for the org (e.g. when no configId is supplied)
     config = await convex.query(api.databaseConfigs.getByOrganization, { organizationId, apiKey });
   }
   if (!config) throw new Error("No ready database configuration found.");
@@ -68,13 +146,13 @@ export async function createChatAgent(context: AgentContext) {
     throw new Error("Failed to parse database configuration.");
   }
 
-  // Build the federation config map (uses allConfigs resolved above)
+  // Build the federation config map
   const allOrgConfigs = allConfigs || [];
   const dbConfigMap = new Map<string, any>();
   const activeIdsSet = new Set(activeConfigIds);
 
   for (const c of allOrgConfigs) {
-    if (!activeIdsSet.has(c._id)) continue; // Filter to only selected databases
+    if (!activeIdsSet.has(c._id)) continue;
     try {
       const parsed = { ...JSON.parse(c.encryptedUri), type: c.type };
       if (parsed.port) parsed.port = parseInt(parsed.port, 10);
@@ -83,81 +161,141 @@ export async function createChatAgent(context: AgentContext) {
     } catch { /* skip malformed configs */ }
   }
 
-  // If a default model is set for the API key, use it.
   const defaultModel = defaultModelId || "gemini:gemini-1.5-flash";
-
   const selectedModelStr = modelId || defaultModel;
   const aiModel = resolveModel(selectedModelStr, aiKeys, orgIdStr);
   const pruningModelId = getPruningModelId(selectedModelStr);
   const pruningModel = resolveModel(pruningModelId, aiKeys, orgIdStr);
 
+  // 2. Map the loaded MDL manifest JSON into a structure compatible with our existing agent pipelines
+  const allModels = (manifest.models || []).map((m: any) => ({
+    _id: m.name,
+    tableName: m.name,
+    displayName: m.name,
+    description: m.description || "",
+    remarks: m.remarks || "",
+    fields: (m.columns || []).map((c: any) => ({
+      columnName: c.name,
+      displayName: c.name,
+      type: c.type,
+      rawType: c.type,
+      dataType: c.type,
+      description: c.description || "",
+      remarks: c.remarks || "",
+      isPrimary: m.primaryKey === c.name,
+      isNullable: !c.notNull,
+      fieldType: c.relationship ? "relationship" : "dimension",
+      relationship: c.relationship || null,
+      defaultAggregation: c.defaultAggregation || null,
+      sqlExpression: c.expression || null,
+    }))
+  }));
+
+  const mappedRelationships = (manifest.relationships || []).map((rel: any) => {
+    const parts = rel.condition.split("=");
+    const partA = parts[0].trim();
+    const partB = parts[1].trim();
+    const fromModelId = partA.substring(0, partA.indexOf("."));
+    const toModelId = partB.substring(0, partB.indexOf("."));
+    const fromColumn = partA.substring(partA.indexOf(".") + 1);
+    const toColumn = partB.substring(partB.indexOf(".") + 1);
+    return {
+      _id: rel.name,
+      name: rel.name,
+      fromModelId,
+      toModelId,
+      fromColumn,
+      toColumn,
+      type: rel.joinType?.toLowerCase() === "many_to_one" ? "many_to_one" : "one_to_many"
+    };
+  });
+
   let filteredModels: any[] = [];
   let relationships: any[] = [];
   let recalledExemplars: any[] = [];
   let mcpTools: any = {};
-  // allModels (full field schemas) is fetched lazily inside the TEXT_TO_SQL branch
-  let allModels: any[] = [];
   let compiledManifest: CompiledManifest = { tables: [], relationships: [] };
-  const lastMessage = (messages[messages.length - 1] as any)?.content || "";
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+  const lastUser: any = lastUserMessage;
+  let lastMessage = "";
+  if (lastUser) {
+    if (typeof lastUser.content === "string" && lastUser.content) {
+      lastMessage = lastUser.content;
+    } else if (Array.isArray(lastUser.parts)) {
+      const textPart = lastUser.parts.find((p: any) => p.type === "text");
+      if (textPart?.text) {
+        lastMessage = textPart.text;
+      }
+    } else if (Array.isArray(lastUser.content)) {
+      const textPart = lastUser.content.find((p: any) => p.type === "text");
+      if (textPart?.text) {
+        lastMessage = textPart.text;
+      }
+    }
+  }
 
-  // Run conversational query rewriter to expand pronoun-heavy follow-up questions using low-latency LLM completion
   const ragSearchQuery = await rewriteConversationalQuery(messages, pruningModel);
-
-  // --- INTENT CLASSIFICATION ---
-  // Derive table names from allOrgModels fetched in the parallel block above — zero extra cost.
-  const tableNames = allOrgModels
-    .filter((m: any) => m.configId === config._id)
-    .map((m: any) => m.displayName || m.tableName);
-
-  // TODO: Re-enable intent classification once we have more than one intent. For now, we assume all queries are TEXT_TO_SQL to ensure the RAG pipeline is always exercised and debugged.
-  // classifyIntent is temporarily commented out for now
-  // const classification = await classifyIntent(lastMessage, aiModel, tableNames, config.businessContext);
-  // const messageIntent = classification.intent;
-  // const suggestedTables = classification.suggestedTables;
+  const tableNames = allModels.map((m: any) => m.displayName || m.tableName);
   const messageIntent = "TEXT_TO_SQL";
-  const suggestedTables: string[] = [];
-  console.log(`[Agent] Intent Classification bypassed, defaulting to: ${messageIntent}`);
 
-  // Only run the expensive RAG pipeline for data queries
+  const tableCount = allModels.length;
+  const isBypass = tableCount <= 12;
+
   if (messageIntent === "TEXT_TO_SQL") {
-    // ── CONCURRENT TEXT_TO_SQL LOAD ──
-    // MCP tools, RAG embedding + vector search, and full model schemas all fire in parallel.
-    // Previously these were sequential; now they all complete in the time of the slowest one.
     const mcpLoadPromise = (async () => {
       const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
       return await loadMcpTools(integrationKeys, orgIdStr);
     })();
 
-    const ragAndRecallPromise = (async () => {
-      try {
-        const embedProvider: "openai" | "gemini" | "local" = (config.memoryProvider as any) || "gemini";
-        const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
-          organizationId: organizationId as any,
-          text: ragSearchQuery,
-          provider: embedProvider,
-          sysApiKey: apiKey,
-        });
-        const indexName = dimensions === 1536 ? "by_embedding_1536" :
-          dimensions === 1024 ? "by_embedding_1024" : "by_embedding_768";
+    // --- SMALL-SCHEMA RAG BYPASS ---
+    if (isBypass) {
+      console.log(`[Agent] Small schema detected (table count: ${tableCount} <= 12). Bypassing embedding and vector search.`);
+      filteredModels = allModels;
+      relationships = mappedRelationships;
 
-        const ragResultsPerConfigPromise = Promise.all(
-          activeConfigIds.map((cid: string) =>
-            convex.action(api.semanticModels.retrieveSchemaContext, {
-              configId: cid as any,
-              embedding,
-              indexName,
-              limit: 10,
-              apiKey,
-            }).catch((err: any) => {
-              console.warn(`[Agent] retrieveSchemaContext error for ${cid}:`, err);
-              return { models: [], relationships: [] };
-            })
-          )
-        );
+      const [mcpResult] = await Promise.allSettled([mcpLoadPromise]);
+      if (mcpResult.status === "fulfilled") mcpTools = mcpResult.value;
 
-        const [ragResultsPerConfig, recallResult] = await Promise.all([
-          ragResultsPerConfigPromise,
-          convex.action(api.semanticMemory.recallQueries, {
+      compiledManifest = buildManifest(allModels, relationships, dbConfigMap, allOrgConfigs);
+    } else {
+      console.log(`[Agent] Large schema detected (table count: ${tableCount} > 12). Running vector RAG...`);
+      
+      const ragAndRecallPromise = (async () => {
+        try {
+          const mainProvider = selectedModelStr.split(":")[0];
+          if (mainProvider === "claude" || mainProvider === "anthropic") {
+            console.log(`[Agent] Claude provider selected. Skipping embeddings and running LLM-based table selection...`);
+            const matched = await selectTablesWithLLM(ragSearchQuery, allModels, pruningModel);
+            return { matchedModels: matched, recallResult: [] };
+          }
+
+          const embedProvider = "local";
+          const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
+            organizationId: organizationId as any,
+            text: ragSearchQuery,
+            provider: embedProvider,
+            sysApiKey: apiKey,
+          });
+          const indexName = dimensions === 1536 ? "by_embedding_1536" :
+            dimensions === 1024 ? "by_embedding_1024" :
+            dimensions === 768 ? "by_embedding_768" : "by_embedding_384";
+
+          // Perform vector search on the semanticSearchIndex table
+          const relatedModels = await convex.action(api.semanticSearchIndex.searchRelatedModels, {
+            configId: config._id,
+            embedding,
+            indexName,
+            limit: 10,
+            apiKey,
+          }).catch((err: any) => {
+            console.warn("[Agent] searchRelatedModels error:", err);
+            return [];
+          });
+
+          const matchedTableNames = new Set(relatedModels.map((r: any) => r.tableName.toLowerCase()));
+          const matchedModels = allModels.filter((m: any) => matchedTableNames.has(m.tableName.toLowerCase()));
+
+          const recallResult = await convex.action(api.semanticMemory.recallQueries, {
             organizationId: organizationId as any,
             configId: config._id,
             embedding,
@@ -167,163 +305,63 @@ export async function createChatAgent(context: AgentContext) {
           }).catch((err: any) => {
             console.warn("[Agent] recallQueries error:", err);
             return [];
-          })
-        ]);
+          });
 
-        const seenModelIds = new Set<string>();
-        const mergedRagModels: any[] = [];
-        const mergedRagRelationships: any[] = [];
-        const seenRelIds = new Set<string>();
-
-        for (const result of ragResultsPerConfig) {
-          for (const m of result.models) {
-            if (!seenModelIds.has(m._id)) {
-              seenModelIds.add(m._id);
-              mergedRagModels.push(m);
-            }
-          }
-          for (const r of result.relationships) {
-            if (!seenRelIds.has(r._id)) {
-              seenRelIds.add(r._id);
-              mergedRagRelationships.push(r);
-            }
-          }
+          return { matchedModels, recallResult };
+        } catch (err) {
+          console.error("[Agent] dynamic embedding/recall pipeline failed. Falling back to LLM-based table selection...", err);
+          const matched = await selectTablesWithLLM(ragSearchQuery, allModels, pruningModel);
+          return { matchedModels: matched, recallResult: [] };
         }
-        const ragResult = { models: mergedRagModels, relationships: mergedRagRelationships };
+      })();
 
-        return { ragResult, recallResult };
-      } catch (err) {
-        console.error("[Agent] dynamic embedding/recall pipeline failed:", err);
-        return { ragResult: { models: [], relationships: [] }, recallResult: [] };
-      }
-    })();
+      const [mcpResult, pipelineResult] = await Promise.allSettled([
+        mcpLoadPromise,
+        ragAndRecallPromise,
+      ]);
 
-    // Full model schemas (with fields) for ALL active configs — primary + federated secondaries.
-    // Running all fetches in parallel so federated mode pays no extra sequential cost.
-    const allModelsPromises = activeConfigIds.map((cid: string) =>
-      convex.query(api.semanticModels.listModelsByConfig, { configId: cid as any, apiKey })
-        .catch(() => [] as any[])
-    );
-    const allModelsPromise = Promise.all(allModelsPromises);
+      if (mcpResult.status === "fulfilled") mcpTools = mcpResult.value;
 
-    const [mcpResult, pipelineResult, allModelsResult] = await Promise.allSettled([
-      mcpLoadPromise,
-      ragAndRecallPromise,
-      allModelsPromise,
-    ]);
-
-    if (mcpResult.status === "fulfilled") mcpTools = mcpResult.value;
-
-    if (pipelineResult.status === "fulfilled") {
-      const { ragResult, recallResult } = pipelineResult.value;
-      if (ragResult?.models?.length > 0) {
-        filteredModels = ragResult.models;
-        relationships = ragResult.relationships;
-      }
-      recalledExemplars = recallResult || [];
-    }
-
-    // Merge all models from all active configs into one flat array for fuzzy fallback & search_db_schema
-    if (allModelsResult.status === "fulfilled") {
-      const perConfigResults = allModelsResult.value as any[][];
-      allModels = perConfigResults.flat();
-    }
-
-    // Build the compiled manifest for pre-execution dry-plan validation.
-    // Done here so it uses the fully merged allModels + relationships from dependency expansion.
-    // NOTE: relationships is populated later in Stage 2 expansion below; manifest is rebuilt after.
-    compiledManifest = buildManifest(allModels, relationships, dbConfigMap, allOrgConfigs);
-
-    // HYBRID DISCOVERY: Merge LLM-suggested tables with RAG results
-    if (suggestedTables.length > 0) {
-      const lowerSuggestions = suggestedTables.map(t => t.toLowerCase());
-      const suggestedModels = allModels.filter((m: any) => {
-        const dName = (m.displayName || "").toLowerCase();
-        const tName = (m.tableName || "").toLowerCase();
-        return lowerSuggestions.includes(dName) || lowerSuggestions.includes(tName);
-      });
-
-      // Stage 1: Add suggested models
-      const newModelIds = new Set(filteredModels.map(m => m._id));
-      for (const sm of suggestedModels) {
-        if (!newModelIds.has(sm._id)) {
-          console.log(`[Agent] Adding LLM-suggested table: ${sm.tableName}`);
-          filteredModels.push(sm);
-          newModelIds.add(sm._id);
-        }
-      }
-    }
-
-    // Stage 2: DEPENDENCY EXPANSION 
-    // Pull in 1st-degree relationships for any table we've found so far
-    if (filteredModels.length > 0) {
-      const allRelsPerConfig = await Promise.all(
-        activeConfigIds.map((cid: string) =>
-          convex.query(api.semanticRelationships.listByConfig, { configId: cid as any, apiKey })
-            .catch((err: any) => {
-              console.warn(`[Agent] listByConfig error for ${cid}:`, err);
-              return [] as any[];
-            })
-        )
-      );
-      const allRels = allRelsPerConfig.flat();
-      const expandedIds = new Set(filteredModels.map(m => m._id));
-
-      for (const rel of allRels) {
-        if (expandedIds.has(rel.fromModelId) || expandedIds.has(rel.toModelId)) {
-          // Add both sides of the relationship
-          const neighborId = expandedIds.has(rel.fromModelId) ? rel.toModelId : rel.fromModelId;
-          if (!expandedIds.has(neighborId)) {
-            const neighbor = allModels.find((m: any) => m._id === neighborId);
-            if (neighbor) {
-              console.log(`[Agent] Expanding to neighbor table: ${neighbor.tableName}`);
-              filteredModels.push(neighbor);
-              expandedIds.add(neighborId);
-            }
-          }
-          // Also track this relationship to show in prompt
-          if (!relationships.find(r => r._id === rel._id)) {
-            relationships.push(rel);
-          }
-        }
+      if (pipelineResult.status === "fulfilled") {
+        const { matchedModels, recallResult } = pipelineResult.value;
+        filteredModels = matchedModels;
+        recalledExemplars = recallResult || [];
       }
 
-      // Rebuild manifest now that relationships are fully expanded
       compiledManifest = buildManifest(allModels, relationships, dbConfigMap, allOrgConfigs);
+
+      // Stage 2: RELATIONSHIP EXPANSION
+      if (filteredModels.length > 0) {
+        const expandedIds = new Set(filteredModels.map(m => m._id));
+        relationships = [];
+
+        for (const rel of mappedRelationships) {
+          if (expandedIds.has(rel.fromModelId) || expandedIds.has(rel.toModelId)) {
+            const neighborId = expandedIds.has(rel.fromModelId) ? rel.toModelId : rel.fromModelId;
+            if (!expandedIds.has(neighborId)) {
+              const neighbor = allModels.find((m: any) => m._id === neighborId);
+              if (neighbor) {
+                console.log(`[Agent] Expanding to neighbor table: ${neighbor.tableName}`);
+                filteredModels.push(neighbor);
+                expandedIds.add(neighborId);
+              }
+            }
+            if (!relationships.find(r => r._id === rel._id)) {
+              relationships.push(rel);
+            }
+          }
+        }
+
+        compiledManifest = buildManifest(allModels, relationships, dbConfigMap, allOrgConfigs);
+      }
     }
   } else {
-    // GENERAL / IRRELEVANT: skip the entire RAG + embedding pipeline.
-    // Only load MCP tools in case the user is asking about an integration.
     const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
     mcpTools = await loadMcpTools(integrationKeys, orgIdStr);
     console.log(`[Agent] Skipped RAG pipeline for intent: ${messageIntent}`);
   }
 
-  // Fallback for databases without embeddings or very small databases
-  if (messageIntent === "TEXT_TO_SQL" && (!filteredModels || filteredModels.length === 0)) {
-    console.warn("[Agent] RAG returned no results. Running Instant Fuzzy Matcher...");
-
-    // Fuzzy match: Look for query keywords in table names
-    const queryWords = ragSearchQuery.toLowerCase().split(/\s+/);
-    const fuzzyMatches = allModels.filter((m: any) => {
-      const name = (m.displayName || m.tableName || "").toLowerCase();
-      return queryWords.some((word: string) => word.length > 3 && (name.includes(word) || word.includes(name)));
-    });
-
-    if (fuzzyMatches.length > 0) {
-      console.log(`[Agent] Fuzzy Matcher found ${fuzzyMatches.length} tables.`);
-      filteredModels = fuzzyMatches.slice(0, 5); // Limit to top 5 fuzzy matches
-    } else if (allModels.length <= 15) {
-      filteredModels = allModels;
-    } else {
-      filteredModels = []; // Truly no match, show discovery list
-    }
-  }
-
   // --- COLUMN PRUNING ---
-  // Only prune when there are genuinely many columns (> 150 total).
-  // For small/simple schemas, pruning adds an extra LLM call with no benefit
-  // and can actually hurt accuracy by stripping columns the AI needs.
   if (messageIntent === "TEXT_TO_SQL" && filteredModels.length > 0) {
     const totalColumns = filteredModels.reduce((sum: number, m: any) => sum + (m.fields?.length || 0), 0);
     if (totalColumns > 150) {
@@ -332,17 +370,15 @@ export async function createChatAgent(context: AgentContext) {
         filteredModels = pruned;
       } catch (err) {
         console.warn("[Agent] Column pruning failed, using full schema context:", err);
-        // Intentionally fall through — original filteredModels remain intact
       }
-    } else {
-      console.log(`[Agent] Skipping pruning: total columns (${totalColumns}) below threshold.`);
     }
   }
 
-  // 6. Build Prompt
+  // 3. Build prompts using filtered schema models
   const tableDiscoveryList = filteredModels.length === 0 && messageIntent === "TEXT_TO_SQL"
     ? `### AVAILABLE TABLES (Discovery Mode):\n- ${tableNames.join("\n- ")}`
     : "";
+
   const schemaDescription = filteredModels.map((model: any) => {
     let modelCtx = `### ${model.displayName} (USE THIS TABLE NAME: ${model.tableName})\n`;
     if (model.description) modelCtx += `Description: ${model.description}\n`;
@@ -351,13 +387,12 @@ export async function createChatAgent(context: AgentContext) {
     const fields = model.fields.map((f: any) => {
       let d = `- ${f.displayName} (USE THIS IN SQL: ${f.columnName}): ${f.rawType || f.dataType || f.type}`;
 
-      // BI Metadata & Semantic Hints
       if (f.fieldType === "measure") d += ` [MEASURE: default aggregation=${f.defaultAggregation || 'sum'}]`;
       if (f.fieldType === "dimension") d += ` [DIMENSION]`;
       if (f.isTimeDimension) d += ` [TIME SERIES]`;
 
       if (f.sqlExpression) d += ` [CALCULATED: ${f.sqlExpression}]`;
-      else if (f.expression) d += ` [CALCULATED: ${f.expression}]`; // Legacy fallback
+      else if (f.expression) d += ` [CALCULATED: ${f.expression}]`;
 
       if (f.description) d += ` | Info: ${f.description}`;
       if (f.remarks) d += ` | Note: ${f.remarks}`;
@@ -377,40 +412,7 @@ export async function createChatAgent(context: AgentContext) {
     }).join("\n")
     : "";
 
-  // Build a federated catalog for the prompt — includes FULL column schema per database.
-  // allModels already contains merged schemas for all active configs (loaded above).
-  const federatedCatalog = allOrgConfigs
-    .filter((c: any) => activeIdsSet.has(c._id))
-    .map((c: any) => {
-      const alias = c.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
-      const dbModels = allModels.filter((m: any) => m.configId === c._id);
-
-      if (dbModels.length === 0) {
-        return `- [${c.type.toUpperCase()}] alias: **${alias}** (No tables detected — run a schema scan)`;
-      }
-
-      // For the primary config, schema is already in schemaDescription — skip duplication
-      if (c._id === config._id) {
-        const tableList = dbModels.map((m: any) => m.tableName).join(", ");
-        return `- [${c.type.toUpperCase()}] alias: **${alias}** — PRIMARY DB (Tables: ${tableList})`;
-      }
-
-      // For secondary databases: include full column schema so the agent never guesses
-      const tableSchemas = dbModels.map((m: any) => {
-        const cols = (m.fields || []).map((f: any) => {
-          let col = `    - ${f.columnName} (${f.rawType || f.dataType || f.type})`;
-          if (f.isPrimary) col += " PRIMARY KEY";
-          if (f.description) col += ` | ${f.description}`;
-          return col;
-        }).join("\n");
-        return `  ### ${m.tableName} (alias.table: ${alias}.${m.tableName})\n${cols}`;
-      }).join("\n");
-
-      return `- [${c.type.toUpperCase()}] alias: **${alias}**\n${tableSchemas}`;
-    }).join("\n");
-
   const dialectRules = getNativeDialectRule(config.type);
-  const federatedRule = dbConfigMap.size > 1 ? getFederatedRule(federatedCatalog, config.name) : "";
 
   const buildSystemPrompt = (toolNames: string[]) => {
     const mcpToolNames = toolNames.filter(t => t !== "execute_sql");
@@ -438,7 +440,6 @@ ${relationshipDescription}
 ${exemplarsSection}
 
 ${dialectRules}
-${federatedRule}
 
 ### MANDATORY RESPONSE STRUCTURE — FOLLOW THIS ON EVERY TURN:
 
@@ -462,7 +463,7 @@ Present the actual data returned by the tool. Write a full answer, summary, or a
 4. LIMIT: Always limit results to ${MAX_ROWS} rows.
 5. NO MOCK DATA: Never fabricate, guess, or list database results before a tool runs. In Turn 1, only describe your plan in the reasoning block. Show real results only in Turn 2 after the tool executes.
 6. AMBIGUOUS FILTERS: If the user query contains qualitative filters like 'low', 'high', 'good', 'bad', 'large', or 'small' without numerical limits:
-   - Whenever feasible, query the statistical context of the table first (e.g., get average, median, or min/max) to dynamically determine a threshold.
+   - Query the statistical context of the table first (e.g., get average, median, or min/max) to dynamically determine a threshold.
    - If a default threshold must be assumed, state it explicitly in the final response.
 
 ### MANDATORY QUERY WORKFLOW — ALWAYS follow this order:
@@ -472,47 +473,41 @@ Step 1 — CHECK SCHEMA FIRST (before writing any SQL):
 - NEVER guess a column name. If you are unsure, call search_db_schema.
 
 Step 2 — DRY-PLAN BEFORE EXECUTING (for any non-trivial JOIN or unfamiliar table):
-- Call dry_plan_sql with your intended SQL BEFORE calling execute_sql or execute_federated_sql.
+- Call dry_plan_sql with your intended SQL BEFORE calling execute_sql.
 - If dry_plan_sql returns errors, fix the SQL and re-validate. Do NOT execute invalid SQL.
 - Only skip dry_plan_sql for single-table queries on tables you have already verified in Step 1.
 
 Step 3 — EXECUTE:
-- Only call execute_sql / execute_federated_sql after dry_plan_sql passes (or Step 1 fully confirmed the schema).
+- Only call execute_sql after dry_plan_sql passes (or Step 1 fully confirmed the schema).
 
 Step 4 — STORE (automatic):
 - Successful queries are automatically stored in semantic memory. No action needed.
 
+- Do NOT copy-paste the raw query results row-by-row into your text response. The results are already shown in the interactive data table — the user can see every row there. Instead, write a concise insight, trend, or summary.
 
-- STRICTLY FORBIDDEN: Do NOT output a chart unless the user explicitly used words like "visualize", "chart", "graph", or "plot". If they just ask for a list or a question, only show the table.
+- STRICTLY FORBIDDEN: Do NOT output a chart unless the user explicitly used words like "visualize", "chart", "graph", or "plot".
 - To plot a chart, you MUST use the execute_sql tool and provide the optional chartConfig object.
-- THE FRONTEND AUTOMATICALLY RENDERS THE CHART IF chartConfig IS PROVIDED. DO NOT output markdown image links (e.g. ![chart](...)) or attempt to display the chart yourself in the text.
-- Choose the most appropriate chartType:
-  - "bar"  → comparisons between categories
-  - "line" → trends over time or ordered sequences
-  - "area" → cumulative trends
-  - "pie"  → proportions / part-of-whole (use only if there are ≤ 8 categories)
-  - "radar" → comparisons of multiple variables across categories (multi-variable comparison)
-- xKey must be the EXACT column name or alias for the X-axis (or pie labels) as returned by your SQL query.
-- yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query (e.g. "revenue"). Use AS aliases in your SQL to ensure clean keys.
+- THE FRONTEND AUTOMATICALLY RENDERS THE CHART IF chartConfig IS PROVIDED. DO NOT output markdown image links or attempt to display the chart yourself.
+- Choose the most appropriate chartType: "bar", "line", "area", "pie", or "radar".
+- xKey must be the EXACT column name or alias for the X-axis as returned by your SQL query.
+- yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query.
 
 ### SCOPE & CAPABILITIES (CRITICAL):
 - Your mission is STRICTLY limited to:
   1. Performing data analysis and SQL queries on the provided database schema.
   2. Fulfilling user requests using your connected MCP tools (integrations).
 - You have UNRESTRICTED access to use any available tool in your toolbox to answer questions or perform actions related to these two areas.
-- IF A USER ASKS ABOUT A SYSTEM OR INTEGRATION, CHECK YOUR AVAILABLE TOOLS LIST ABOVE. Do not claim you cannot access external systems if you have a tool for it.
-- Decline any request that is NOT related to your database or your connected tools (e.g. general knowledge, personal advice, or unrelated technical help).
+- Decline any request that is NOT related to your database or your connected tools.
 `;
   };
 
-  // 7. Initialize Agent
   const tools: any = {
     search_db_schema: {
-      description: `[Step 1 — ALWAYS USE FIRST] Searches ALL connected databases for exact table names, column names, types, PKs, and join relationships. Call this BEFORE writing any SQL to confirm correct column names. Never guess — always verify here first.`,
+      description: `[Step 1 — ALWAYS USE FIRST] Searches ALL connected databases for exact table names, column names, types, PKs, and join relationships. Call this BEFORE writing any SQL to confirm correct column names.`,
       inputSchema: jsonSchema({
         type: "object",
         properties: {
-          query: { type: "string", description: "Search term for tables or columns (e.g. 'review', 'customer_id', 'orders')." }
+          query: { type: "string", description: "Search term for tables or columns." }
         },
         required: ["query"],
       }),
@@ -531,7 +526,7 @@ Step 4 — STORE (automatic):
         });
 
         if (matches.length === 0) {
-          return { success: true, message: `No tables or columns found matching "${query}". Try a broader search term.` };
+          return { success: true, message: `No tables or columns found matching "${query}".` };
         }
 
         const matchDetails = matches.map((m: any) => {
@@ -544,7 +539,7 @@ Step 4 — STORE (automatic):
             if (f.description) colStr += ` | ${f.description}`;
             return colStr;
           }).join("\n");
-          // Also show relevant join conditions from the manifest
+          
           const joins = compiledManifest.relationships.filter(r =>
             r.toLowerCase().includes(m.tableName.toLowerCase())
           );
@@ -562,11 +557,11 @@ Step 4 — STORE (automatic):
       }
     },
     dry_plan_sql: {
-      description: `[Step 2 — DRY-PLAN BEFORE EXECUTING] Validates SQL column and table references against the schema manifest WITHOUT executing it. Call this after search_db_schema and BEFORE execute_sql / execute_federated_sql for any JOIN query or unfamiliar table. Returns a list of errors to fix if any column or table name is wrong.`,
+      description: `[Step 2 — DRY-PLAN BEFORE EXECUTING] Validates SQL column and table references against the schema manifest WITHOUT executing it. Call this after search_db_schema and BEFORE execute_sql.`,
       inputSchema: jsonSchema({
         type: "object",
         properties: {
-          sql: { type: "string", description: "The SQL query to validate against the schema manifest." }
+          sql: { type: "string", description: "The SQL query to validate." }
         },
         required: ["sql"],
       }),
@@ -575,13 +570,13 @@ Step 4 — STORE (automatic):
         if (result.valid) {
           return {
             valid: true,
-            message: "✅ Dry-plan passed. All table and column references are valid. You may now execute the SQL."
+            message: "✅ Dry-plan passed. All references are valid. You may now execute the SQL."
           };
         }
         return {
           valid: false,
           errors: result.errors,
-          message: `❌ Dry-plan failed with ${result.errors.length} error(s). Fix these before executing:\n${result.errors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
+          message: `❌ Dry-plan failed with ${result.errors.length} error(s):\n${result.errors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
         };
       }
     },
@@ -593,12 +588,12 @@ Step 4 — STORE (automatic):
           sql: { type: "string" },
           chartConfig: {
             type: "object",
-            description: "CRITICAL: Provide this ONLY if the user explicitly asked for a visualization. Defaults to null.",
+            description: "Provide this ONLY if the user explicitly asked for a visualization. Defaults to null.",
             properties: {
-              chartType: { type: "string", enum: ["bar", "line", "area", "pie", "radar"], description: "The type of chart to render." },
-              title: { type: "string", description: "A short descriptive title for the chart." },
-              xKey: { type: "string", description: "The column name to use for the X-axis (or labels in a pie chart)." },
-              yKey: { type: "string", description: "The column name for the Y-axis values (or value in a pie chart). Example: 'sales'" }
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie", "radar"] },
+              title: { type: "string" },
+              xKey: { type: "string" },
+              yKey: { type: "string" }
             },
             required: ["chartType", "title", "xKey", "yKey"]
           }
@@ -608,16 +603,12 @@ Step 4 — STORE (automatic):
       execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
         if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
 
-        // Semantic transpilation: expand virtual columns, join conditions via Semantic MDL.
-        // Falls back silently to original SQL if WASM is not built or transpilation fails.
         let execSql = sql;
         try {
           const transpiled = await transpileSemanticSQL(
             sql,
-            allModels,
-            relationships,
-            config._id,
-            allOrgConfigs
+            manifest, // Pass the parsed manifest directly to the WASM planning engine
+            config.type
           );
           console.log("[Agent] Semantic transpilation succeeded.");
           execSql = transpiled;
@@ -625,7 +616,6 @@ Step 4 — STORE (automatic):
           console.warn("[Agent] Semantic transpilation skipped (falling back to raw SQL):", transpileErr?.message || transpileErr);
         }
 
-        // Pre-execution dry-plan: validate column/table references before hitting the DB
         const dryPlan = validateSQL(execSql, compiledManifest);
         if (!dryPlan.valid) {
           console.warn("[Agent] execute_sql dry-plan failed:", dryPlan.errors);
@@ -633,7 +623,7 @@ Step 4 — STORE (automatic):
             success: false,
             dryPlanFailed: true,
             errors: dryPlan.errors,
-            error: `Schema validation failed before execution. Fix these errors and use dry_plan_sql to re-verify:\n${dryPlan.errors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
+            error: `Schema validation failed before execution:\n${dryPlan.errors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
           };
         }
 
@@ -641,7 +631,6 @@ Step 4 — STORE (automatic):
           const schemaName = config.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
           const rows = await OrchaFusion.execute(execSql, schemaName, dbConfig);
 
-          // Store successful query in Convex semanticMemory in background
           try {
             convex.mutation(api.semanticMemory.storeQueryMapping, {
               organizationId: organizationId as any,
@@ -666,94 +655,7 @@ Step 4 — STORE (automatic):
     },
   };
 
-  // Only expose federated queries if there are genuinely multiple databases selected
-  if (dbConfigMap.size > 1) {
-    tools.execute_federated_sql = {
-      description: `Executes a SQL query that JOINs data across MULTIPLE databases using alias.table syntax. Use this ONLY when the user needs data from more than one connected database. Do NOT use chartConfig unless the user explicitly asked for a visualization.`,
-      inputSchema: jsonSchema({
-        type: "object",
-        properties: {
-          sql: { type: "string", description: "Federated SQL query using alias.table syntax (e.g. items_db.items JOIN orders_db.orders)" },
-          chartConfig: {
-            type: "object",
-            description: "CRITICAL: Provide this ONLY if the user explicitly asked for a visualization.",
-            properties: {
-              chartType: { type: "string", enum: ["bar", "line", "area", "pie", "radar"] },
-              title: { type: "string" },
-              xKey: { type: "string" },
-              yKey: { type: "string" }
-            },
-            required: ["chartType", "title", "xKey", "yKey"]
-          }
-        },
-        required: ["sql"],
-      }),
-      execute: async ({ sql, chartConfig }: { sql: string; chartConfig?: any }) => {
-        if (!isSafeSQL(sql)) return { success: false, error: "Unsafe SQL blocked." };
-
-        // Semantic transpilation: expand virtual columns, join conditions via Semantic MDL.
-        // Falls back silently to original SQL if WASM is not built or transpilation fails.
-        let execSql = sql;
-        try {
-          const transpiled = await transpileSemanticSQL(
-            sql,
-            allModels,
-            relationships,
-            config._id,
-            allOrgConfigs
-          );
-          console.log("[Agent] Federated semantic transpilation succeeded.");
-          execSql = transpiled;
-        } catch (transpileErr: any) {
-          console.warn("[Agent] Federated semantic transpilation skipped (falling back to raw SQL):", transpileErr?.message || transpileErr);
-        }
-
-        // Pre-execution dry-plan: validate column/table references across all federated DBs
-        const dryPlan = validateSQL(execSql, compiledManifest);
-        if (!dryPlan.valid) {
-          console.warn("[Agent] execute_federated_sql dry-plan failed:", dryPlan.errors);
-          return {
-            success: false,
-            dryPlanFailed: true,
-            errors: dryPlan.errors,
-            error: `Schema validation failed before federated execution. Fix these errors and use dry_plan_sql to re-verify:\n${dryPlan.errors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
-          };
-        }
-
-        try {
-          console.log("[Agent] Executing FEDERATED query across", dbConfigMap.size, "databases");
-          const rows = await OrchaFusion.executeMulti(execSql, dbConfigMap);
-
-          // Store successful query in Convex semanticMemory in background
-          try {
-            convex.mutation(api.semanticMemory.storeQueryMapping, {
-              organizationId: organizationId as any,
-              configId: config._id,
-              question: lastMessage,
-              sql: execSql,
-              apiKey,
-            }).catch((e: any) => console.error("[Agent] Memory store deferred failure:", e));
-          } catch (e) {
-            console.error("[Agent] Memory store trigger failed:", e);
-          }
-
-          return {
-            success: true,
-            data: rows.slice(0, MAX_ROWS),
-            chartConfig,
-            federated: true,
-            sourceDatabases: Array.from(dbConfigMap.keys()),
-          };
-        } catch (err: any) {
-          return { success: false, error: err.message || "Federated query failed." };
-        }
-      },
-    };
-  }
-
-  // Merge loaded MCP tools
   Object.assign(tools, mcpTools);
-
   const toolNames = Object.keys(tools);
   console.log(`[ChatAgent] Loaded tools: ${toolNames.join(", ")}`);
 
@@ -764,4 +666,3 @@ Step 4 — STORE (automatic):
     stopWhen: stepCountIs(10),
   });
 }
-

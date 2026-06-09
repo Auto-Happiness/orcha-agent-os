@@ -47,8 +47,6 @@ async function postHandler(req: NextRequest) {
       // ── CORS Origin Enforcement ──
       const origin = req.headers.get("Origin");
       if (apiInfo.corsOrigins && apiInfo.corsOrigins.length > 0) {
-        // If origins are defined, enforce them. 
-        // Note: We check if the origin is explicitly allowed.
         if (!origin || !apiInfo.corsOrigins.includes(origin)) {
           return NextResponse.json(
             { error: `Forbidden: Origin "${origin || "unknown"}" is not authorized for this API key.` },
@@ -83,13 +81,12 @@ async function postHandler(req: NextRequest) {
 
     // ── Enforce Rate Limiting ──
     const { checkRateLimit } = await import("@/lib/rate-limiter");
-    const { success, remaining } = await checkRateLimit(organizationId, rateLimit);
+    const { success } = await checkRateLimit(organizationId, rateLimit);
     if (!success) {
       return NextResponse.json({ error: "Rate limit exceeded. Please try again in a minute." }, { status: 429 });
     }
 
     const orgIdStr = organizationId as string;
-    const configId = rawConfigId as Id<"databaseConfigs">;
 
     // Attach Clerk JWT
     const token = await clerkAuth.getToken({ template: "convex" });
@@ -99,7 +96,6 @@ async function postHandler(req: NextRequest) {
     if (isAsync) {
       console.log(`[Chat] ASYNC mode active. Enqueueing job for Org ${orgIdStr}`);
 
-      // 1. Create message stub in Convex (if sessionId provided)
       let messageId: string | undefined;
       if (sessionId) {
         messageId = await convex.mutation(api.chatMessages.append, {
@@ -110,7 +106,6 @@ async function postHandler(req: NextRequest) {
         });
       }
 
-      // 2. Add to BullMQ
       const { getChatWorker } = await import("@/lib/bridge/chat-worker");
       const worker = getChatWorker();
       const job = await worker.addJob({
@@ -155,10 +150,6 @@ async function postHandler(req: NextRequest) {
       defaultConfigId,
     });
 
-    // Normalize UI messages → ModelMessage[], then safely prune old tool-call blobs.
-    // pruneMessages is tool-call-aware: it never separates a tool-call from its paired
-    // tool-result, which prevents 400 API errors from orphaned tool results.
-    // Short sessions (≤4 messages / ≤2 turns) pass through unchanged.
     const normalizedMessages = await normalizeChatHistory(body.messages);
     const prunedMessages = normalizedMessages;
 

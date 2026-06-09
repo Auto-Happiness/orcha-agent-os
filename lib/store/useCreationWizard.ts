@@ -20,7 +20,7 @@ interface WizardData {
   configId: string | null;
   organizationId: string | null;
   businessContext: string;
-  memoryProvider: "openai" | "gemini" | "local" | null;
+  memoryProvider: "openai" | "gemini" | "local";
 }
 
 interface CreationWizardStore {
@@ -55,7 +55,7 @@ const initialData: WizardData = {
   configId: null,
   organizationId: null,
   businessContext: "",
-  memoryProvider: null,
+  memoryProvider: "local",
 };
 
 export const useCreationWizard = create<CreationWizardStore>()(

@@ -1,9 +1,5 @@
-/**
- * lib/semantic-compiler.ts
- *
- * Compiles Orcha/Convex database models and relationships into a valid
- * Semantic MDL (Modeling Definition Language) manifest.
- */
+import { TableSummary, ForeignKeySummary } from "./db/types";
+import { normalizeType } from "./db/type-normalizer";
 
 export interface CompiledMdl {
   catalog: string;
@@ -150,6 +146,109 @@ export function compileToMdl(
     schema: "public",
     models,
     relationships: mappedRelationships,
+    views: [],
+  };
+}
+
+/**
+ * Compiles scanned metadata into an MDL JSON structure.
+ */
+export function compileScanToMdl(
+  tables: TableSummary[],
+  foreignKeys: ForeignKeySummary[],
+  catalogName = "orcha",
+  schemaName = "public"
+): CompiledMdl {
+  // 1. Map tables to logical models
+  const models = tables.map((t) => {
+    const columns = t.columns.map((c) => {
+      const col: any = {
+        name: c.name,
+        type: normalizeType(c.dataType),
+      };
+      if (c.isNullable === false) {
+        col.notNull = true;
+      }
+      if (c.defaultValue !== undefined && c.defaultValue !== null) {
+        col.defaultValue = c.defaultValue;
+      }
+      return col;
+    });
+
+    const modelObj: any = {
+      name: t.name,
+      tableReference: {
+        catalog: null,
+        schema: null,
+        table: t.name,
+      },
+      columns,
+    };
+
+    const primaryKey = t.columns.find((c) => c.isPrimary)?.name;
+    if (primaryKey) {
+      modelObj.primaryKey = primaryKey;
+    }
+
+    return modelObj;
+  });
+
+  // 2. Map scanned foreign keys to relationships
+  const relationships = foreignKeys.map((fk) => {
+    const relName = fk.constraintName || `${fk.fromTable}_to_${fk.toTable}`;
+    
+    // We assume MANY_TO_ONE join type as a default, similar to standard scanner behavior
+    return {
+      name: relName,
+      models: [fk.fromTable, fk.toTable],
+      joinType: "MANY_TO_ONE",
+      condition: `${fk.fromTable}.${fk.fromColumn} = ${fk.toTable}.${fk.toColumn}`,
+    };
+  });
+
+  // 3. Inject virtual relationship columns into each model's column array
+  for (const rel of relationships) {
+    const fromModel = models.find((m) => m.name === rel.models[0]);
+    const toModel = models.find((m) => m.name === rel.models[1]);
+    if (!fromModel || !toModel) continue;
+
+    const conditionParts = rel.condition.split("=");
+    if (conditionParts.length !== 2) continue;
+
+    const fromColFull = conditionParts[0].trim();
+    const toColFull = conditionParts[1].trim();
+
+    const fromColName = fromColFull.substring(fromColFull.indexOf(".") + 1);
+    const toColName = toColFull.substring(toColFull.indexOf(".") + 1);
+
+    // Add relationship column on fromModel (points to toModel)
+    let fromRelColName = toModel.name.toLowerCase();
+    if (fromModel.columns.some((c: any) => c.name === fromRelColName)) {
+      fromRelColName = `${toModel.name.toLowerCase()}_by_${fromColName.toLowerCase()}`;
+    }
+    fromModel.columns.push({
+      name: fromRelColName,
+      type: toModel.name,
+      relationship: rel.name,
+    });
+
+    // Add relationship column on toModel (points to fromModel)
+    let toRelColName = fromModel.name.toLowerCase();
+    if (toModel.columns.some((c: any) => c.name === toRelColName)) {
+      toRelColName = `${fromModel.name.toLowerCase()}_by_${toColName.toLowerCase()}`;
+    }
+    toModel.columns.push({
+      name: toRelColName,
+      type: fromModel.name,
+      relationship: rel.name,
+    });
+  }
+
+  return {
+    catalog: catalogName,
+    schema: schemaName,
+    models,
+    relationships,
     views: [],
   };
 }

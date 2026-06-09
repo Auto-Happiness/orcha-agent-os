@@ -57,7 +57,7 @@ const PROVIDER_METADATA: Record<string, any> = {
 
 export function MemoryStatus({ currentConfig, activeOrgId }: MemoryStatusProps) {
   const { isAuthenticated } = useConvexAuth();
-  const providerKey = currentConfig.memoryProvider || "gemini";
+  const providerKey = currentConfig.memoryProvider || "local";
   const metadata = PROVIDER_METADATA[providerKey] || PROVIDER_METADATA.gemini;
   const Icon = metadata.icon;
 
