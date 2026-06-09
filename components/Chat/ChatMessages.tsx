@@ -23,6 +23,7 @@ interface ChatMessagesProps {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 function parseMarkdown(text: string, stripTables?: boolean): React.ReactNode[] {
   // Pre-filter: Remove massive data URIs that Gemini sometimes generates despite prompt instructions
   text = text.replace(/!?\[[^\]]*\]\(data:image\/[^)]+\)/g, "[Chart visualization hidden]");
@@ -360,6 +361,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
             const MARKER = "### \uD83E\uDDE0 Reasoning";
             const markerIdx = part.text.indexOf(MARKER);
 
+            // Combined Reasoning Split Logic
             // Combined Reasoning Split Logic
             if (markerIdx !== -1) {
               const before = part.text.slice(0, markerIdx).trim();

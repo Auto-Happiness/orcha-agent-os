@@ -1,0 +1,297 @@
+{
+  "consumer": {
+    "name": "orcha-convex"
+  },
+  "interactions": [
+    {
+      "description": "a batch embed request with multiple table descriptions",
+      "providerStates": [
+        {
+          "name": "the model is loaded and ready"
+        }
+      ],
+      "request": {
+        "body": {
+          "texts": [
+            "Table 'orders'. Description: customer purchase records.",
+            "Table 'products'. Description: product catalogue."
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.texts[0]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.texts[1]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {}
+        },
+        "method": "POST",
+        "path": "/api/embeddings/batch"
+      },
+      "response": {
+        "body": {
+          "dimensions": 384,
+          "embeddings": [
+            [
+              0.042
+            ],
+            [
+              0.042
+            ]
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.dimensions": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.embeddings": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 2
+                }
+              ]
+            },
+            "$.embeddings[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                },
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.embeddings[*][*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                },
+                {
+                  "match": "decimal"
+                }
+              ]
+            }
+          },
+          "header": {},
+          "status": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a batch embed request with no texts",
+      "providerStates": [
+        {
+          "name": "the model is loaded and ready"
+        }
+      ],
+      "request": {
+        "body": {
+          "texts": []
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "method": "POST",
+        "path": "/api/embeddings/batch"
+      },
+      "response": {
+        "status": 422
+      }
+    },
+    {
+      "description": "a health check request",
+      "providerStates": [
+        {
+          "name": "the embedding service is running"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/health"
+      },
+      "response": {
+        "body": {
+          "dimensions": 384,
+          "model": "paraphrase-multilingual-MiniLM-L12-v2",
+          "status": "ok"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.dimensions": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.model": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {},
+          "status": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a single embed request with a natural-language query",
+      "providerStates": [
+        {
+          "name": "the model is loaded and ready"
+        }
+      ],
+      "request": {
+        "body": {
+          "text": "what were last month sales?"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.text": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {}
+        },
+        "method": "POST",
+        "path": "/api/embeddings"
+      },
+      "response": {
+        "body": {
+          "dimensions": 384,
+          "embedding": [
+            0.042
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.dimensions": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.embedding": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.embedding[*]": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "decimal"
+                }
+              ]
+            }
+          },
+          "header": {},
+          "status": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a single embed request with empty text",
+      "providerStates": [
+        {
+          "name": "the model is loaded and ready"
+        }
+      ],
+      "request": {
+        "body": {
+          "text": ""
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "method": "POST",
+        "path": "/api/embeddings"
+      },
+      "response": {
+        "status": 422
+      }
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "13.2.0"
+    },
+    "pactRust": {
+      "ffi": "0.4.22",
+      "models": "1.2.3"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "orcha-embedding-transformer"
+  }
+}

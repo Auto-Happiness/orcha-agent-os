@@ -5,12 +5,14 @@ import { api } from "@/convex/_generated/api";
 import { auth } from "@clerk/nextjs/server";
 import { KeyManager } from "@/lib/key-manager";
 import { withMetrics } from "@/lib/metrics";
+import { compileScanToMdl } from "@/lib/semantic-compiler";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 async function postHandler(req: NextRequest) {
   try {
-    const { configId, organizationId, type, config: rawConfig } = await req.json();
+    const body = await req.json();
+    const { configId, organizationId, type, config: rawConfig } = body;
     const config = {
       ...rawConfig,
       port: rawConfig.port ? parseInt(rawConfig.port, 10) : (type === "postgres" ? 5432 : type === "mssql" ? 1433 : type === "oracle" ? 1521 : 3306),
@@ -47,14 +49,14 @@ async function postHandler(req: NextRequest) {
 
     const { tables, foreignKeys } = scanResult;
 
-    // 2. Create/update semantic models from table metadata
+    // 1. Create/update V1 semantic models from table metadata (for configure UI)
     await convex.mutation(api.semanticModels.bulkUpdate, {
       organizationId,
       configId,
       tables,
     });
 
-    // 3. Create relationships from real FK constraints
+    // 2. Create V1 relationships from real FK constraints (for configure UI)
     let relCount = 0;
     if (foreignKeys.length > 0) {
       const relResult = await convex.mutation(api.semanticModels.bulkCreateRelationships, {
@@ -65,13 +67,24 @@ async function postHandler(req: NextRequest) {
       relCount = relResult.count;
     }
 
-    // 4. Trigger vector indexing — decrypt the key here (Convex can't use node:crypto)
+    // 3. Compile and save V2 MDL manifest (for RAG / WASM engine)
+    const mdl = compileScanToMdl(tables, foreignKeys);
+    await convex.mutation(api.mdlManifests.save, {
+      organizationId,
+      configId,
+      catalog: mdl.catalog,
+      schema: mdl.schema,
+      models: mdl.models,
+      relationships: mdl.relationships,
+      views: mdl.views,
+    });
+
+    // 4. Trigger background vector indexing for the MDL manifest
     try {
       const allKeys = await convex.query(api.aiKeys.listByOrganization, { organizationId });
       const preferredKey = allKeys.find((k: any) => k.provider === "openai" || k.provider === "gemini");
       
       if (preferredKey) {
-        // Decrypt the key BEFORE sending to Convex
         let plaintextKey = preferredKey.keyValue;
         if (preferredKey.storageStrategy === "convex" || !preferredKey.storageStrategy) {
           const parts = preferredKey.keyValue.split(":");
@@ -86,7 +99,7 @@ async function postHandler(req: NextRequest) {
 
         console.log(`[Scan] Triggering embedding indexing with provider: ${preferredKey.provider}`);
         
-        convex.action(api.embeddings.indexConfigSchema, {
+        convex.action(api.embeddings.indexMdlManifest, {
           organizationId,
           configId,
           provider: preferredKey.provider as "openai" | "gemini" | "local",
@@ -105,11 +118,10 @@ async function postHandler(req: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: `Scanned ${tables.length} tables and discovered ${relCount} relationships.`,
+      message: `Scanned ${tables.length} tables, compiled MDL manifest, and created ${relCount} relationships.`,
       count: tables.length,
       relationships: relCount,
     });
-
   } catch (error: any) {
     console.error("Scan error:", error);
     return NextResponse.json({ 

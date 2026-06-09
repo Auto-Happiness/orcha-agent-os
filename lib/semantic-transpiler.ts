@@ -2,15 +2,15 @@
  * lib/semantic-transpiler.ts
  *
  * Exposes a wrapper client to initialize and run the Semantic WASM translation
- * engine, converting semantic SQL queries into target database physical queries.
+ * engine, converting semantic SQL queries into target database physical queries,
+ * utilizing the cloud-stored MDL JSON manifest.
  */
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
-import { compileToMdl } from "./semantic-compiler";
+import { compileToMdl, CompiledMdl } from "./semantic-compiler";
 
-// Load WASM and dynamic import the JS wrapper
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const wasmPath = join(__dirname, "wasm-engine", "orcha_semantic_engine_bg.wasm");
 const sdkModulePath = join(__dirname, "wasm-engine", "index.js");
@@ -32,123 +32,79 @@ async function getWasmModuleAndSDK() {
 }
 
 /**
- * Returns a typed dummy value for a column based on its raw DB data type string.
- * DataFusion infers Arrow schema from the first JSON row registered — providing
- * correctly-typed values ensures SUM/AVG/date operations plan correctly instead
- * of failing with Null or Utf8 type mismatches.
+ * Returns a typed dummy value for a column based on its standardized ANSI data type string.
  */
-function typedDummyValue(rawType: string): any {
-  const t = rawType.toLowerCase().trim();
+function typedDummyValue(ansiType: string): any {
+  const t = ansiType.toUpperCase().trim();
 
-  // Numeric types → 0 (Int64 / Float64)
   if (
-    t.includes("int") ||       // int, bigint, smallint, tinyint, integer
-    t.includes("decimal") ||
-    t.includes("numeric") ||
-    t.includes("float") ||
-    t.includes("double") ||
-    t.includes("real") ||
-    t.includes("money") ||
-    t.includes("number")
-  ) return 0;
+    t.startsWith("INT") ||
+    t === "INTEGER" ||
+    t === "BIGINT" ||
+    t === "SMALLINT" ||
+    t === "TINYINT" ||
+    t.startsWith("DECIMAL") ||
+    t.startsWith("NUMERIC") ||
+    t === "DOUBLE" ||
+    t === "FLOAT" ||
+    t === "REAL"
+  ) {
+    return 0;
+  }
 
-  // Boolean types → false
-  if (t.includes("bool") || t === "bit") return false;
+  if (t === "BOOLEAN") {
+    return false;
+  }
 
-  // Date/time types → ISO date/timestamp strings that DataFusion can parse
-  if (t.includes("timestamp") || t.includes("datetime")) return "2026-01-01T00:00:00Z";
-  if (t === "date") return "2026-01-01";
-  if (t.includes("time")) return "00:00:00";
+  if (t === "TIMESTAMP" || t === "DATETIME") {
+    return "2026-01-01T00:00:00Z";
+  }
+  if (t === "DATE") {
+    return "2026-01-01";
+  }
+  if (t === "TIME") {
+    return "00:00:00";
+  }
 
-  // JSON / structured types → empty object string
-  if (t === "json" || t === "jsonb") return "{}";
+  if (t === "JSON" || t === "JSONB") {
+    return "{}";
+  }
 
-  // Everything else (varchar, text, char, uuid, enum, etc.) → empty string
   return "";
 }
 
 /**
- * Preprocesses a SQL query to map qualified and unqualified table references
- * to their corresponding MDL model names.
+ * Preprocesses a SQL query to map table references to their exact case-sensitive
+ * MDL model names, wrapping them in double quotes for DataFusion logical planning.
  */
-export function preprocessSQL(
-  sql: string,
-  allModels: any[],
-  primaryConfigId: string,
-  allOrgConfigs: any[]
-): string {
-  // Helper to generate database alias
-  const getAlias = (configId: string) => {
-    const cfg = allOrgConfigs.find((c: any) => c._id === configId);
-    return cfg ? cfg.name.toLowerCase().replace(/[^a-z0-9]/g, "_") : "";
-  };
-
-  // Build model name maps
-  const tableFrequencies = new Map<string, Set<string>>();
-  for (const m of allModels) {
-    if (!tableFrequencies.has(m.tableName)) {
-      tableFrequencies.set(m.tableName, new Set());
-    }
-    tableFrequencies.get(m.tableName)!.add(m.configId);
-  }
-
-  const modelMdlNames = new Map<string, string>();
-  for (const m of allModels) {
-    const configs = tableFrequencies.get(m.tableName)!;
-    if (configs.size > 1) {
-      const alias = getAlias(m.configId);
-      modelMdlNames.set(m._id, `${alias}__${m.tableName}`);
-    } else {
-      modelMdlNames.set(m._id, m.tableName);
-    }
-  }
-
-  // Convert square brackets and strip quotes to normalize SQL across dialects before preprocessing
+export function preprocessSQL(sql: string, mdl: CompiledMdl): string {
   let processed = sql.replace(/["\[\]]/g, "");
 
-  // Sort models by length of alias + tableName descending to prevent partial replacements
-  const sortedModels = [...allModels].sort((a, b) => {
-    const lenA = getAlias(a.configId).length + a.tableName.length;
-    const lenB = getAlias(b.configId).length + b.tableName.length;
-    return lenB - lenA;
-  });
+  // Sort model names by length descending to prevent partial replacements
+  const sortedModels = [...mdl.models].sort((a, b) => b.name.length - a.name.length);
 
   for (const m of sortedModels) {
-    const alias = getAlias(m.configId);
-    const table = m.tableName;
-    const mdlName = modelMdlNames.get(m._id)!;
-    const isPrimary = m.configId === primaryConfigId;
-    const configs = tableFrequencies.get(table)!;
+    const name = m.name;
+    const escName = name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
 
-    const escAlias = alias.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    const escTable = table.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-
-    // Pass 1: Replace qualified references: alias.table or "alias"."table" or alias."table" etc.
+    // Replace qualified references: catalog.schema.table or schema.table
     const qualifiedPattern = new RegExp(
-      `\\b(?:${escAlias}|"${escAlias}"|\\[${escAlias}\\])\\.(?:${escTable}|"${escTable}"|\\[${escTable}\\])\\b`,
+      `\\b(?:[a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)?)?\\.${escName}\\b`,
       'gi'
     );
-    processed = processed.replace(qualifiedPattern, `"${mdlName}"`);
+    processed = processed.replace(qualifiedPattern, `"${name}"`);
 
-    // Pass 2: Replace unqualified references: table or "table" or [table]
-    // We only replace if the table is in the primary database or there's no collision across databases.
-    if (isPrimary || configs.size === 1) {
-      const unqualifiedPattern = new RegExp(
-        `(?<!\\.)\\b(?:${escTable}|"${escTable}"|\\[${escTable}\\])\\b`,
-        'gi'
-      );
-      processed = processed.replace(unqualifiedPattern, `"${mdlName}"`);
-    }
+    // Replace unqualified references
+    const unqualifiedPattern = new RegExp(
+      `(?<!\\.)\\b${escName}\\b`,
+      'gi'
+    );
+    processed = processed.replace(unqualifiedPattern, `"${name}"`);
   }
 
   return processed;
 }
 
-/**
- * Transpiles a semantic SQL query into a physical SQL statement by expanding 
- * virtual columns, applying join conditions, and formatting queries to the 
- * target database dialect.
- */
 interface Edge {
   target: string;
   fromCol: string;
@@ -265,11 +221,10 @@ function findShortestPath(
   return path;
 }
 
-export function injectJoinPaths(
-  sql: string,
-  allModels: any[],
-  relationships: any[]
-): string {
+/**
+ * Auto-injects join paths based on relationships defined in the MDL manifest.
+ */
+export function injectJoinPaths(sql: string, mdl: CompiledMdl): string {
   const explicitJoined = extractExplicitJoinedTables(sql);
   if (!explicitJoined.rootTable) {
     return sql;
@@ -283,12 +238,12 @@ export function injectJoinPaths(
   }
   
   for (const col of explicitIdent.columns) {
-    for (const model of allModels) {
-      const hasCol = model.fields?.some(
-        (f: any) => f.columnName.toLowerCase() === col || (f.displayName && f.displayName.toLowerCase() === col)
+    for (const model of mdl.models) {
+      const hasCol = model.columns?.some(
+        (c: any) => c.name.toLowerCase() === col
       );
       if (hasCol) {
-        referencedTables.add(model.tableName.toLowerCase());
+        referencedTables.add(model.name.toLowerCase());
       }
     }
   }
@@ -304,29 +259,33 @@ export function injectJoinPaths(
     return sql;
   }
 
-  const modelIdToTableName = new Map<string, string>();
-  for (const m of allModels) {
-    modelIdToTableName.set(m._id, m.tableName.toLowerCase());
-  }
-
   const graph = new Map<string, Edge[]>();
-  for (const rel of relationships) {
-    const fromTable = modelIdToTableName.get(rel.fromModelId);
-    const toTable = modelIdToTableName.get(rel.toModelId);
-    if (!fromTable || !toTable) continue;
-
-    if (!graph.has(fromTable)) graph.set(fromTable, []);
-    if (!graph.has(toTable)) graph.set(toTable, []);
-
-    graph.get(fromTable)!.push({
-      target: toTable,
-      fromCol: rel.fromColumn,
-      toCol: rel.toColumn,
+  for (const rel of mdl.relationships) {
+    const modelA = rel.models[0].toLowerCase();
+    const modelB = rel.models[1].toLowerCase();
+    
+    const condition = rel.condition;
+    const parts = condition.split("=");
+    if (parts.length !== 2) continue;
+    
+    const partA = parts[0].trim();
+    const partB = parts[1].trim();
+    
+    const colA = partA.substring(partA.indexOf(".") + 1);
+    const colB = partB.substring(partB.indexOf(".") + 1);
+    
+    if (!graph.has(modelA)) graph.set(modelA, []);
+    if (!graph.has(modelB)) graph.set(modelB, []);
+    
+    graph.get(modelA)!.push({
+      target: modelB,
+      fromCol: colA,
+      toCol: colB,
     });
-    graph.get(toTable)!.push({
-      target: fromTable,
-      fromCol: rel.toColumn,
-      toCol: rel.fromColumn,
+    graph.get(modelB)!.push({
+      target: modelA,
+      fromCol: colB,
+      toCol: colA,
     });
   }
 
@@ -340,7 +299,13 @@ export function injectJoinPaths(
     if (path) {
       for (const step of path) {
         if (!alreadyJoined.has(step.toTable)) {
-          joinsToInject.push(`JOIN ${step.toTable} ON ${step.fromTable}.${step.fromCol} = ${step.toTable}.${step.toCol}`);
+          // Resolve original model casing to match schema exactly
+          const originalToModel = mdl.models.find(m => m.name.toLowerCase() === step.toTable);
+          const originalFromModel = mdl.models.find(m => m.name.toLowerCase() === step.fromTable);
+          const toName = originalToModel ? originalToModel.name : step.toTable;
+          const fromName = originalFromModel ? originalFromModel.name : step.fromTable;
+
+          joinsToInject.push(`JOIN "${toName}" ON "${fromName}".${step.fromCol} = "${toName}".${step.toCol}`);
           alreadyJoined.add(step.toTable);
         }
       }
@@ -368,16 +333,13 @@ export function injectJoinPaths(
 }
 
 /**
- * Transpiles a semantic SQL query into a physical SQL statement by expanding 
- * virtual columns, applying join conditions, and formatting queries to the 
- * target database dialect.
+ * Transpiles a semantic SQL query into a physical dialect-specific SQL statement
+ * utilizing the parsed MDL manifest.
  */
 export async function transpileSemanticSQL(
   sql: string,
-  allModels: any[],
-  relationships: any[],
-  primaryConfigId: string,
-  allOrgConfigs: any[]
+  mdl: CompiledMdl,
+  dialect: string
 ): Promise<string> {
   const { SemanticEngine, wasmModule } = await getWasmModuleAndSDK();
 
@@ -385,41 +347,108 @@ export async function transpileSemanticSQL(
   const engine = await SemanticEngine.init({ wasmUrl: wasmModule });
 
   try {
-    // 1. Register physical tables with typed dummy rows so DataFusion infers correct schemas.
-    //    Using null for every column causes DataFusion to infer all types as Null/Utf8,
-    //    which breaks SUM(), AVG(), date_add(), and other typed operations at plan time.
-    for (const m of allModels) {
+    // 1. Register physical tables with typed dummy rows for schema validation
+    for (const model of mdl.models) {
       const dummyRow: Record<string, any> = {};
-      for (const f of m.fields || []) {
-        dummyRow[f.columnName] = typedDummyValue(f.rawType || f.dataType || f.type || "");
+      const physicalCols = model.columns.filter((c: any) => !c.relationship);
+      for (const col of physicalCols) {
+        dummyRow[col.name] = typedDummyValue(col.type);
       }
-      // Register under the physical table name
-      await engine.registerJson(m.tableName, [dummyRow]);
+      
+      const physicalTableName = model.tableReference?.table || model.name;
+      await engine.registerJson(physicalTableName, [dummyRow]);
     }
 
-    // 2. Compile MDL manifest
-    const mdl = compileToMdl(allModels, relationships, primaryConfigId, allOrgConfigs);
+    // 2. Auto-inject join paths
+    const sqlWithJoins = injectJoinPaths(sql, mdl);
 
-    // 3. Auto-inject missing join conditions from relationship paths
-    const sqlWithJoins = injectJoinPaths(sql, allModels, relationships);
+    // 3. Preprocess SQL to ensure correct case-sensitive model quoting
+    const processedSql = preprocessSQL(sqlWithJoins, mdl);
 
-    // 4. Preprocess SQL to map database aliases and unqualified names to MDL model names
-    const processedSql = preprocessSQL(sqlWithJoins, allModels, primaryConfigId, allOrgConfigs);
-
-    // 5. Load MDL manifest into the engine
+    // 4. Load MDL manifest into the engine
     await engine.loadMDL(mdl, { source: "" });
 
-    // 6. Transpile using transformSql with the resolved dialect
-    const primaryConfig = allOrgConfigs.find((c: any) => c._id === primaryConfigId);
-    let dialect = primaryConfig?.type || "";
-    if (dialect === "mariadb") {
-      dialect = "mysql"; // MariaDB uses the same SQL dialect/syntax as MySQL
+    // 5. Transpile using transformSql with the target dialect
+    let targetDialect = dialect.toLowerCase();
+    if (targetDialect === "mariadb") {
+      targetDialect = "mysql";
     }
-    const transpiledSql = await engine.transformSql(processedSql, dialect);
 
-    return transpiledSql;
+    return await engine.transformSql(processedSql, targetDialect);
   } finally {
-    // Free the WASM memory
     engine.free();
   }
+}
+
+/**
+ * Compatibility wrapper to support legacy tests that pass Convex models/relationships arrays.
+ */
+export async function transpileSemanticSQLCompat(
+  sql: string,
+  allModels: any[],
+  relationships: any[],
+  primaryConfigId: string,
+  allOrgConfigs: any[]
+): Promise<string> {
+  const mdl = compileToMdl(allModels, relationships, primaryConfigId, allOrgConfigs);
+  const primaryConfig = allOrgConfigs.find((c: any) => c._id === primaryConfigId);
+  const dialect = primaryConfig?.type || "postgres";
+  return await transpileSemanticSQL(sql, mdl, dialect);
+}
+
+export function preprocessSQLCompat(
+  sql: string,
+  allModels: any[],
+  primaryConfigId: string,
+  allOrgConfigs: any[]
+): string {
+  const getAlias = (configId: string) => {
+    const cfg = allOrgConfigs.find((c: any) => c._id === configId);
+    return cfg ? cfg.name.toLowerCase().replace(/[^a-z0-9]/g, "_") : "";
+  };
+  const tableFrequencies = new Map<string, Set<string>>();
+  for (const m of allModels) {
+    if (!tableFrequencies.has(m.tableName)) {
+      tableFrequencies.set(m.tableName, new Set());
+    }
+    tableFrequencies.get(m.tableName)!.add(m.configId);
+  }
+  const modelMdlNames = new Map<string, string>();
+  for (const m of allModels) {
+    const configs = tableFrequencies.get(m.tableName)!;
+    if (configs.size > 1) {
+      const alias = getAlias(m.configId);
+      modelMdlNames.set(m._id, `${alias}__${m.tableName}`);
+    } else {
+      modelMdlNames.set(m._id, m.tableName);
+    }
+  }
+  let processed = sql.replace(/["\[\]]/g, "");
+  const sortedModels = [...allModels].sort((a, b) => {
+    const lenA = getAlias(a.configId).length + a.tableName.length;
+    const lenB = getAlias(b.configId).length + b.tableName.length;
+    return lenB - lenA;
+  });
+  for (const m of sortedModels) {
+    const alias = getAlias(m.configId);
+    const table = m.tableName;
+    const mdlName = modelMdlNames.get(m._id)!;
+    const isPrimary = m.configId === primaryConfigId;
+    const configs = tableFrequencies.get(table)!;
+    const escAlias = alias.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const escTable = table.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const qualifiedPattern = new RegExp(
+      `\\b(?:${escAlias}|"${escAlias}"|\\[${escAlias}\\])\\.(?:${escTable}|"${escTable}"|\\[${escTable}\\])\\b`,
+      'gi'
+    );
+    processed = processed.replace(qualifiedPattern, `"${mdlName}"`);
+    if (isPrimary || configs.size === 1) {
+      const unqualifiedPattern = new RegExp(
+        `(?<!\\.)\\b(?:${escTable}|"${escTable}"|\\[${escTable}\\])\\b`,
+        'gi'
+      );
+      processed = processed.replace(unqualifiedPattern, `"${mdlName}"`);
+    }
+  }
+  return processed;
 }

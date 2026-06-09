@@ -44,8 +44,7 @@ import {
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 import { Spotlight, spotlight } from "@mantine/spotlight";
-import { useQuery, useMutation } from "convex/react";
-import { useQuery as useTanStackQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 /* ─── Brand logo ─────────────────────────────────────────────────────────── */
@@ -184,6 +183,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   });
   const syncMembership = useMutation(api.memberships.syncMembership);
   const upsertOrg = useMutation(api.organizations.upsertFromClerk);
+  const { isAuthenticated } = useConvexAuth();
 
   const slug = params?.saas ?? "";
 
@@ -246,37 +246,64 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
     }));
   }, [dbConfigs, router, slug]);
 
-  // ─── JIT Synchronization via React Query ──────────────────────────
+  const [isSyncingOrg, setIsSyncingOrg] = useState(false);
+  const [isSyncingMembership, setIsSyncingMembership] = useState(false);
+  const syncedOrgsRef = useRef<Set<string>>(new Set());
+  const syncedMembershipsRef = useRef<Set<string>>(new Set());
+
+  const JITSourcedOrgKey = `${slug}|${organization?.id || ""}`;
+  const JITSourcedMembershipKey = `${orgDoc?._id || ""}|${user?.id || ""}`;
+
+
 
   // 1. Sync Organization if it exists in Clerk but not Convex
-  const { isLoading: isSyncingOrg } = useTanStackQuery({
-    queryKey: ["jit-sync-org", slug, organization?.id],
-    queryFn: async () => {
-      if (!organization) return null;
-      console.log("[Layout Sync] Triggering JIT Org Sync (React Query) for:", organization.slug);
-      return await upsertOrg({
+  useEffect(() => {
+    if (
+      orgDoc === null &&
+      !!organization &&
+      orgLoaded &&
+      isAuthenticated &&
+      !isSyncingOrg &&
+      !syncedOrgsRef.current.has(JITSourcedOrgKey)
+    ) {
+      syncedOrgsRef.current.add(JITSourcedOrgKey);
+      setIsSyncingOrg(true);
+      console.log("[Layout Sync] Triggering JIT Org Sync for:", organization.slug);
+      upsertOrg({
         clerkOrgId: organization.id,
         name: organization.name,
         slug: organization.slug || organization.id,
-      });
-    },
-    enabled: orgDoc === null && !!organization && orgLoaded,
-    staleTime: Infinity, // Only run once per session/slug
-    retry: 1,
-  });
+      })
+        .catch((err) => {
+          console.error("[Layout Sync] Org sync failed:", err);
+          syncedOrgsRef.current.delete(JITSourcedOrgKey);
+        })
+        .finally(() => setIsSyncingOrg(false));
+    }
+  }, [orgDoc, organization, orgLoaded, isAuthenticated, JITSourcedOrgKey]);
 
   // 2. Sync Membership if user is in Clerk org but not Convex membership
-  const { isLoading: isSyncingMembership } = useTanStackQuery({
-    queryKey: ["jit-sync-membership", orgDoc?._id, user?.id],
-    queryFn: async () => {
-      if (!orgDoc?._id) return null;
-      console.log("[Layout Sync] Triggering JIT Membership Sync (React Query) for org:", orgDoc._id);
-      return await syncMembership({ organizationId: orgDoc._id });
-    },
-    enabled: isMember === false && !!orgDoc?._id && userLoaded && orgLoaded,
-    staleTime: Infinity,
-    retry: 1,
-  });
+  useEffect(() => {
+    if (
+      isMember === false &&
+      !!orgDoc?._id &&
+      userLoaded &&
+      orgLoaded &&
+      isAuthenticated &&
+      !isSyncingMembership &&
+      !syncedMembershipsRef.current.has(JITSourcedMembershipKey)
+    ) {
+      syncedMembershipsRef.current.add(JITSourcedMembershipKey);
+      setIsSyncingMembership(true);
+      console.log("[Layout Sync] Triggering JIT Membership Sync for org:", orgDoc._id);
+      syncMembership({ organizationId: orgDoc._id })
+        .catch((err) => {
+          console.error("[Layout Sync] Membership sync failed:", err);
+          syncedMembershipsRef.current.delete(JITSourcedMembershipKey);
+        })
+        .finally(() => setIsSyncingMembership(false));
+    }
+  }, [isMember, orgDoc?._id, userLoaded, orgLoaded, isAuthenticated, JITSourcedMembershipKey]);
 
   const isSyncing = isSyncingOrg || isSyncingMembership;
 

@@ -32,7 +32,7 @@ export const storeQueryMapping = mutation({
 
     // Schedule background action to generate embeddings for this new memory
     const config = await ctx.db.get(args.configId);
-    const provider = config?.memoryProvider || "gemini";
+    const provider = config?.memoryProvider || "local";
 
     await ctx.scheduler.runAfter(0, internal.semanticMemory.generateMemoryEmbedding, {
       organizationId: args.organizationId,
@@ -57,7 +57,8 @@ export const internalUpdateMemoryEmbedding = internalMutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const update: any = {};
-    if (args.dimensions === 768) update.embedding_768 = args.embedding;
+    if (args.dimensions === 384) update.embedding_384 = args.embedding;
+    else if (args.dimensions === 768) update.embedding_768 = args.embedding;
     else if (args.dimensions === 1024) update.embedding_1024 = args.embedding;
     else if (args.dimensions === 1536) update.embedding_1536 = args.embedding;
     else {
@@ -80,11 +81,16 @@ export const generateMemoryEmbedding = internalAction({
     apiKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const trimmed = args.question.trim();
+    if (!trimmed) {
+      console.log(`[SemanticMemory] Empty question for memory ${args.memoryId}, skipping embedding.`);
+      return;
+    }
     console.log(`[SemanticMemory] Generating embedding for memory ${args.memoryId} via ${args.provider}`);
     try {
       const { embedding, dimensions } = await ctx.runAction(internal.embeddings.internalGenerateEmbedding, {
         organizationId: args.organizationId,
-        text: args.question,
+        text: trimmed,
         provider: args.provider,
       });
 
@@ -109,6 +115,7 @@ export const recallQueries = action({
     configId: v.id("databaseConfigs"),
     embedding: v.array(v.float64()),
     indexName: v.union(
+      v.literal("by_embedding_384"),
       v.literal("by_embedding_768"),
       v.literal("by_embedding_1024"),
       v.literal("by_embedding_1536")

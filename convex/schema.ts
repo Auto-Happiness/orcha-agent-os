@@ -310,6 +310,7 @@ export default defineSchema({
     configId: v.id("databaseConfigs"),
     question: v.string(), // The natural language question
     sql: v.string(),      // The successful SQL query
+    embedding_384: v.optional(v.array(v.float64())),  // Local Sentence Transformer
     embedding_768: v.optional(v.array(v.float64())),  // Gemini, Ollama (nomic)
     embedding_1024: v.optional(v.array(v.float64())), // Ollama (mxbai)
     embedding_1536: v.optional(v.array(v.float64())), // OpenAI
@@ -317,6 +318,11 @@ export default defineSchema({
   })
     .index("by_org", ["organizationId"])
     .index("by_config", ["configId"])
+    .vectorIndex("by_embedding_384", {
+      vectorField: "embedding_384",
+      dimensions: 384,
+      filterFields: ["organizationId", "configId"],
+    })
     .vectorIndex("by_embedding_768", {
       vectorField: "embedding_768",
       dimensions: 768,
@@ -505,4 +511,48 @@ export default defineSchema({
     apiKeyId: v.id("apiKeys"),
     timestamp: v.number(),
   }).index("by_key_time", ["apiKeyId", "timestamp"]),
+
+  // ─── Unified MDL Manifest (Wren Parity) ──────────────────────────────────
+  mdlManifests: defineTable({
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    catalog: v.string(),
+    schema: v.string(),
+    models: v.array(v.any()),        // The standardized MDL models array
+    relationships: v.array(v.any()), // The standardized MDL relationships array
+    views: v.array(v.any()),         // The standardized MDL views array
+    updatedAt: v.number(),
+  })
+    .index("by_config", ["configId"])
+    .index("by_org", ["organizationId"]),
+
+  // ─── Semantic Search Index (Vector Store) ────────────────────────────────
+  semanticSearchIndex: defineTable({
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    tableName: v.string(),
+    description: v.optional(v.string()),
+    embedding_384: v.optional(v.array(v.float64())),  // Local Sentence Transformer
+    embedding_768: v.optional(v.array(v.float64())),
+    embedding_1536: v.optional(v.array(v.float64())),
+    updatedAt: v.number(),
+  })
+    .index("by_config", ["configId"])
+    .index("by_org", ["organizationId"])
+    .vectorIndex("by_embedding_384", {
+      vectorField: "embedding_384",
+      dimensions: 384,
+      filterFields: ["organizationId", "configId"],
+    })
+    .vectorIndex("by_embedding_768", {
+      vectorField: "embedding_768",
+      dimensions: 768,
+      filterFields: ["organizationId", "configId"],
+    })
+    .vectorIndex("by_embedding_1536", {
+      vectorField: "embedding_1536",
+      dimensions: 1536,
+      filterFields: ["organizationId", "configId"],
+    }),
 });
+

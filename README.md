@@ -38,6 +38,21 @@ https://www.orcha-solutions.com/os/chat.mp4
 - **Execution & Transpilation**: Rust WebAssembly, Apache DataFusion
 - **Data Drivers**: Prisma, BullMQ, Redis, PostgreSQL, MySQL, SQLite, MSSQL
 
+## 🤖 Local Embedding Transformer
+
+For large database schemas (>12 tables), Orcha OS uses a dedicated local Python-based microservice located in [orcha-embedding-transformer](file:///c:/repos/orcha-agent-os/orcha-embedding-transformer) to index and dynamically retrieve relevant tables via semantic vector search (RAG).
+
+### What is a Sentence Transformer?
+A **Sentence Transformer** is a deep learning model framework (specifically optimized from transformer architectures like BERT/RoBERTa) designed to map whole sentences, paragraphs, or structural texts to dense, fixed-size numerical vectors (embeddings). Unlike traditional word-level embeddings, it captures the **holistic semantic meaning and context** of entire sentences. 
+
+In Orcha, this allows us to compute the cosine similarity between a user's natural language query (e.g. *"who are our top buyers?"*) and your database metadata (e.g. *"Table: customers. Description: client registry"*), identifying relevant tables for the LLM even when they do not share identical keywords.
+
+- **Model**: `paraphrase-multilingual-MiniLM-L12-v2` (via `sentence-transformers`)
+- **Dimensions**: 384
+- **Languages**: 50+ (multilingual)
+- **Model footprint**: ~90 MB (baked directly into the Docker container to ensure zero-delay cold starts)
+- **Service Port**: Runs locally on port `5001` or via the `orcha-embeddings` Docker container.
+
 ## 🚦 Getting Started
 
 ### Prerequisites

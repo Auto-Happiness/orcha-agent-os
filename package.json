@@ -13,6 +13,7 @@
     "worker": "npx tsx lib/bridge/worker-runner.ts",
     "test:engine": "node --test orcha-rust-engine/tests/index.test.js",
     "test:transpiler": "npx tsx --test lib/__tests__/semantic-transpiler.test.ts",
+    "test:contract": "pnpm exec jest --config jest.contract.config.js",
     "test": "npm run test:engine && npm run test:transpiler"
   },
   "dependencies": {
@@ -87,6 +88,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-grid-layout": "^2.1.0",
+    "@pact-foundation/pact": "^13.0.0",
+    "@types/jest": "^29.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "shadcn": "^3.8.5",

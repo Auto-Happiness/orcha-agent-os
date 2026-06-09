@@ -58,7 +58,6 @@ export default function NewConfigurationPage() {
   // AI & Semantic Logic
   const suggestRelationships = useAction(api.semanticModels.suggestRelationships);
   const generateAiEnrichment = useAction(api.semanticModels.generateAiEnrichment);
-  const indexConfigSchema = useAction(api.embeddings.indexConfigSchema);
 
   // Auth & Keys for validation
   const { isAuthenticated } = useConvexAuth();
@@ -190,18 +189,6 @@ export default function NewConfigurationPage() {
           configId: configId as any,
           businessContext: data.businessContext || "Database source configuration for Orcha Agent OS."
         });
-
-        // ── Vector Indexing For Massive Scale ──
-        // Note: memoryProvider is selected in a later step, so we use a safe fallback first
-        // and re-run if they change it. But for initialization, we trigger with their current/default choice.
-        const preferredProvider = data.memoryProvider || (aiKeys?.find(k => k.provider === "gemini" || k.provider === "openai")?.provider
-          || (aiKeys?.some(k => k.provider === "local") ? "local" : "gemini"));
-
-        indexConfigSchema({
-          organizationId: finalOrgId as any,
-          configId: configId as any,
-          provider: preferredProvider as "gemini" | "openai" | "local"
-        }).catch(err => console.error("[Indexing] Background task failed:", err));
 
         notifications.update({
           id: notificationId,
@@ -361,30 +348,6 @@ export default function NewConfigurationPage() {
               <Group justify="space-between">
                 <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Metadata Discovery</Button>
                 <Button color="violet" size="md" onClick={handleNext} rightSection={<IconArrowRight size={16} />}>
-                  Configure Semantic Memory
-                </Button>
-              </Group>
-            </Stack>
-          </Stepper.Step>
-
-          {/* Step 4: Memory Configuration */}
-          <Stepper.Step
-            label="Memory"
-            description="Indexing & RAG Engine"
-            icon={<IconBrain size={20} />}
-          >
-            <Stack gap="xl" py="2rem">
-              <MemoryConfig />
-              <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
-              <Group justify="space-between">
-                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Modeling</Button>
-                <Button
-                  color="violet"
-                  size="md"
-                  onClick={handleNext}
-                  disabled={!hasKey}
-                  rightSection={<IconArrowRight size={16} />}
-                >
                   Finalize Deployment Profile
                 </Button>
               </Group>
@@ -408,7 +371,7 @@ export default function NewConfigurationPage() {
               <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} my="xl" />
 
               <Group justify="space-between">
-                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Memory</Button>
+                <Button variant="subtle" color="dimmed" onClick={handleBack}>Previous: Semantic Modeling</Button>
                 <Button
                   color="violet"
                   size="lg"
@@ -429,7 +392,7 @@ export default function NewConfigurationPage() {
                         modelProvider: data.modelProvider || "google",
                         modelConfig: JSON.stringify(data.modelConfig || {}),
                         businessContext: data.businessContext,
-                        memoryProvider: data.memoryProvider || "gemini",
+                        memoryProvider: data.memoryProvider || "local",
                       });
 
                       notifications.show({
