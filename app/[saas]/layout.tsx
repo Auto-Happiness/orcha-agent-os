@@ -76,19 +76,27 @@ const NAV_SECTIONS = [
   {
     label: "Main",
     items: [
-      { href: "chat", label: "Chat", icon: IconSparkles, badge: null },
-      { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
-      { href: "command-center", label: "Command Center", icon: IconLayoutDashboard, badge: null },
-      { href: "databook", label: "Databook", icon: IconNotebook, badge: null },
+      { href: "chat", label: "Chat", icon: IconSparkles, badges: [] },
+      { href: "configure", label: "Configure", icon: IconAdjustments, badges: [] },
+      { href: "command-center", label: "Command Center", icon: IconLayoutDashboard, badges: [] },
+      {
+        href: "databook",
+        label: "Databook",
+        icon: IconNotebook,
+        badges: [
+          { label: "New", color: "blue" },
+          { label: "Beta", color: "orange" },
+        ],
+      },
     ],
   },
 
   {
     label: "Tools",
     items: [
-      { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badge: null },
-      { href: "marketplace/custom", label: "Custom Tools", icon: IconTool, badge: "New", badgeColor: "blue" },
-      { href: "developers", label: "Developers", icon: IconSettings, badge: "New", badgeColor: "blue" },
+      { href: "marketplace", label: "Market Place", icon: IconBuildingStore, badges: [] },
+      { href: "marketplace/custom", label: "Custom Tools", icon: IconTool, badges: [] },
+      { href: "developers", label: "Developers", icon: IconSettings, badges: [] },
     ],
   },
 ];
@@ -99,16 +107,14 @@ function SideNavItem({
   href,
   label,
   icon: Icon,
-  badge,
-  badgeColor,
+  badges,
   active,
   collapsed,
 }: {
   href: string;
   label: string;
   icon: React.ElementType;
-  badge: string | null;
-  badgeColor?: string;
+  badges?: { label: string; color?: string }[];
   active: boolean;
   collapsed: boolean;
 }) {
@@ -119,25 +125,30 @@ function SideNavItem({
       label={collapsed ? undefined : label}
       leftSection={<Icon size={18} stroke={1.6} />}
       rightSection={
-        !collapsed && badge ? (
-          <Badge 
-            variant="light" 
-            color={badgeColor || "violet"} 
-            radius="sm" 
-            tt="none"
-            style={{
-              height: "20px",
-              lineHeight: "1",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0 8px",
-              fontSize: "11px",
-              fontWeight: 600
-            }}
-          >
-            {badge}
-          </Badge>
+        !collapsed && badges && badges.length > 0 ? (
+          <Group gap={4} wrap="nowrap">
+            {badges.map((b, idx) => (
+              <Badge 
+                key={idx}
+                variant="light" 
+                color={b.color || "violet"} 
+                radius="sm" 
+                tt="none"
+                style={{
+                  height: "20px",
+                  lineHeight: "1",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 6px",
+                  fontSize: "10px",
+                  fontWeight: 600
+                }}
+              >
+                {b.label}
+              </Badge>
+            ))}
+          </Group>
         ) : null
       }
       active={active}
@@ -601,8 +612,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                         href={`/${slug}/${item.href}`}
                         label={item.label}
                         icon={item.icon}
-                        badge={item.badge}
-                        badgeColor={(item as any).badgeColor}
+                        badges={item.badges}
                         active={isActive(item.href)}
                         collapsed={collapsed}
                       />

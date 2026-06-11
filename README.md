@@ -24,6 +24,7 @@ https://www.orcha-solutions.com/os/chat.mp4
 - **⛓️ Automatic Join Pathing**: Automatically detects missing join conditions in queries by traversing the relationship graph via BFS and injects ANSI SQL `JOIN` clauses dynamically before execution.
 - **🌐 Federated Multi-Database Execution**: Query, join, and visualize data across multiple databases simultaneously using an intuitive `alias.table` reference syntax.
 - **🔑 Developer Portal & Multi-Database API Keys**: Expose your semantic databases as a secure API. Supports assigning multiple databases per API key with Mantine MultiSelect interfaces and dynamic database context fallbacks in `/api/chat`.
+- **📓 Databook & Live Query Exploration (Beta)**: Save database query results, browse them with dialect-safe pagination, dynamically sync with the source database, apply runtime filters, and view the full conversation transcript history.
 - **🔌 MCP Native**: Expose your semantic models instantly to LLMs via the Model Context Protocol.
 - **🛡️ Secure Connectivity**: Built-in support for PostgreSQL, MySQL, SQLite, and MSSQL.
 - **⚡ Real-time Reactive Flows**: Powered by Convex for real-time reactivity, vector search embeddings (RAG), and memory recall.

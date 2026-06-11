@@ -34,7 +34,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
     if (!organizationId || !currentUser?._id) return;
     setIsSaving(true);
     try {
-      const columns = Object.keys(data[0]);
+      const columns = data && data.length > 0 ? Object.keys(data[0]) : [];
       await saveResultMutation({
         organizationId: organizationId as any,
         configId: configId ? (configId as any) : undefined,
@@ -67,7 +67,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
       setIsSaving(false);
     }
   };
-  const columns = Object.keys(data[0]);
+  const columns = data && data.length > 0 ? Object.keys(data[0]) : [];
   const hasMore = data.length >= 50;
 
   const exportPreviewCsv = useCallback(() => {
@@ -202,47 +202,55 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
               </tr>
             </thead>
             <tbody>
-              {data.map((row, ri) => (
-                <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
-                >
-                  <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.03)", userSelect: "none" }}>{ri + 1}</td>
-                  {columns.map((col, ci) => {
-                    const val = row[col];
-                    const isNull = val == null;
-                    
-                    // Check if value is numeric (either a number or a numeric string)
-                    const isNumericString = typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim());
-                    const isNum = !isNull && (typeof val === "number" || isNumericString);
-                    
-                    // Exclude IDs, years, zip codes, and phones from comma formatting
-                    const lowerCol = col.toLowerCase();
-                    const isIdentifier = lowerCol === "id" || lowerCol.endsWith("_id") || lowerCol.endsWith("id") || lowerCol === "year" || lowerCol === "zip" || lowerCol === "zipcode" || lowerCol.includes("phone");
-                    
-                    let displayVal = String(val);
-                    if (!isNull && isNum && !isIdentifier) {
-                      const numVal = Number(val);
-                      if (!isNaN(numVal)) {
-                        displayVal = numVal.toLocaleString();
-                      }
-                    } else if (isNull) {
-                      displayVal = "null";
-                    }
-
-                    // For coloring negative numbers
-                    const numericValue = !isNull && isNum ? Number(val) : NaN;
-                    const isNegative = !isNaN(numericValue) && numericValue < 0;
-
-                    const isImg = isImageUrl(val);
-                    return (
-                      <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
-                        {isImg ? <TableCellImage url={val} /> : displayVal}
-                      </td>
-                    );
-                  })}
+              {data.length === 0 ? (
+                <tr>
+                  <td colSpan={1} style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
+                    No records found matching your filters.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                data.map((row, ri) => (
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
+                  >
+                    <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.03)", userSelect: "none" }}>{ri + 1}</td>
+                    {columns.map((col, ci) => {
+                      const val = row[col];
+                      const isNull = val == null;
+                      
+                      // Check if value is numeric (either a number or a numeric string)
+                      const isNumericString = typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim());
+                      const isNum = !isNull && (typeof val === "number" || isNumericString);
+                      
+                      // Exclude IDs, years, zip codes, and phones from comma formatting
+                      const lowerCol = col.toLowerCase();
+                      const isIdentifier = lowerCol === "id" || lowerCol.endsWith("_id") || lowerCol.endsWith("id") || lowerCol === "year" || lowerCol === "zip" || lowerCol === "zipcode" || lowerCol.includes("phone");
+                      
+                      let displayVal = String(val);
+                      if (!isNull && isNum && !isIdentifier) {
+                        const numVal = Number(val);
+                        if (!isNaN(numVal)) {
+                          displayVal = numVal.toLocaleString();
+                        }
+                      } else if (isNull) {
+                        displayVal = "null";
+                      }
+
+                      // For coloring negative numbers
+                      const numericValue = !isNull && isNum ? Number(val) : NaN;
+                      const isNegative = !isNaN(numericValue) && numericValue < 0;
+
+                      const isImg = isImageUrl(val);
+                      return (
+                        <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
+                          {isImg ? <TableCellImage url={val} /> : displayVal}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </Box>
