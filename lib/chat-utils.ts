@@ -63,7 +63,7 @@ export async function normalizeChatHistory(messages: any[]) {
  * Trims tool result data to MAX_RESULT_ROWS rows before persisting to Convex.
  * Applied identically in both Sync (chat/page.tsx onFinish) and Async (chat-worker.ts).
  */
-export const MAX_RESULT_ROWS = 20;
+export const MAX_RESULT_ROWS = 50;
 
 export function trimToolResultParts(parts: any[]): any[] {
   return parts.map((p: any) => {
