@@ -16,7 +16,9 @@ import {
   Loader,
   Button,
   Menu,
-  ActionIcon
+  ActionIcon,
+  TextInput,
+  Tooltip
 } from "@mantine/core";
 import Link from "next/link";
 import {
@@ -26,8 +28,12 @@ import {
   IconTerminal2,
   IconRefresh,
   IconFilter,
-  IconTrash
+  IconTrash,
+  IconPencil,
+  IconCheck,
+  IconX
 } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
 import { DataTable } from "@/components/Chat/DataTable";
 
 // Import modular extracted sub-components and hooks
@@ -43,11 +49,15 @@ export default function DatabookDetailPage() {
   const { saas, id } = useParams();
   const router = useRouter();
   const removeMutation = useMutation(api.databook.remove);
+  const renameMutation = useMutation(api.databook.rename);
 
-  // Modal / Drawer visibility states
+  // Modal / Drawer / Rename visibility states
   const [sqlModalOpen, setSqlModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
 
   const organization = useQuery(api.organizations.getSafeBySlug, { 
     slug: saas as string 
@@ -94,6 +104,49 @@ export default function DatabookDetailPage() {
     removeMutation,
     router,
   });
+
+  const startRename = () => {
+    if (!entry) return;
+    setTempName(entry.name);
+    setIsEditingName(true);
+  };
+
+  const handleRenameSave = async () => {
+    if (!tempName.trim()) {
+      notifications.show({
+        title: "Invalid Name",
+        message: "Name cannot be empty.",
+        color: "red",
+        autoClose: 3000,
+      });
+      return;
+    }
+    if (tempName.trim() === entry?.name) {
+      setIsEditingName(false);
+      return;
+    }
+    setIsRenaming(true);
+    try {
+      await renameMutation({ id: id as any, name: tempName.trim() });
+      setIsEditingName(false);
+      notifications.show({
+        title: "Rename Successful",
+        message: "The query result name has been updated.",
+        color: "violet",
+        autoClose: 2000,
+      });
+    } catch (err: any) {
+      console.error("[Databook] Rename failed:", err);
+      notifications.show({
+        title: "Rename Failed",
+        message: err.message || "Failed to rename query result.",
+        color: "red",
+        autoClose: 5000,
+      });
+    } finally {
+      setIsRenaming(false);
+    }
+  };
 
   // Handle Initial Loading State
   if (organization === undefined || entry === undefined) {
@@ -156,9 +209,81 @@ export default function DatabookDetailPage() {
           <Box style={{ flex: 1, minWidth: 0 }}>
             <Group gap="xs" align="center" mb={6}>
               <IconNotebook size={24} color="#a855f7" />
-              <Title order={1} c="white" size="2rem" style={{ letterSpacing: "-0.02em" }}>
-                {entry.name}
-              </Title>
+              {isEditingName ? (
+                <Group gap="xs" style={{ flex: 1, maxWidth: "500px" }} wrap="nowrap">
+                  <TextInput
+                    value={tempName}
+                    onChange={(e) => setTempName(e.currentTarget.value)}
+                    disabled={isRenaming}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRenameSave();
+                      else if (e.key === "Escape") setIsEditingName(false);
+                    }}
+                    styles={{
+                      input: {
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid rgba(147,51,234,0.3)",
+                        color: "white",
+                        fontSize: "1.8rem",
+                        fontWeight: 700,
+                        height: "auto",
+                        padding: "4px 12px",
+                        borderRadius: "8px",
+                        fontFamily: "inherit",
+                        letterSpacing: "-0.02em",
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <Group gap={4} wrap="nowrap">
+                    <ActionIcon
+                      variant="light"
+                      color="green"
+                      size="lg"
+                      radius="md"
+                      onClick={handleRenameSave}
+                      loading={isRenaming}
+                    >
+                      <IconCheck size={18} />
+                    </ActionIcon>
+                    <ActionIcon
+                      variant="light"
+                      color="gray"
+                      size="lg"
+                      radius="md"
+                      onClick={() => setIsEditingName(false)}
+                      disabled={isRenaming}
+                    >
+                      <IconX size={18} />
+                    </ActionIcon>
+                  </Group>
+                </Group>
+              ) : (
+                <Group gap="xs" align="center">
+                  <Title order={1} c="white" size="2rem" style={{ letterSpacing: "-0.02em" }}>
+                    {entry.name}
+                  </Title>
+                  <Tooltip label="Click to rename" position="right" withArrow>
+                    <ActionIcon
+                      variant="subtle"
+                      color="violet"
+                      size="sm"
+                      onClick={startRename}
+                      styles={{
+                        root: {
+                          opacity: 0.4,
+                          "&:hover": {
+                            opacity: 1,
+                            background: "transparent"
+                          }
+                        }
+                      }}
+                    >
+                      <IconPencil size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              )}
             </Group>
             {entry.question && (
               <Text c="dimmed" size="md" style={{ fontStyle: "italic" }}>
@@ -250,6 +375,13 @@ export default function DatabookDetailPage() {
                   Clear Filters
                 </Menu.Item>
               )}
+              <Menu.Item 
+                leftSection={<IconPencil size={14} color="#a855f7" />} 
+                onClick={startRename}
+                disabled={refreshing}
+              >
+                Rename
+              </Menu.Item>
               <Menu.Item leftSection={<IconTerminal2 size={14} color="#a855f7" />} onClick={() => setSqlModalOpen(true)}>
                 View SQL Query
               </Menu.Item>
