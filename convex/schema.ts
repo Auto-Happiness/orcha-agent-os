@@ -141,6 +141,23 @@ const AiProviderValidator = v.union(
   v.literal("grok")
 );
 
+const DatabookValidator = v.object({
+  organizationId: v.id("organizations"),
+  configId: v.optional(v.id("databaseConfigs")),
+  name: v.string(),
+  question: v.string(),
+  sql: v.string(),
+  resultColumns: v.array(v.string()),
+  resultRows: v.string(), // Stringified JSON array of rows
+  chatHistory: v.optional(v.string()), // Stringified JSON array of chat messages
+  createdBy: v.id("users"),
+  createdAt: v.number(),
+  filterDateColumn: v.optional(v.string()),
+  filterDateFrom: v.optional(v.string()),
+  filterDateTo: v.optional(v.string()),
+  filterRules: v.optional(v.string()),
+});
+
 export default defineSchema({
   // ─── Users ────────────────────────────────────────────────
   // Updated for Clerk integration:
@@ -354,6 +371,13 @@ export default defineSchema({
     .index("by_org", ["organizationId"])
     .index("by_config", ["configId"])
     .index("by_name", ["name"]),
+
+  // ─── Bridge: Saved Databook Query Results ────────────────
+  databook: defineTable(DatabookValidator)
+    .index("by_org", ["organizationId"])
+    .index("by_config", ["configId"])
+    .index("by_name", ["name"]),
+
   // ─── AI: Provider Configurations (API Keys) ──────────────
   aiKeys: defineTable({
     organizationId: v.id("organizations"),

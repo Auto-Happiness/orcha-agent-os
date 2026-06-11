@@ -1,17 +1,72 @@
 "use client";
 
 import React, { memo, useCallback, useState } from "react";
-import { Box, Group, Text, Button, ScrollArea } from "@mantine/core";
-import { IconTableExport, IconDownload } from "@tabler/icons-react";
+import { Box, Group, Text, Button, ScrollArea, Modal, TextInput, Stack, Menu, ActionIcon } from "@mantine/core";
+import { IconTableExport, IconDownload, IconNotebook, IconCheck, IconDotsVertical } from "@tabler/icons-react";
 import { TableCellImage, isImageUrl } from "./TableCellImage";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { notifications } from "@mantine/notifications";
 
-export const DataTable = memo(function DataTable({ data, sql, organizationId, configId }: {
+export const DataTable = memo(function DataTable({ data, sql, organizationId, configId, question, chatHistory }: {
   data: any[];
   sql?: string;
   organizationId?: string;
   configId?: string | null;
+  question?: string;
+  chatHistory?: any[];
 }) {
   const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveModalOpened, setSaveModalOpened] = useState(false);
+  const [saveName, setSaveName] = useState("");
+
+  const saveResultMutation = useMutation(api.databook.saveResult);
+  const currentUser = useQuery(api.users.getCurrentUser);
+
+  const openSaveModal = () => {
+    setSaveName(question || `Query Result - ${new Date().toLocaleDateString()}`);
+    setSaveModalOpened(true);
+  };
+
+  const handleSaveToDatabook = async () => {
+    if (!organizationId || !currentUser?._id) return;
+    setIsSaving(true);
+    try {
+      const columns = Object.keys(data[0]);
+      await saveResultMutation({
+        organizationId: organizationId as any,
+        configId: configId ? (configId as any) : undefined,
+        name: saveName.trim() || `Query Result - ${new Date().toLocaleDateString()}`,
+        question: question || "",
+        sql: sql || "",
+        resultColumns: columns,
+        resultRows: JSON.stringify(data),
+        chatHistory: chatHistory ? JSON.stringify(chatHistory) : undefined,
+        createdBy: currentUser._id,
+      });
+      setIsSaved(true);
+      setSaveModalOpened(false);
+      notifications.show({
+        title: "Saved to Databook",
+        message: `Query result has been successfully saved as "${saveName}".`,
+        color: "violet",
+        icon: <IconCheck size={18} />,
+        autoClose: 3000,
+      });
+    } catch (err: any) {
+      console.error("[DataTable] Save to databook failed:", err);
+      notifications.show({
+        title: "Save Failed",
+        message: err.message || "Failed to save query result to Databook.",
+        color: "red",
+        autoClose: 5000,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
   const columns = Object.keys(data[0]);
   const hasMore = data.length >= 50;
 
@@ -78,14 +133,56 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
             </Box>
           </Group>
           <Group gap={8}>
-            <Button variant="subtle" size="compact-xs" color="violet" radius="md" leftSection={<IconTableExport size={11} />} onClick={exportPreviewCsv} styles={{ root: { fontSize: 11, opacity: 0.7 } }}>
-              Export preview
-            </Button>
-            {sql && (
-              <Button variant="subtle" size="compact-xs" color="violet" radius="md" loading={isExporting} leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11, opacity: 0.7 } }}>
-                Full dataset
-              </Button>
-            )}
+            <Menu shadow="md" width={180} position="bottom-end">
+              <Menu.Target>
+                <ActionIcon variant="subtle" color="violet" radius="md" size="md">
+                  <IconDotsVertical size={16} />
+                </ActionIcon>
+              </Menu.Target>
+
+              <Menu.Dropdown
+                style={{
+                  background: "#130f22",
+                  border: "1px solid rgba(147,51,234,0.18)",
+                  borderRadius: "10px",
+                }}
+              >
+                <Menu.Label c="dimmed" style={{ fontSize: "10px", textTransform: "uppercase" }}>Actions</Menu.Label>
+                
+                <Menu.Item
+                  leftSection={<IconTableExport size={14} />}
+                  onClick={exportPreviewCsv}
+                  style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
+                >
+                  Export preview
+                </Menu.Item>
+
+                {sql && (
+                  <Menu.Item
+                    leftSection={<IconDownload size={14} />}
+                    onClick={exportFullCsv}
+                    disabled={isExporting}
+                    style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
+                  >
+                    {isExporting ? "Exporting..." : "Full dataset"}
+                  </Menu.Item>
+                )}
+
+                {sql && organizationId && currentUser && (
+                  <Menu.Item
+                    leftSection={isSaved ? <IconCheck size={14} color="#22c55e" /> : <IconNotebook size={14} />}
+                    onClick={isSaved ? undefined : openSaveModal}
+                    disabled={isSaved}
+                    style={{ 
+                      fontSize: "12px", 
+                      color: isSaved ? "var(--mantine-color-green-4)" : "rgba(255,255,255,0.75)" 
+                    }}
+                  >
+                    {isSaved ? "Saved to Databook" : "Save to Databook"}
+                  </Menu.Item>
+                )}
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Group>
       </Box>
@@ -165,6 +262,49 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
           )}
         </Box>
       )}
+
+      {/* Save to Databook Modal */}
+      <Modal
+        opened={saveModalOpened}
+        onClose={() => setSaveModalOpened(false)}
+        title={<Text fw={700} c="white">Save Query to Databook</Text>}
+        centered
+        styles={{
+          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.18)" },
+          header: { background: "#130f22" },
+        }}
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Name"
+            description="Give this saved query result a friendly name to identify it in your Databook"
+            placeholder="E.g. Monthly Revenue Summary"
+            value={saveName}
+            onChange={(e) => setSaveName(e.currentTarget.value)}
+            data-autofocus
+            styles={{
+              input: {
+                background: "rgba(0,0,0,0.2)",
+                border: "1px solid rgba(147,51,234,0.15)",
+                color: "white"
+              },
+              label: { color: "white" }
+            }}
+          />
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" color="gray" onClick={() => setSaveModalOpened(false)}>
+              Cancel
+            </Button>
+            <Button
+              color="violet"
+              loading={isSaving}
+              onClick={handleSaveToDatabook}
+            >
+              Save Result
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Box>
   );
 });

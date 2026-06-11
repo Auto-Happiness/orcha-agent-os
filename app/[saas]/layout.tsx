@@ -41,6 +41,7 @@ import {
   IconChartBar,
   IconLayoutDashboard,
   IconTool,
+  IconNotebook,
 } from "@tabler/icons-react";
 import { MantineUiProvider } from "@/lib/mantine-provider";
 import { Spotlight, spotlight } from "@mantine/spotlight";
@@ -78,8 +79,10 @@ const NAV_SECTIONS = [
       { href: "chat", label: "Chat", icon: IconSparkles, badge: null },
       { href: "configure", label: "Configure", icon: IconAdjustments, badge: null },
       { href: "command-center", label: "Command Center", icon: IconLayoutDashboard, badge: null },
+      { href: "databook", label: "Databook", icon: IconNotebook, badge: null },
     ],
   },
+
   {
     label: "Tools",
     items: [

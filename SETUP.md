@@ -49,12 +49,25 @@ npx.cmd convex dev --url http://localhost:3210 --admin-key "convex-self-hosted|0
 ```
 
 ### 5b. Set Up Convex Environment Variables (CRITICAL)
-Before running the application, you must configure the database encryption key inside your Convex environment. If you skip this, Convex will be unable to decrypt your stored database configurations or API keys.
+Before running the application, you must configure both the database encryption key and the Clerk issuer domain inside your Convex environment. If you skip this, Convex will fail to authenticate requests or decrypt your stored database credentials.
 
 In a separate terminal, run:
 ```bash
-npx convex env set ENCRYPTION_KEY "7;RUp1Y+R.1>N.(hqs_C[RnO5pL#46zj" --url http://localhost:3210 --admin-key "convex-self-hosted|01204f53c7b09a60cdd9975785ec0ce915b75dcef849ac14185aa49edbd5f302c9298c0274"
+# 1. Set the database credentials encryption key
+npx convex env set ENCRYPTION_KEY "7;RUp1Y+R.1>N.(hqs_C[RnO5pL#46zj" --url http://localhost:3210 --admin-key "convex-self-hosted|YOUR_ADMIN_KEY"
+
+# 2. Set the Clerk issuer domain (matches CLERK_ISSUER_DOMAIN in .env)
+npx convex env set CLERK_ISSUER_DOMAIN "https://divine-sturgeon-6.clerk.accounts.dev" --url http://localhost:3210 --admin-key "convex-self-hosted|YOUR_ADMIN_KEY"
 ```
+
+> 🛠️ **Windows Troubleshooting (Pipe Escaping Error):**
+> On Windows PowerShell/CMD, running the above command might throw an error like `'{key_part}' is not recognized as an internal or external command` because of the pipe character (`|`) in the admin key.
+> You can bypass this by invoking the Convex CLI directly via Node:
+> ```powershell
+> node node_modules\convex\bin\main.js env set ENCRYPTION_KEY "7;RUp1Y+R.1>N.(hqs_C[RnO5pL#46zj" --url "http://localhost:3210" --admin-key "convex-self-hosted|YOUR_ADMIN_KEY"
+> node node_modules\convex\bin\main.js env set CLERK_ISSUER_DOMAIN "https://divine-sturgeon-6.clerk.accounts.dev" --url "http://localhost:3210" --admin-key "convex-self-hosted|YOUR_ADMIN_KEY"
+> ```
+
 
 ### 6. Run Next.js
 In a separate terminal:
@@ -242,10 +255,50 @@ If you make modifications to the Rust files under `orcha-rust-engine/src/`, or a
    cp orcha-rust-engine/pkg/orcha_semantic_engine.d.ts lib/wasm-engine/
    ```
 
-3. **Verify the installation**:
-   Verify everything compiles and passes tests:
-   ```bash
-   npm run test
+### 🛠️ Troubleshooting Windows Compilation (GNU Linker Errors)
+
+If compiling on Windows using the default GNU toolchain, you may encounter the following error:
+```text
+error: linking with `x86_64-w64-mingw32-gcc` failed: exit code: 1
+note: lld: error: unable to find library -lgcc_eh
+      lld: error: unable to find library -lgcc
+```
+
+This occurs when the host build scripts (like `proc-macro2` or `quote`) fail to compile because GCC cannot locate its core standard libraries. You can resolve this using one of the following methods:
+
+#### Option A: Switch to MSVC Toolchain (Recommended)
+This uses Microsoft Visual Studio's C++ Build Tools and avoids MinGW linking bugs entirely:
+1. Download and install the **[Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)** (ensure the **Desktop development with C++** workload is checked).
+2. Set MSVC as your default Rust toolchain:
+   ```powershell
+   rustup default stable-x86_64-pc-windows-msvc
+   ```
+3. Run `cargo clean` and rebuild:
+   ```powershell
+   cd orcha-rust-engine
+   cargo clean
+   wasm-pack build --target nodejs
+   ```
+
+#### Option B: Configure LLVM-MinGW (Clang-based) Toolchain Workaround
+If you are using the WinGet-provided **LLVM-MinGW** toolchain (`MartinStorsjo.LLVM-MinGW`), it does not ship with `libgcc.a` or `libgcc_eh.a` by default, causing Rust's GNU target to fail linking. You can map them to LLVM's builtins and unwind libraries:
+
+1. Create a directory for compatibility libraries:
+   ```powershell
+   New-Item -ItemType Directory -Force -Path orcha-rust-engine/dummy_libs
+   ```
+2. Copy LLVM-MinGW's builtins and unwind libraries to this directory, renaming them to `libgcc.a` and `libgcc_eh.a` respectively:
+   ```powershell
+   # Copy Clang builtins to libgcc.a
+   Copy-Item -Force "$env:USERPROFILE\AppData\Local\Microsoft\WinGet\Packages\MartinStorsjo.LLVM-MinGW.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\llvm-mingw-20260519-ucrt-x86_64\lib\clang\22\lib\windows\libclang_rt.builtins-x86_64.a" orcha-rust-engine/dummy_libs/libgcc.a
+
+   # Copy libunwind to libgcc_eh.a
+   Copy-Item -Force "$env:USERPROFILE\AppData\Local\Microsoft\WinGet\Packages\MartinStorsjo.LLVM-MinGW.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\llvm-mingw-20260519-ucrt-x86_64\x86_64-w64-mingw32\lib\libunwind.a" orcha-rust-engine/dummy_libs/libgcc_eh.a
+   ```
+3. Set the `LIBRARY_PATH` environment variable to this folder and compile the WASM binary:
+   ```powershell
+   $env:LIBRARY_PATH = "C:\repos\orcha-agent-os\orcha-rust-engine\dummy_libs"
+   wasm-pack build --target nodejs
    ```
 
 ## 📄 License

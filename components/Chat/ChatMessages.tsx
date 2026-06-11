@@ -219,7 +219,9 @@ function renderToolPart(
   organizationId?: string,
   configId?: string | null,
   messageId?: string,
-  parts?: any[]
+  parts?: any[],
+  question?: string,
+  chatHistory?: any[]
 ) {
   const type: string = part.type ?? "";
 
@@ -305,7 +307,7 @@ function renderToolPart(
     if (!showResults) return null;
     return (
       <Box key={i} ml="3rem" mt="sm">
-        <DataTable data={result.data} sql={partSql} organizationId={organizationId} configId={configId} />
+        <DataTable data={result.data} sql={partSql} organizationId={organizationId} configId={configId} question={question} chatHistory={chatHistory} />
       </Box>
     );
   }
@@ -334,8 +336,8 @@ function renderToolPart(
 
 // ── MessageRow (memoized ── only re-renders when its own message changes) ─────
 
-const MessageRow = memo(function MessageRow({ m, showResults, organizationId, configId, onViewSql, onViewMcpTools }: {
-  m: any; showResults: boolean; organizationId?: string; configId?: string | null; onViewSql: (q: string[]) => void; onViewMcpTools: (calls: McpToolCall[]) => void;
+const MessageRow = memo(function MessageRow({ m, showResults, organizationId, configId, onViewSql, onViewMcpTools, question, chatHistory }: {
+  m: any; showResults: boolean; organizationId?: string; configId?: string | null; onViewSql: (q: string[]) => void; onViewMcpTools: (calls: McpToolCall[]) => void; question?: string; chatHistory?: any[];
 }) {
   const sqlQueries = m.role === "assistant" ? extractSQLFromParts(m.parts as any[]) : [];
   const mcpToolCalls = m.role === "assistant" ? extractMcpToolsFromParts(m.parts as any[]) : [];
@@ -427,7 +429,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
           )}
         </Stack>
       </Group>
-      {(m.parts as any[]).map((part: any, i: number) => renderToolPart(part, i, showResults, organizationId, configId, m.id || m._id, m.parts))}
+      {(m.parts as any[]).map((part: any, i: number) => renderToolPart(part, i, showResults, organizationId, configId, m.id || m._id, m.parts, question, chatHistory))}
     </Stack>
   );
 });
@@ -440,9 +442,47 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
 
   return (
     <>
-      {messages.map((m) => (
-        <MessageRow key={m.id} m={m} showResults={showResults} organizationId={organizationId} configId={configId} onViewSql={setSqlModal} onViewMcpTools={setMcpModal} />
-      ))}
+      {messages.map((m, idx) => {
+        let question = "";
+        let chatHistoryForMessage: any[] = [];
+        if (m.role === "assistant") {
+          let userMsg: any = null;
+          for (let k = idx - 1; k >= 0; k--) {
+            if (messages[k].role === "user") {
+              userMsg = messages[k];
+              if (userMsg.parts && Array.isArray(userMsg.parts)) {
+                question = userMsg.parts
+                  .filter((p: any) => p.type === "text")
+                  .map((p: any) => p.text)
+                  .join("\n");
+              } else {
+                question = userMsg.content || "";
+              }
+              break;
+            }
+          }
+          if (userMsg) {
+            chatHistoryForMessage.push(userMsg);
+          }
+          chatHistoryForMessage.push(m);
+        } else {
+          chatHistoryForMessage = [m];
+        }
+
+        return (
+          <MessageRow
+            key={m.id}
+            m={m}
+            showResults={showResults}
+            organizationId={organizationId}
+            configId={configId}
+            onViewSql={setSqlModal}
+            onViewMcpTools={setMcpModal}
+            question={question}
+            chatHistory={chatHistoryForMessage}
+          />
+        );
+      })}
 
       {isLoading && (
         <Group gap="md" align="flex-start" wrap="nowrap">

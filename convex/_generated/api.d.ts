@@ -17,6 +17,7 @@ import type * as biActions from "../biActions.js";
 import type * as chatMessages from "../chatMessages.js";
 import type * as chatSessions from "../chatSessions.js";
 import type * as databaseConfigs from "../databaseConfigs.js";
+import type * as databook from "../databook.js";
 import type * as developerSettings from "../developerSettings.js";
 import type * as embeddings from "../embeddings.js";
 import type * as integrationActions from "../integrationActions.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   chatMessages: typeof chatMessages;
   chatSessions: typeof chatSessions;
   databaseConfigs: typeof databaseConfigs;
+  databook: typeof databook;
   developerSettings: typeof developerSettings;
   embeddings: typeof embeddings;
   integrationActions: typeof integrationActions;
