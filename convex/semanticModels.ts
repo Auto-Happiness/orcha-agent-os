@@ -160,9 +160,10 @@ export const internalListModelSummariesByConfig = internalQuery({
 
     return {
       ...paginated,
-      page: paginated.page.map(({ fields, embedding_768, embedding_1024, embedding_1536, ...rest }: any) => ({
+      page: paginated.page.map(({ embedding_768, embedding_1024, embedding_1536, ...rest }: any) => ({
         ...rest,
-        fieldCount: fields?.length || 0
+        fields: rest.fields || [],
+        fieldCount: rest.fields?.length || 0
       }))
     };
   },

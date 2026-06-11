@@ -13,7 +13,8 @@ import {
   rem,
   Paper,
   ActionIcon,
-  Grid
+  Grid,
+  Tooltip
 } from "@mantine/core";
 import {
   IconTable,
@@ -145,7 +146,23 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                       </Group>
                     </Table.Td>
                     <Table.Td onClick={() => toggleTable(model.tableName)}>
-                      <Text size="xs" c="dimmed">{model.fieldCount || 0} columns</Text>
+                      <Tooltip
+                        label={(model.fields || []).map((f: any) => `${f.columnName} (${f.dataType || f.rawType || "unknown"})`).join(", ")}
+                        multiline
+                        w={350}
+                        withArrow
+                        disabled={!model.fields?.length}
+                        styles={{ tooltip: { background: "#130f22", border: "1px solid rgba(147,51,234,0.3)", color: "white" } }}
+                      >
+                        <Box>
+                          <Text size="xs" c="dimmed" fw={500} mb={2}>
+                            {model.fieldCount || 0} columns
+                          </Text>
+                          <Text size="10px" c="gray.6" truncate style={{ maxWidth: "250px" }}>
+                            {(model.fields || []).map((f: any) => `${f.columnName} (${f.dataType || f.rawType || "unknown"})`).join(", ")}
+                          </Text>
+                        </Box>
+                      </Tooltip>
                     </Table.Td>
                     <Table.Td onClick={() => toggleTable(model.tableName)}>
                       <Badge size="xs" variant="light" color="gray">BASE_TABLE</Badge>
@@ -164,24 +181,37 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                   <Table.Tr style={{ display: openedTables[model.tableName] ? "table-row" : "none", background: "rgba(0,0,0,0.15)" }}>
                     <Table.Td colSpan={5} p={0}>
                       <Box p="md" pl={rem(60)}>
-                        <Grid>
-                          {(model.fields || []).map((field: any) => (
-                            <Grid.Col span={4} key={field.columnName}>
-                              <Group gap="xs">
-                                <Box
-                                  w={6}
-                                  h={6}
-                                  style={{
-                                    borderRadius: "50%",
-                                    background: field.type === "measure" ? "#a855f7" : "#3b82f6"
-                                  }}
-                                />
-                                <Text size="xs" c="dimmed" ff="monospace">{field.columnName}</Text>
-                                <Text size="10px" c="gray.6">{field.type.toUpperCase()}</Text>
+                        <ScrollArea mah={200} type="auto" offsetScrollbars>
+                          <Stack gap={4}>
+                            {(model.fields || []).map((field: any) => (
+                              <Group key={field.columnName} justify="space-between" wrap="nowrap" style={{
+                                padding: "6px 12px",
+                                borderRadius: "4px",
+                                background: "rgba(255,255,255,0.02)",
+                              }}>
+                                <Group gap="xs">
+                                  <Box
+                                    w={6}
+                                    h={6}
+                                    style={{
+                                      borderRadius: "50%",
+                                      background: field.type === "measure" ? "#a855f7" : "#3b82f6"
+                                    }}
+                                  />
+                                  <Text size="xs" c="dimmed" ff="monospace">{field.columnName}</Text>
+                                </Group>
+                                <Group gap="xs">
+                                  <Badge size="xs" variant="light" color="violet" tt="none">
+                                    {field.dataType || field.rawType || "unknown"}
+                                  </Badge>
+                                  <Badge size="xs" variant="light" color={field.type === "measure" ? "violet" : "blue"}>
+                                    {field.type.toUpperCase()}
+                                  </Badge>
+                                </Group>
                               </Group>
-                            </Grid.Col>
-                          ))}
-                        </Grid>
+                            ))}
+                          </Stack>
+                        </ScrollArea>
                       </Box>
                     </Table.Td>
                   </Table.Tr>
