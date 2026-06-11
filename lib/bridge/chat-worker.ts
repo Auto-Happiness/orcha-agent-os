@@ -3,7 +3,7 @@ import IORedis from "ioredis";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { createChatAgent } from "../chat-agent";
-import { normalizeChatHistory, trimToolResultParts } from "../chat-utils";
+import { normalizeChatHistory, trimToolResultParts, MAX_RESULT_ROWS } from "../chat-utils";
 
 /**
  * ChatWorker handles AI Agent execution in the background
@@ -136,7 +136,7 @@ export class ChatWorker {
                 if (pending) {
                   let r = (value as any).result ?? (value as any).output;
                   if (r?.data && Array.isArray(r.data)) {
-                    r = { ...r, data: r.data.slice(0, 20) };
+                    r = { ...r, data: r.data.slice(0, MAX_RESULT_ROWS) };
                   }
                   pending.toolInvocation.state = "result";
                   pending.toolInvocation.result = r;
