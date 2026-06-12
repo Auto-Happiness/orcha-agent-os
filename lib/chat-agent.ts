@@ -8,9 +8,47 @@ import { getNativeDialectRule, getFederatedRule } from "./dialects";
 import { buildManifest, validateSQL, CompiledManifest } from "./sql-validator";
 import { rewriteConversationalQuery } from "./query-rewriter";
 import { transpileSemanticSQL } from "./semantic-transpiler";
+import { SkillsManager, SkillType } from "./skills-manager";
 
 const MAX_ROWS = 50;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
+
+const intentSchema = z.object({
+  intent: z.enum(["TEXT_TO_SQL", "SCHEMA_EXPLORATION", "CHART_GENERATION", "GENERAL_CHAT"]),
+  reason: z.string(),
+});
+
+async function classifyIntent(
+  query: string,
+  model: any
+): Promise<SkillType> {
+  const lowercaseQuery = query.toLowerCase().trim();
+  
+  // Quick heuristic for greetings and basic capability questions to bypass LLM classification latency
+  if (/^(hi|hello|hey|greetings|howdy|yo|good morning|good afternoon|good evening)(\s|$)/i.test(lowercaseQuery)) {
+    return "GENERAL_CHAT";
+  }
+  if (/^(what can you do|who are you|help|capabilities|how do i use this)(\s|$|\?)/i.test(lowercaseQuery)) {
+    return "GENERAL_CHAT";
+  }
+  
+  try {
+    const { object } = await generateObject({
+      model,
+      schema: intentSchema,
+      system: `You are an intent classifier for a database assistant. Analyze the user's input and classify it into one of the following intents:
+      - TEXT_TO_SQL: The user is asking a data question that requires querying the database (e.g. counting rows, filtering, comparing numbers, summing columns, top N, sales per month).
+      - SCHEMA_EXPLORATION: The user is asking about the database structure, table definitions, columns, primary keys, or relationships (e.g. "what columns are in users?", "how is orders table joined?", "show me the schema", "list all tables").
+      - CHART_GENERATION: The user explicitly wants a visual chart, graph, plot, or visualization of some database query (e.g. "plot sales", "draw a bar chart of monthly revenue", "visualize customer trends", "graph the number of orders").
+      - GENERAL_CHAT: General greetings, asking about capabilities, how to use the assistant, general conversational talking, or anything unrelated to database structure or database queries.`,
+      prompt: `User Input: "${query}"`,
+    });
+    return object.intent as SkillType;
+  } catch (err) {
+    console.warn("[IntentClassifier] Classification failed, defaulting to TEXT_TO_SQL:", err);
+    return "TEXT_TO_SQL";
+  }
+}
 
 function isSafeSQL(sql: string): boolean {
   const normalized = sql.trim().toLowerCase();
@@ -234,14 +272,18 @@ export async function createChatAgent(context: AgentContext) {
     }
   }
 
-  const ragSearchQuery = await rewriteConversationalQuery(messages, pruningModel);
+  const messageIntent = await classifyIntent(lastMessage, pruningModel);
+  console.log(`[Agent] Detected intent: ${messageIntent}`);
+
+  const ragSearchQuery = messageIntent !== "GENERAL_CHAT"
+    ? await rewriteConversationalQuery(messages, pruningModel)
+    : "";
   const tableNames = allModels.map((m: any) => m.displayName || m.tableName);
-  const messageIntent = "TEXT_TO_SQL";
 
   const tableCount = allModels.length;
   const isBypass = tableCount <= 12;
 
-  if (messageIntent === "TEXT_TO_SQL") {
+  if (messageIntent === "TEXT_TO_SQL" || messageIntent === "CHART_GENERATION" || messageIntent === "SCHEMA_EXPLORATION") {
     const mcpLoadPromise = (async () => {
       const { loadMcpTools } = (await import("@/lib/mcp-loader")) as any;
       return await loadMcpTools(integrationKeys, orgIdStr);
@@ -362,9 +404,9 @@ export async function createChatAgent(context: AgentContext) {
   }
 
   // --- COLUMN PRUNING ---
-  if (messageIntent === "TEXT_TO_SQL" && filteredModels.length > 0) {
+  if ((messageIntent === "TEXT_TO_SQL" || messageIntent === "CHART_GENERATION") && filteredModels.length > 0) {
     const totalColumns = filteredModels.reduce((sum: number, m: any) => sum + (m.fields?.length || 0), 0);
-    if (totalColumns > 150) {
+    if (totalColumns > 50) {
       try {
         const pruned = await pruneColumns(ragSearchQuery, filteredModels, relationships, pruningModel);
         filteredModels = pruned;
@@ -375,8 +417,8 @@ export async function createChatAgent(context: AgentContext) {
   }
 
   // 3. Build prompts using filtered schema models
-  const tableDiscoveryList = filteredModels.length === 0 && messageIntent === "TEXT_TO_SQL"
-    ? `### AVAILABLE TABLES (Discovery Mode):\n- ${tableNames.join("\n- ")}`
+  const tableDiscoveryList = filteredModels.length === 0 && (messageIntent === "TEXT_TO_SQL" || messageIntent === "CHART_GENERATION")
+    ? `### AVAILABLE TABLES:\n- ${tableNames.join("\n- ")}`
     : "";
 
   const schemaDescription = filteredModels.map((model: any) => {
@@ -428,8 +470,11 @@ ${mcpToolNames.map(n => `- ${n}`).join("\n")}
         return `Example ${idx + 1}:\nNatural Language User Question: "${ex.question}"\nValid Dialect SQL Query: \`\`\`sql\n${ex.sql}\n\`\`\``;
       }).join("\n\n") + "\n"
       : "";
+    const skillInstructions = SkillsManager.getSkillInstructions(messageIntent, {
+      MAX_ROWS: String(MAX_ROWS),
+    });
 
-    return `You are Orcha Agent OS, a powerful AI system with dual capabilities: Data Analysis and Tool Integration.
+    return `You are Orcha Agent OS, a database agent with Data Analysis and Tool Integration capabilities.
 
 ${mcpSection}
 
@@ -441,63 +486,7 @@ ${exemplarsSection}
 
 ${dialectRules}
 
-### MANDATORY RESPONSE STRUCTURE — FOLLOW THIS ON EVERY TURN:
-
-**TURN 1 — Before calling any tool:**
-You MUST start your response with this block (do not skip it):
-
-### 🧠 Reasoning
-- [How you interpreted the user's question]
-- [Which table or tool you will use, and why]
-- [Any assumptions you are making]
-
-After writing the reasoning block, immediately call the tool. Do NOT add any other text, conclusions, or data after the reasoning block in this same turn. Writing the reasoning block is REQUIRED — it is NOT a violation of any other rule.
-
-**TURN 2 — After the tool returns results:**
-Present the actual data returned by the tool. Write a full answer, summary, or analysis using only the real results.
-
-### CRITICAL RULES:
-1. SQL SYNTAX: NEVER use the "Display Name" (e.g. 'Created At') in your SQL queries. ALWAYS use the raw "columnName" or "tableName" provided in the parentheses. Failure to do this will cause a database error.
-2. NATIVE FIRST: Prioritize the native SQL dialect mentioned above (e.g. use SELECT TOP for MSSQL).
-3. DISCOVERY: Use the provided schema context to identify tables and columns.
-4. LIMIT: Always limit results to ${MAX_ROWS} rows.
-5. NO MOCK DATA: Never fabricate, guess, or list database results before a tool runs. In Turn 1, only describe your plan in the reasoning block. Show real results only in Turn 2 after the tool executes.
-6. AMBIGUOUS FILTERS: If the user query contains qualitative filters like 'low', 'high', 'good', 'bad', 'large', or 'small' without numerical limits:
-   - Query the statistical context of the table first (e.g., get average, median, or min/max) to dynamically determine a threshold.
-   - If a default threshold must be assumed, state it explicitly in the final response.
-
-### MANDATORY QUERY WORKFLOW — ALWAYS follow this order:
-
-Step 1 — CHECK SCHEMA FIRST (before writing any SQL):
-- Use search_db_schema to confirm EXACT table names and column names.
-- NEVER guess a column name. If you are unsure, call search_db_schema.
-
-Step 2 — DRY-PLAN BEFORE EXECUTING (for any non-trivial JOIN or unfamiliar table):
-- Call dry_plan_sql with your intended SQL BEFORE calling execute_sql.
-- If dry_plan_sql returns errors, fix the SQL and re-validate. Do NOT execute invalid SQL.
-- Only skip dry_plan_sql for single-table queries on tables you have already verified in Step 1.
-
-Step 3 — EXECUTE:
-- Only call execute_sql after dry_plan_sql passes (or Step 1 fully confirmed the schema).
-
-Step 4 — STORE (automatic):
-- Successful queries are automatically stored in semantic memory. No action needed.
-
-- Do NOT copy-paste the raw query results row-by-row into your text response. The results are already shown in the interactive data table — the user can see every row there. Instead, write a concise insight, trend, or summary.
-
-- STRICTLY FORBIDDEN: Do NOT output a chart unless the user explicitly used words like "visualize", "chart", "graph", or "plot".
-- To plot a chart, you MUST use the execute_sql tool and provide the optional chartConfig object.
-- THE FRONTEND AUTOMATICALLY RENDERS THE CHART IF chartConfig IS PROVIDED. DO NOT output markdown image links or attempt to display the chart yourself.
-- Choose the most appropriate chartType: "bar", "line", "area", "pie", or "radar".
-- xKey must be the EXACT column name or alias for the X-axis as returned by your SQL query.
-- yKey must be the EXACT column name or alias for the Y-axis value as returned by your SQL query.
-
-### SCOPE & CAPABILITIES (CRITICAL):
-- Your mission is STRICTLY limited to:
-  1. Performing data analysis and SQL queries on the provided database schema.
-  2. Fulfilling user requests using your connected MCP tools (integrations).
-- You have UNRESTRICTED access to use any available tool in your toolbox to answer questions or perform actions related to these two areas.
-- Decline any request that is NOT related to your database or your connected tools.
+${skillInstructions}
 `;
   };
 

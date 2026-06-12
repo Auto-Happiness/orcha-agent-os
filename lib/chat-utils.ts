@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { convertToModelMessages } from "ai";
 
 /**
@@ -16,36 +17,63 @@ import { convertToModelMessages } from "ai";
  * NOTE: convertToModelMessages from the AI SDK is async — normalizeChatHistory
  * must be awaited at every call site.
  */
+export function normalizeChatParts(parts: any[]): any[] {
+  return parts.map((p: any) => {
+    // Standard text part — pass through as-is
+    if (p.type === "text") return p;
+
+    // Legacy nested tool format → flat AI SDK 6.x format
+    if (p.type === "tool-invocation" && p.toolInvocation) {
+      const ti = p.toolInvocation;
+      return {
+        type: `tool-${ti.toolName}`,
+        toolCallId: ti.toolCallId,
+        state: "output-available", // Always force to completed in history to prevent AI SDK from expecting a result
+        input: ti.args,
+        output: ti.result ?? ti.output ?? { success: false, error: "Tool execution interrupted." },
+        toolName: ti.toolName,
+      };
+    }
+
+    // Flat tool format (e.g. tool-execute_sql) — pass through as-is
+    if (p.type && p.type.startsWith("tool-")) {
+      return {
+        ...p,
+        state: "output-available", // Always force to completed in history
+        output: p.output ?? { success: false, error: "Tool execution interrupted." }
+      };
+    }
+
+    // Other known passthrough types
+    if (p.type === "file" || p.type === "reasoning") return p;
+
+    // Drop unknown/null parts
+    return null;
+  }).filter(Boolean);
+}
+
+export function extractToolInvocations(parts: any[]): any[] {
+  const normalizedParts = normalizeChatParts(parts);
+  return normalizedParts
+    .map((p: any) => {
+      if (p.type && p.type.startsWith("tool-") && p.toolCallId) {
+        return {
+          state: "result", // always force "result"
+          toolCallId: p.toolCallId,
+          toolName: p.toolName || p.type.substring(5),
+          args: p.input,
+          result: p.output,
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
 export async function normalizeChatHistory(messages: any[]) {
   const safeMessages = (messages || []).map((m: any) => {
     const parts = Array.isArray(m.parts) ? m.parts : [];
-
-    const standardParts = parts.map((p: any) => {
-      // Standard text part — pass through as-is
-      if (p.type === "text") return p;
-
-      // Legacy nested tool format → flat AI SDK 6.x format
-      if (p.type === "tool-invocation" && p.toolInvocation) {
-        const ti = p.toolInvocation;
-        return {
-          type: `tool-${ti.toolName}`,
-          toolCallId: ti.toolCallId,
-          state: ti.state === "result" ? "output-available" : ti.state,
-          input: ti.args,
-          output: ti.result ?? ti.output,
-          toolName: ti.toolName,
-        };
-      }
-
-      // Flat tool format (e.g. tool-execute_sql) — pass through as-is
-      if (p.type && p.type.startsWith("tool-")) return p;
-
-      // Other known passthrough types
-      if (p.type === "file" || p.type === "reasoning") return p;
-
-      // Drop unknown/null parts
-      return null;
-    }).filter(Boolean);
+    const standardParts = normalizeChatParts(parts);
 
     return {
       ...m,
