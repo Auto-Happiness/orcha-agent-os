@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
@@ -15,7 +16,7 @@ import { WelcomeScreen } from "@/components/Chat/WelcomeScreen";
 import { ChatMessages } from "@/components/Chat/ChatMessages";
 import { ChatPromptBox } from "@/components/Chat/ChatPromptBox";
 import { ChatSessionSidebar } from "@/components/Chat/ChatSessionSidebar";
-import { trimToolResultParts } from "@/lib/chat-utils";
+import { trimToolResultParts, normalizeChatParts, extractToolInvocations } from "@/lib/chat-utils";
 
 export default function ChatPage() {
   const { saas } = useParams();
@@ -233,28 +234,13 @@ export default function ChatPage() {
 
     const restored = persistedMessages.map((m) => {
       const parts = m.parts ?? [{ type: "text", text: m.content }];
-      const toolInvocations = parts
-        .map((p: any) => {
-          if (p.type === "tool-invocation" && p.toolInvocation) {
-            return p.toolInvocation;
-          }
-          if (p.type && p.type.startsWith("tool-") && p.toolCallId) {
-            return {
-              state: p.state === "output-available" ? "result" : p.state,
-              toolCallId: p.toolCallId,
-              toolName: p.toolName || p.type.substring(5),
-              args: p.input,
-              result: p.output,
-            };
-          }
-          return null;
-        })
-        .filter(Boolean);
+      const normalizedParts = normalizeChatParts(parts);
+      const toolInvocations = extractToolInvocations(parts);
 
       return {
         id: m._id,
         role: m.role as "user" | "assistant",
-        parts,
+        parts: normalizedParts,
         content: m.content,
         toolInvocations: toolInvocations.length > 0 ? toolInvocations : undefined,
         createdAt: new Date(m.createdAt),
