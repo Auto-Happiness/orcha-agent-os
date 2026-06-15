@@ -4,7 +4,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Button, Stack, Text, ScrollArea, Box, Avatar, Title, Center } from "@mantine/core";
+import { Button, Stack, Text, ScrollArea, Box, Avatar, Title, Center, Loader } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
@@ -333,16 +333,24 @@ export default function ChatPage() {
       <Stack style={{ flex: 1, minWidth: 0 }} gap={0}>
         <ScrollArea viewportRef={scrollRef} style={{ flex: 1 }} scrollbarSize={6}>
           <Stack gap={40} py="4rem" mx="auto" maw={860} px="md">
-            {messages?.length === 0 && (
-              <WelcomeScreen user={user} setInput={setInput} />
+            {persistedMessages === undefined ? (
+              <Center h="50vh">
+                <Loader color="violet" size="md" type="dots" />
+              </Center>
+            ) : (
+              <>
+                {messages?.length === 0 && (
+                  <WelcomeScreen user={user} setInput={setInput} />
+                )}
+                <ChatMessages
+                  messages={messages || []}
+                  isLoading={isLoading}
+                  showResults={showResults}
+                  organizationId={activeOrgId}
+                  configId={selectedConfigIds[0]}
+                />
+              </>
             )}
-            <ChatMessages
-              messages={messages || []}
-              isLoading={isLoading}
-              showResults={showResults}
-              organizationId={activeOrgId}
-              configId={selectedConfigIds[0]}
-            />
           </Stack>
         </ScrollArea>
 
