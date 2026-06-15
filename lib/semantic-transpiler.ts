@@ -452,3 +452,109 @@ export function preprocessSQLCompat(
   }
   return processed;
 }
+
+export function transpileCubeQuery(
+  query: {
+    cube: string;
+    measures?: string[];
+    dimensions?: string[];
+    timeDimensions?: Array<{ dimension: string; granularity: string }>;
+  },
+  mdl: CompiledMdl,
+  dialect: string
+): string {
+  const cube = mdl.cubes?.find(c => c.name === query.cube);
+  if (!cube) {
+    throw new Error(`Cube "${query.cube}" not found in MDL manifest.`);
+  }
+
+  const baseModel = mdl.models.find(m => m.name === cube.baseObject);
+  if (!baseModel) {
+    throw new Error(`Base object "${cube.baseObject}" for cube "${query.cube}" not found in MDL.`);
+  }
+
+  const selectItems: string[] = [];
+  const groupByItems: string[] = [];
+  const escapeIdent = (name: string) => `"${name}"`;
+
+  if (query.dimensions) {
+    for (const dimName of query.dimensions) {
+      const dim = cube.dimensions.find((d: any) => d.name === dimName);
+      if (!dim) {
+        throw new Error(`Dimension "${dimName}" not found in cube "${query.cube}".`);
+      }
+      const expr = `"${cube.baseObject}".${dimName}`;
+      selectItems.push(`${expr} AS ${escapeIdent(dimName)}`);
+      groupByItems.push(expr);
+    }
+  }
+
+  if (query.timeDimensions) {
+    for (const tdObj of query.timeDimensions) {
+      const td = cube.timeDimensions.find((t: any) => t.name === tdObj.dimension);
+      if (!td) {
+        throw new Error(`Time dimension "${tdObj.dimension}" not found in cube "${query.cube}".`);
+      }
+
+      const colRef = `"${cube.baseObject}".${tdObj.dimension}`;
+      const grain = tdObj.granularity.toLowerCase();
+      let dateExpr = colRef;
+
+      const lowerDialect = dialect.toLowerCase();
+      if (lowerDialect === "postgres" || lowerDialect === "sqlite" || lowerDialect === "duckdb") {
+        dateExpr = `DATE_TRUNC('${grain}', ${colRef})`;
+      } else if (lowerDialect === "mysql" || lowerDialect === "mariadb") {
+        if (grain === "day") {
+          dateExpr = `DATE_FORMAT(${colRef}, '%Y-%m-%d')`;
+        } else if (grain === "month") {
+          dateExpr = `DATE_FORMAT(${colRef}, '%Y-%m-01')`;
+        } else if (grain === "year") {
+          dateExpr = `DATE_FORMAT(${colRef}, '%Y-01-01')`;
+        } else {
+          dateExpr = `DATE_TRUNC('${grain}', ${colRef})`;
+        }
+      } else if (lowerDialect === "mssql") {
+        if (grain === "day") {
+          dateExpr = `CONVERT(VARCHAR(10), ${colRef}, 120)`;
+        } else if (grain === "month") {
+          dateExpr = `CONVERT(VARCHAR(7), ${colRef}, 120) + '-01'`;
+        } else if (grain === "year") {
+          dateExpr = `CONVERT(VARCHAR(4), ${colRef}, 120) + '-01-01'`;
+        } else {
+          dateExpr = `DATEADD(${grain}, DATEDIFF(${grain}, 0, ${colRef}), 0)`;
+        }
+      }
+
+      const alias = `${tdObj.dimension}_${grain}`;
+      selectItems.push(`${dateExpr} AS ${escapeIdent(alias)}`);
+      groupByItems.push(dateExpr);
+    }
+  }
+
+  if (query.measures) {
+    for (const measName of query.measures) {
+      const meas = cube.measures.find((m: any) => m.name === measName);
+      if (!meas) {
+        throw new Error(`Measure "${measName}" not found in cube "${query.cube}".`);
+      }
+
+      let expr = meas.expression;
+      const baseObjPattern = new RegExp(`\\b${cube.baseObject}\\.`, 'g');
+      expr = expr.replace(baseObjPattern, `"${cube.baseObject}".`);
+
+      selectItems.push(`${expr} AS ${escapeIdent(measName)}`);
+    }
+  }
+
+  if (selectItems.length === 0) {
+    throw new Error("Cube query must select at least one dimension, timeDimension, or measure.");
+  }
+
+  let sql = `SELECT ${selectItems.join(", ")} FROM "${cube.baseObject}"`;
+  if (groupByItems.length > 0) {
+    sql += ` GROUP BY ${groupByItems.join(", ")}`;
+  }
+
+  const sqlWithJoins = injectJoinPaths(sql, mdl);
+  return sqlWithJoins;
+}

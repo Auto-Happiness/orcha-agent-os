@@ -9,6 +9,7 @@ import { buildManifest, validateSQL, CompiledManifest } from "./sql-validator";
 import { rewriteConversationalQuery } from "./query-rewriter";
 import { transpileSemanticSQL } from "./semantic-transpiler";
 import { SkillsManager, SkillType } from "./skills-manager";
+import { compileToMdl } from "./semantic-compiler";
 
 const MAX_ROWS = 50;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
@@ -131,42 +132,7 @@ export async function createChatAgent(context: AgentContext) {
       throw new Error("No database schema scan found. Please scan the database schema first to build the semantic layer.");
     }
 
-    // Build models list for manifest
-    const models = v1Models.map((m: any) => ({
-      name: m.tableName,
-      description: m.description || "",
-      remarks: m.remarks || "",
-      primaryKey: m.fields?.find((f: any) => f.isPrimary)?.columnName || "",
-      columns: (m.fields || []).map((f: any) => ({
-        name: f.columnName,
-        type: f.dataType || f.rawType || "VARCHAR",
-        description: f.description || "",
-        remarks: f.remarks || "",
-        notNull: !f.isNullable,
-      })),
-    }));
-
-    // Build relationships list for manifest
-    const relationships = v1Rels.map((r: any) => {
-      const fromModel = v1Models.find((m: any) => m._id === r.fromModelId);
-      const toModel = v1Models.find((m: any) => m._id === r.toModelId);
-      const fromName = fromModel ? fromModel.tableName : "unknown";
-      const toName = toModel ? toModel.tableName : "unknown";
-      return {
-        name: r.name,
-        models: [fromName, toName],
-        joinType: r.type === "many_to_one" ? "MANY_TO_ONE" : "ONE_TO_MANY",
-        condition: `${fromName}.${r.fromColumn} = ${toName}.${r.toColumn}`,
-      };
-    });
-
-    manifest = {
-      catalog: "",
-      schema: "",
-      models,
-      relationships,
-      views: [],
-    };
+    manifest = compileToMdl(v1Models, v1Rels, configId, allConfigs);
   }
 
   // Resolve the primary database config from the already-fetched list
@@ -454,10 +420,22 @@ export async function createChatAgent(context: AgentContext) {
     }).join("\n")
     : "";
 
+  const cubeDescription = manifest.cubes && manifest.cubes.length > 0
+    ? "\n### Semantic Cubes:\nUse these semantic cubes to answer analytical aggregate questions. Select dimensions and measures from the cube instead of writing raw group-by queries.\n" + manifest.cubes.filter((c: any) => {
+        if (filteredModels.length === 0) return false;
+        return filteredModels.some((m: any) => (m.tableName === c.baseObject || (m.displayName || m.tableName) === c.baseObject));
+      }).map((c: any) => {
+        const measuresStr = c.measures.map((m: any) => `  - Measure: "${m.name}" | Type: ${m.type} | Formula: ${m.expression}`).join("\n");
+        const dimensionsStr = c.dimensions.map((d: any) => `  - Dimension: "${d.name}" | Type: ${d.type}`).join("\n");
+        const timeDimensionsStr = c.timeDimensions.map((t: any) => `  - Time Dimension: "${t.name}" | Type: ${t.type}`).join("\n");
+        return `Cube: ${c.name}\nBase Object: ${c.baseObject}\nMeasures:\n${measuresStr || "  (None)"}\nDimensions:\n${dimensionsStr || "  (None)"}\nTime Dimensions:\n${timeDimensionsStr || "  (None)"}`;
+      }).join("\n\n")
+    : "";
+
   const dialectRules = getNativeDialectRule(config.type);
 
   const buildSystemPrompt = (toolNames: string[]) => {
-    const mcpToolNames = toolNames.filter(t => t !== "execute_sql");
+    const mcpToolNames = toolNames.filter(t => t !== "execute_sql" && t !== "query_cube" && t !== "search_db_schema" && t !== "dry_plan_sql");
     const mcpSection = mcpToolNames.length > 0
       ? `### AVAILABLE MCP TOOLS:
 You have the following external integrations connected via MCP. YOU MUST use these tools when a user asks about them:
@@ -482,6 +460,7 @@ ${mcpSection}
 ${tableDiscoveryList}
 ${schemaDescription}
 ${relationshipDescription}
+${cubeDescription}
 ${exemplarsSection}
 
 ${dialectRules}
@@ -641,6 +620,107 @@ ${skillInstructions}
           return { success: false, error: err.message || "Failed to execute SQL." };
         }
       },
+    },
+    query_cube: {
+      description: `Executes a structured Cube query to retrieve aggregated database metrics. Use this tool for ANY quantitative analysis (such as counts, sums, averages, or breakouts by dimension/time).`,
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          cube: { type: "string", description: "The exact name of the cube (e.g. 'orders_cube')." },
+          measures: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of metric measures to aggregate (e.g. ['amount'])."
+          },
+          dimensions: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of categorical dimensions to group by."
+          },
+          timeDimensions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                dimension: { type: "string", description: "Name of the time dimension column." },
+                granularity: { type: "string", enum: ["day", "month", "year"], description: "Time grouping granularity." }
+              },
+              required: ["dimension", "granularity"]
+            },
+            description: "List of time dimensions and their granularities."
+          },
+          chartConfig: {
+            type: "object",
+            description: "Provide this ONLY if the user explicitly asked for a visualization. Defaults to null.",
+            properties: {
+              chartType: { type: "string", enum: ["bar", "line", "area", "pie", "radar"] },
+              title: { type: "string" },
+              xKey: { type: "string", description: "The exact column/alias on the X-axis." },
+              yKey: { type: "string", description: "The exact column/alias on the Y-axis." }
+            },
+            required: ["chartType", "title", "xKey", "yKey"]
+          }
+        },
+        required: ["cube"],
+      }),
+      execute: async ({ cube, measures, dimensions, timeDimensions, chartConfig }: { cube: string; measures?: string[]; dimensions?: string[]; timeDimensions?: any[]; chartConfig?: any }) => {
+        try {
+          const { transpileCubeQuery } = await import("./semantic-transpiler");
+          
+          let execSql = transpileCubeQuery(
+            { cube, measures, dimensions, timeDimensions },
+            manifest,
+            config.type
+          );
+          
+          console.log(`[Agent] Translated Cube Query to SQL: ${execSql}`);
+
+          const dryPlan = validateSQL(execSql, compiledManifest);
+          if (!dryPlan.valid) {
+            console.warn("[Agent] Cube Query execute dry-plan failed:", dryPlan.errors);
+            return {
+              success: false,
+              dryPlanFailed: true,
+              errors: dryPlan.errors,
+              error: `Compiled SQL validation failed:\n${dryPlan.errors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
+            };
+          }
+
+          const schemaName = config.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+          const rows = await OrchaFusion.execute(execSql, schemaName, dbConfig);
+
+          try {
+            convex.mutation(api.semanticMemory.storeQueryMapping, {
+              organizationId: organizationId as any,
+              configId: config._id,
+              question: lastMessage,
+              sql: execSql,
+              apiKey,
+            }).catch((e: any) => console.error("[Agent] Memory store deferred failure:", e));
+          } catch (memErr) {
+            console.warn("[Agent] Failed to store query mapping:", memErr);
+          }
+
+          const returnData: any = {
+            success: true,
+            data: rows.slice(0, MAX_ROWS),
+            totalCount: rows.length,
+            sql: execSql
+          };
+
+          if (chartConfig) {
+            returnData.chartConfig = chartConfig;
+          }
+
+          return returnData;
+        } catch (err: any) {
+          console.error("[Agent] Cube Query execution failed:", err);
+          return {
+            success: false,
+            error: err?.message || String(err)
+          };
+        }
+      }
     },
   };
 

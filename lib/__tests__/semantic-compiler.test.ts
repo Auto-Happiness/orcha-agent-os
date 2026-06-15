@@ -92,3 +92,47 @@ test("compileToMdl handles naming collisions", () => {
   const modelNames = mdl.models.map(m => m.name).sort();
   assert.deepEqual(modelNames, ["db_one__users", "db_two__users"]);
 });
+
+test("compileToMdl compiles cubes with measures, dimensions, and timeDimensions", () => {
+  const allModels = [
+    {
+      _id: "m1",
+      configId: "cfg1",
+      tableName: "orders",
+      displayName: "Orders",
+      fields: [
+        { columnName: "id", type: "integer", isPrimary: true },
+        { columnName: "amount", type: "double", fieldType: "measure", defaultAggregation: "sum" },
+        { columnName: "customer_id", type: "integer", fieldType: "dimension" },
+        { columnName: "order_date", type: "timestamp", isTimeDimension: true },
+      ],
+    },
+  ];
+
+  const allOrgConfigs = [
+    { _id: "cfg1", name: "Sales DB" },
+  ];
+
+  const mdl = compileToMdl(allModels, [], "cfg1", allOrgConfigs);
+
+  assert.ok(mdl.cubes);
+  assert.equal(mdl.cubes.length, 1);
+  const cube = mdl.cubes[0];
+  assert.equal(cube.name, "orders_cube");
+  assert.equal(cube.baseObject, "orders");
+
+  // Check measures
+  assert.equal(cube.measures.length, 1);
+  assert.equal(cube.measures[0].name, "amount");
+  assert.equal(cube.measures[0].type, "DOUBLE");
+  assert.equal(cube.measures[0].expression, 'sum(orders.amount)');
+
+  // Check dimensions
+  assert.equal(cube.dimensions.length, 2); // id (default) and customer_id
+  const hasCustomerId = cube.dimensions.some((d: any) => d.name === "customer_id");
+  assert.ok(hasCustomerId);
+
+  // Check timeDimensions
+  assert.equal(cube.timeDimensions.length, 1);
+  assert.equal(cube.timeDimensions[0].name, "order_date");
+});
