@@ -7,6 +7,7 @@ export interface CompiledMdl {
   models: any[];
   relationships: any[];
   views: any[];
+  cubes?: any[];
 }
 
 export function compileToMdl(
@@ -141,12 +142,58 @@ export function compileToMdl(
     })
     .filter(Boolean);
 
+  // Step 6: Map models to semantic Cubes
+  const cubes = allModels.map((m: any) => {
+    const mdlName = modelMdlNames.get(m._id)!;
+    
+    const measures: any[] = [];
+    const dimensions: any[] = [];
+    const timeDimensions: any[] = [];
+
+    for (const f of m.fields || []) {
+      if (f.relationship) continue;
+
+      const colName = f.columnName;
+      const baseType = (f.rawType || f.dataType || f.type || "VARCHAR").toUpperCase();
+
+      const isMeasure = f.fieldType === "measure" || !!f.defaultAggregation || !!f.aggregation;
+
+      if (isMeasure) {
+        const defaultAgg = (f.defaultAggregation || f.aggregation || "sum").toLowerCase();
+        measures.push({
+          name: colName,
+          type: baseType,
+          expression: `${defaultAgg}(${mdlName}.${colName})`
+        });
+      } else if (f.isTimeDimension === true) {
+        timeDimensions.push({
+          name: colName,
+          type: baseType,
+        });
+      } else {
+        dimensions.push({
+          name: colName,
+          type: baseType,
+        });
+      }
+    }
+
+    return {
+      name: `${mdlName}_cube`,
+      baseObject: mdlName,
+      measures,
+      dimensions,
+      timeDimensions,
+    };
+  });
+
   return {
     catalog: "orcha",
     schema: "public",
     models,
     relationships: mappedRelationships,
     views: [],
+    cubes,
   };
 }
 
@@ -250,5 +297,6 @@ export function compileScanToMdl(
     models,
     relationships,
     views: [],
+    cubes: [],
   };
 }
