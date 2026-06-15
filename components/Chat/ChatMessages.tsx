@@ -3,7 +3,7 @@
 import { Stack, Group, Avatar, Text, Box, Loader, Tooltip as MantineTooltip, Button } from "@mantine/core";
 import { IconUser, IconSparkles, IconDatabase, IconCode, IconCheck, IconBrain, IconPlugConnected } from "@tabler/icons-react";
 import { UIMessage } from "ai";
-import React, { useCallback, useState, memo } from "react";
+import React, { useCallback, useState, memo, useEffect } from "react";
 
 // Sub-components & Helpers
 import { ChatImagePreview, isImageUrl } from "./TableCellImage";
@@ -12,6 +12,7 @@ import { ChartBlock } from "./ChartBlock";
 import { SQLModal } from "./SQLModal";
 import { McpToolModal, McpToolCall } from "./McpToolModal";
 import { ReasoningBlock } from "./ReasoningBlock";
+import { ThinkingLoader } from "./ThinkingLoader";
 
 interface ChatMessagesProps {
   messages: UIMessage[];
@@ -491,7 +492,7 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
           </Avatar>
           <Stack gap={4} py={8}>
             <Text fw={700} size="sm" c="white">Orcha Agent</Text>
-            <Loader size="xs" color="violet" type="dots" />
+            <ThinkingLoader />
           </Stack>
         </Group>
       )}
