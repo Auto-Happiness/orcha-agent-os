@@ -18,11 +18,14 @@ interface McpTool {
 }
 
 
-// Initialize Convex Client
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function getConvexClient() {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  return new ConvexHttpClient(url);
+}
 
 // Helper to decrypt/resolve DB config (mocking for now, will integrate with your encryption logic)
-async function getDbConfig(orgId: string): Promise<DbConfig | null> {
+async function getDbConfig(orgId: string, convex: ConvexHttpClient): Promise<DbConfig | null> {
   try {
     const config: any = await convex.query(api.databaseConfigs.getByOrganization, {
       organizationId: orgId as any
@@ -55,7 +58,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dbConfig = await getDbConfig(orgId);
+  const convex = getConvexClient();
+  const dbConfig = await getDbConfig(orgId, convex);
   const body = await req.json();
   const { method, params, id } = body;
 

@@ -7,7 +7,11 @@ import { getMcpServer } from "@/lib/mcp-registry";
 import { McpClient } from "@/lib/mcp-client";
 import { Id } from "@/convex/_generated/dataModel";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function getConvexClient() {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  return new ConvexHttpClient(url);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +19,7 @@ export async function POST(req: NextRequest) {
     const { userId } = clerkAuth;
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const convex = getConvexClient();
     const token = await clerkAuth.getToken({ template: "convex" });
     if (token) convex.setAuth(token);
 

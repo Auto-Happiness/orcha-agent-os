@@ -7,9 +7,14 @@ import { KeyManager } from "@/lib/key-manager";
 import { withMetrics } from "@/lib/metrics";
 import { compileScanToMdl } from "@/lib/semantic-compiler";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function getConvexClient() {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  return new ConvexHttpClient(url);
+}
 
 async function postHandler(req: NextRequest) {
+  const convex = getConvexClient();
   try {
     const body = await req.json();
     const { configId, organizationId, type, config: rawConfig } = body;

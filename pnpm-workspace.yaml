@@ -1,4 +1,12 @@
 allowBuilds:
+  '@clerk/shared': true
+  '@prisma/engines': true
   better-sqlite3: true
+  duckdb: true
+  esbuild: true
+  msgpackr-extract: true
+  msw: true
   oracledb: true
   prisma: true
+  sharp: true
+  unrs-resolver: true
