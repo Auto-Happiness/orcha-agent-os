@@ -3,7 +3,11 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { KeyManager } from "@/lib/key-manager";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function getConvexClient() {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
+  return new ConvexHttpClient(url);
+}
 
 /**
  * Helper to return an HTML page that communicates back to the opener window
@@ -95,7 +99,7 @@ export async function GET(req: NextRequest) {
 
     // We use a privileged action call here because the server route
     // doesn't have the user's Clerk context. Protected by CONVEX_INTERNAL_SECRET.
-    await convex.action(api.integrationActions.saveKeyWithSecret, {
+    await getConvexClient().action(api.integrationActions.saveKeyWithSecret, {
       secret: process.env.CONVEX_INTERNAL_SECRET || "development_secret",
       organizationId: orgId as any,
       integration,
