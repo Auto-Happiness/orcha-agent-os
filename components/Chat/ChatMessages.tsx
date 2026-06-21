@@ -1,7 +1,7 @@
 "use client";
 
-import { Stack, Group, Avatar, Text, Box, Loader, Tooltip as MantineTooltip, Button } from "@mantine/core";
-import { IconUser, IconSparkles, IconDatabase, IconCode, IconCheck, IconBrain, IconPlugConnected } from "@tabler/icons-react";
+import { Stack, Group, Avatar, Text, Box, Loader, Tooltip as MantineTooltip, Button, Modal } from "@mantine/core";
+import { IconUser, IconSparkles, IconDatabase, IconCode, IconCheck, IconBrain, IconPlugConnected, IconAlertCircle } from "@tabler/icons-react";
 import { UIMessage } from "ai";
 import React, { useCallback, useState, memo, useEffect } from "react";
 
@@ -213,6 +213,47 @@ function extractMcpToolsFromParts(parts: any[]): McpToolCall[] {
   return calls;
 }
 
+export interface RetryLog {
+  toolName: string;
+  error: string;
+}
+
+function extractRetryLogsFromParts(parts: any[]): RetryLog[] {
+  if (!parts) return [];
+  const logs: RetryLog[] = [];
+  
+  for (const part of parts) {
+    const type: string = part.type ?? "";
+    let toolName = part.toolInvocation?.toolName || part.toolName || "query";
+    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") {
+      toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
+    } else if (type === "tool-output-available") {
+      toolName = part.toolName || "tool";
+    }
+
+    let result: any = null;
+    if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql") && part.state === "output-available") {
+      result = part.output;
+    } else if (type === "tool-result") {
+      result = part.result;
+    } else if (type === "tool-invocation" && part.toolInvocation?.state === "result") {
+      result = part.toolInvocation.result;
+    } else if (type === "tool-output-available") {
+      result = part.output;
+    }
+
+    if (result && (result.success === false || result.error)) {
+      const errorMsg = result.error || result.message || "Action failed";
+      logs.push({
+        toolName,
+        error: errorMsg,
+      });
+    }
+  }
+
+  return logs;
+}
+
 function renderToolPart(
   part: any,
   i: number,
@@ -274,7 +315,7 @@ function renderToolPart(
   if (!result) return null;
 
   if (result.success === false || result.error) {
-    return <Box key={i} ml="3rem" mt="xs"><Text size="xs" c="red.4">Error: {result.error || result.message || "Action failed"}</Text></Box>;
+    return null;
   }
 
   const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
@@ -337,13 +378,15 @@ function renderToolPart(
 
 // ── MessageRow (memoized ── only re-renders when its own message changes) ─────
 
-const MessageRow = memo(function MessageRow({ m, showResults, organizationId, configId, onViewSql, onViewMcpTools, question, chatHistory }: {
-  m: any; showResults: boolean; organizationId?: string; configId?: string | null; onViewSql: (q: string[]) => void; onViewMcpTools: (calls: McpToolCall[]) => void; question?: string; chatHistory?: any[];
+const MessageRow = memo(function MessageRow({ m, showResults, organizationId, configId, onViewSql, onViewMcpTools, onViewRetryLogs, question, chatHistory }: {
+  m: any; showResults: boolean; organizationId?: string; configId?: string | null; onViewSql: (q: string[]) => void; onViewMcpTools: (calls: McpToolCall[]) => void; onViewRetryLogs: (logs: RetryLog[]) => void; question?: string; chatHistory?: any[];
 }) {
   const sqlQueries = m.role === "assistant" ? extractSQLFromParts(m.parts as any[]) : [];
   const mcpToolCalls = m.role === "assistant" ? extractMcpToolsFromParts(m.parts as any[]) : [];
+  const retryLogs = m.role === "assistant" ? extractRetryLogsFromParts(m.parts as any[]) : [];
   const hasSqlResult = showResults && hasSuccessfulSQLResult(m.parts || []);
-  const hasButtons = sqlQueries.length > 0 || mcpToolCalls.length > 0;
+  const showRetryLogs = process.env.NEXT_PUBLIC_SHOW_RETRY_LOGS !== "false";
+  const hasButtons = sqlQueries.length > 0 || mcpToolCalls.length > 0 || (retryLogs.length > 0 && showRetryLogs);
 
   // Pass parsing logic wrapper to avoid circular reference in ReasoningBlock
   const renderMarkdown = useCallback((content: string) => {
@@ -416,6 +459,11 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
                   MCP Tool
                 </Button>
               )}
+              {retryLogs.length > 0 && showRetryLogs && (
+                <Button size="compact-xs" variant="subtle" color="red" radius="md" leftSection={<IconAlertCircle size={11} />} onClick={() => onViewRetryLogs(retryLogs)} styles={{ root: { fontSize: 11, opacity: 0.8 } }}>
+                  Retry Logs
+                </Button>
+              )}
               <MantineTooltip label="Estimated tokens used for this turn (prompt + response)" position="top" withArrow>
                 <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.1)", border: "1px solid rgba(147,51,234,0.2)", cursor: "help" }}>
                   <Group gap={4}>
@@ -440,6 +488,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
 export function ChatMessages({ messages, isLoading, showResults, organizationId, configId }: ChatMessagesProps) {
   const [sqlModal, setSqlModal] = useState<string[] | null>(null);
   const [mcpModal, setMcpModal] = useState<McpToolCall[] | null>(null);
+  const [retryLogsModal, setRetryLogsModal] = useState<RetryLog[] | null>(null);
 
   return (
     <>
@@ -479,6 +528,7 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
             configId={configId}
             onViewSql={setSqlModal}
             onViewMcpTools={setMcpModal}
+            onViewRetryLogs={setRetryLogsModal}
             question={question}
             chatHistory={chatHistoryForMessage}
           />
@@ -499,6 +549,34 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
 
       <SQLModal queries={sqlModal ?? []} opened={sqlModal !== null} onClose={() => setSqlModal(null)} organizationId={organizationId} configId={configId} />
       <McpToolModal calls={mcpModal ?? []} opened={mcpModal !== null} onClose={() => setMcpModal(null)} />
+      <Modal opened={retryLogsModal !== null} onClose={() => setRetryLogsModal(null)}
+        title={
+          <Group gap={8}>
+            <IconAlertCircle size={16} color="var(--mantine-color-red-6)" />
+            <Text size="sm" fw={600} c="white">Retry Logs (Agent Auto-Correction Attempts)</Text>
+          </Group>
+        }
+        size="lg" radius="md"
+        styles={{ content: { background: "#0d0a1a", border: "1px solid rgba(239,68,68,0.2)" }, header: { background: "#0d0a1a", borderBottom: "1px solid rgba(239,68,68,0.1)" }, title: { color: "white" } }}
+      >
+        <Stack gap="md" pt="xs">
+          <Text size="xs" c="dimmed">
+            The database agent encountered these errors and automatically attempted to correct them:
+          </Text>
+          {retryLogsModal?.map((log, idx) => (
+            <Box key={idx} p="sm" style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, border: "1px solid rgba(239,68,68,0.15)" }}>
+              <Group justify="space-between" mb={4}>
+                <Text size="xs" fw={700} c="red.3" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Attempt {idx + 1} ({log.toolName.replace(/_/g, ' ')})
+                </Text>
+              </Group>
+              <Text size="xs" c="gray.4" ff="monospace" style={{ whiteSpace: "pre-wrap" }}>
+                {log.error}
+              </Text>
+            </Box>
+          ))}
+        </Stack>
+      </Modal>
     </>
   );
 }

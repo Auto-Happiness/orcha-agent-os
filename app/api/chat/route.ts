@@ -163,6 +163,10 @@ async function postHandler(req: NextRequest) {
 
   } catch (error: any) {
     console.error("[Chat] Error:", error);
+    if (error.message?.includes("[INFRASTRUCTURE_FAILURE]")) {
+      const cleanMsg = error.message.replace("[INFRASTRUCTURE_FAILURE]", "").trim();
+      return NextResponse.json({ error: cleanMsg }, { status: 503 });
+    }
     return NextResponse.json({ error: error.message || "Unexpected error." }, { status: 500 });
   }
 }

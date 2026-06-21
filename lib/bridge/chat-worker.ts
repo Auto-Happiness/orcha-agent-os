@@ -153,7 +153,13 @@ export class ChatWorker {
             return { success: true };
           } catch (error: any) {
             console.error(`❌ [ChatWorker] JOB FAILED (${job.id}):`, error?.stack || error?.message || error);
-            await pushUpdate(`⚠️ Agent error: ${error?.message || "Unknown error"}`);
+            let displayErr = error?.message || "Unknown error";
+            if (displayErr.includes("[INFRASTRUCTURE_FAILURE]")) {
+              displayErr = displayErr.replace("[INFRASTRUCTURE_FAILURE]", "").trim();
+              await pushUpdate(`⚠️ Database connection failed. Please check your database settings. Error: ${displayErr}`);
+            } else {
+              await pushUpdate(`⚠️ Agent error: ${displayErr}`);
+            }
             throw error;
           }
         },

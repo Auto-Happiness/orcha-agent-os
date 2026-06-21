@@ -16,19 +16,14 @@ const wasmPath = join(__dirname, "wasm-engine", "orcha_semantic_engine_bg.wasm")
 const sdkModulePath = join(__dirname, "wasm-engine", "index.js");
 
 let SemanticEngine: any = null;
-let wasmModule: WebAssembly.Module | null = null;
 
 async function getWasmModuleAndSDK() {
   if (!SemanticEngine) {
     const sdkUrl = pathToFileURL(sdkModulePath).href;
     const sdk = await import(sdkUrl);
-    SemanticEngine = sdk.SemanticEngine;
+    SemanticEngine = sdk.OrchaSemanticEngine;
   }
-  if (!wasmModule) {
-    const wasmBytes = readFileSync(wasmPath);
-    wasmModule = await WebAssembly.compile(wasmBytes);
-  }
-  return { SemanticEngine, wasmModule };
+  return { SemanticEngine };
 }
 
 /**
@@ -341,22 +336,29 @@ export async function transpileSemanticSQL(
   mdl: CompiledMdl,
   dialect: string
 ): Promise<string> {
-  const { SemanticEngine, wasmModule } = await getWasmModuleAndSDK();
+  const { SemanticEngine } = await getWasmModuleAndSDK();
 
   // Create a clean engine instance
-  const engine = await SemanticEngine.init({ wasmUrl: wasmModule });
+  const engine = new SemanticEngine();
 
   try {
-    // 1. Register physical tables with typed dummy rows for schema validation
+    // 1. Register tables and calculated columns
     for (const model of mdl.models) {
-      const dummyRow: Record<string, any> = {};
       const physicalCols = model.columns.filter((c: any) => !c.relationship);
-      for (const col of physicalCols) {
-        dummyRow[col.name] = typedDummyValue(col.type);
-      }
-      
+      const fields = physicalCols.map((c: any) => ({
+        name: c.name,
+        type: c.type.toLowerCase(),
+      }));
+
       const physicalTableName = model.tableReference?.table || model.name;
-      await engine.registerJson(physicalTableName, [dummyRow]);
+      engine.register_table(physicalTableName, JSON.stringify(fields));
+
+      // Register calculated columns
+      for (const col of physicalCols) {
+        if (col.isCalculated && col.expression) {
+          await engine.register_calculated_column(physicalTableName, col.name, col.expression);
+        }
+      }
     }
 
     // 2. Auto-inject join paths
@@ -365,16 +367,13 @@ export async function transpileSemanticSQL(
     // 3. Preprocess SQL to ensure correct case-sensitive model quoting
     const processedSql = preprocessSQL(sqlWithJoins, mdl);
 
-    // 4. Load MDL manifest into the engine
-    await engine.loadMDL(mdl, { source: "" });
-
-    // 5. Transpile using transformSql with the target dialect
+    // 4. Transpile using translate_sql with the target dialect
     let targetDialect = dialect.toLowerCase();
     if (targetDialect === "mariadb") {
       targetDialect = "mysql";
     }
 
-    return await engine.transformSql(processedSql, targetDialect);
+    return await engine.translate_sql(processedSql, targetDialect);
   } finally {
     engine.free();
   }
