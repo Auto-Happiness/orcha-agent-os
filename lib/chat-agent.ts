@@ -10,6 +10,8 @@ import { rewriteConversationalQuery } from "./query-rewriter";
 import { transpileSemanticSQL } from "./semantic-transpiler";
 import { SkillsManager, SkillType } from "./skills-manager";
 import { compileToMdl } from "./semantic-compiler";
+import { classifyError, ErrorType } from "./errors";
+
 
 const MAX_ROWS = 50;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
@@ -617,7 +619,11 @@ ${skillInstructions}
             chartConfig
           };
         } catch (err: any) {
-          return { success: false, error: err.message || "Failed to execute SQL." };
+          const classified = classifyError(err);
+          if (classified.type === ErrorType.OPERATIONAL) {
+            throw new Error(`[INFRASTRUCTURE_FAILURE] ${classified.message}`);
+          }
+          return { success: false, error: `Database error: ${classified.message}. Fix the query and retry.` };
         }
       },
     },
@@ -715,9 +721,13 @@ ${skillInstructions}
           return returnData;
         } catch (err: any) {
           console.error("[Agent] Cube Query execution failed:", err);
+          const classified = classifyError(err);
+          if (classified.type === ErrorType.OPERATIONAL) {
+            throw new Error(`[INFRASTRUCTURE_FAILURE] ${classified.message}`);
+          }
           return {
             success: false,
-            error: err?.message || String(err)
+            error: `Semantic Cube error: ${classified.message}. Adjust properties and retry.`
           };
         }
       }
@@ -732,6 +742,6 @@ ${skillInstructions}
     model: aiModel,
     instructions: buildSystemPrompt(toolNames),
     tools,
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(4),
   });
 }

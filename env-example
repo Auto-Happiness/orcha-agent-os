@@ -28,6 +28,8 @@ GOOGLE_CLIENT_SECRET=
 ENCRYPTION_KEY=
 KEY_STORAGE=convex
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SHOW_RETRY_LOGS=true
+
 
 # ─── WORKERS (BullMQ) ──────────────────────────────────────────────────
 # Set to 'on' to enable background processing for agents
