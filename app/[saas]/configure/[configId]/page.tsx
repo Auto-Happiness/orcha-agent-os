@@ -283,8 +283,8 @@ export default function EditConfigurationPage() {
           <Tabs.List>
             <Tabs.Tab value="general" leftSection={<IconFileDescription size={16} />}>Deployment Profile</Tabs.Tab>
             <Tabs.Tab value="modeler" leftSection={<IconHierarchy2 size={16} />}>Semantic Modeler</Tabs.Tab>
-            <Tabs.Tab value="lab" leftSection={<IconTerminal2 size={16} />}>Query Lab</Tabs.Tab>
             <Tabs.Tab value="memory" leftSection={<IconBrain size={16} />}>Semantic Memory</Tabs.Tab>
+            <Tabs.Tab value="lab" leftSection={<IconTerminal2 size={16} />}>Query Lab</Tabs.Tab>
             <Tabs.Tab value="health" leftSection={<IconAdjustmentsHorizontal size={16} />}>Connectivity & Pulse</Tabs.Tab>
           </Tabs.List>
 

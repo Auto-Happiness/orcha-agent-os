@@ -178,3 +178,76 @@ export const resolveMemoryDetails = internalQuery({
     return list;
   },
 });
+
+/**
+ * Query to list all semantic memories (query history) for a configuration.
+ */
+export const listByConfig = query({
+  args: {
+    configId: v.id("databaseConfigs"),
+  },
+  handler: async (ctx, args) => {
+    const config = await ctx.db.get(args.configId);
+    if (!config) return [];
+
+    await checkMembership(ctx, config.organizationId);
+
+    return await ctx.db
+      .query("semanticMemory")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .order("desc")
+      .collect();
+  },
+});
+
+/**
+ * Mutation to delete a specific semantic query memory.
+ */
+export const remove = mutation({
+  args: {
+    id: v.id("semanticMemory"),
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
+    await ctx.db.delete(args.id);
+    return { success: true };
+  },
+});
+
+/**
+ * Mutation to manually seed a NL-to-SQL query memory mapping.
+ */
+export const createManualMapping = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    question: v.string(),
+    sql: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
+
+    const now = Date.now();
+    const memoryId = await ctx.db.insert("semanticMemory", {
+      organizationId: args.organizationId,
+      configId: args.configId,
+      question: args.question,
+      sql: args.sql,
+      createdAt: now,
+    });
+
+    const config = await ctx.db.get(args.configId);
+    const provider = config?.memoryProvider || "local";
+
+    await ctx.scheduler.runAfter(0, internal.semanticMemory.generateMemoryEmbedding, {
+      organizationId: args.organizationId,
+      memoryId,
+      question: args.question,
+      provider: provider as any,
+    });
+
+    return { success: true, memoryId };
+  },
+});
+
