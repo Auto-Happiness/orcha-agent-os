@@ -219,6 +219,7 @@ export async function createChatAgent(context: AgentContext) {
   let filteredModels: any[] = [];
   let relationships: any[] = [];
   let recalledExemplars: any[] = [];
+  let recalledInstructions: any[] = [];
   let mcpTools: any = {};
   let compiledManifest: CompiledManifest = { tables: [], relationships: [] };
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
@@ -276,7 +277,7 @@ export async function createChatAgent(context: AgentContext) {
           if (mainProvider === "claude" || mainProvider === "anthropic") {
             console.log(`[Agent] Claude provider selected. Skipping embeddings and running LLM-based table selection...`);
             const matched = await selectTablesWithLLM(ragSearchQuery, allModels, pruningModel);
-            return { matchedModels: matched, recallResult: [] };
+            return { matchedModels: matched, recallResult: [], recalledInstructions: [] };
           }
 
           const embedProvider = "local";
@@ -317,11 +318,21 @@ export async function createChatAgent(context: AgentContext) {
             return [];
           });
 
-          return { matchedModels, recallResult };
+          const recalledInstructions = await convex.action(api.semanticInstructions.searchInstructions, {
+            configId: config._id,
+            embedding,
+            indexName,
+            limit: 3,
+          }).catch((err: any) => {
+            console.warn("[Agent] searchInstructions error:", err);
+            return [];
+          });
+
+          return { matchedModels, recallResult, recalledInstructions };
         } catch (err) {
           console.error("[Agent] dynamic embedding/recall pipeline failed. Falling back to LLM-based table selection...", err);
           const matched = await selectTablesWithLLM(ragSearchQuery, allModels, pruningModel);
-          return { matchedModels: matched, recallResult: [] };
+          return { matchedModels: matched, recallResult: [], recalledInstructions: [] };
         }
       })();
 
@@ -333,9 +344,10 @@ export async function createChatAgent(context: AgentContext) {
       if (mcpResult.status === "fulfilled") mcpTools = mcpResult.value;
 
       if (pipelineResult.status === "fulfilled") {
-        const { matchedModels, recallResult } = pipelineResult.value;
+        const { matchedModels, recallResult, recalledInstructions: insts } = pipelineResult.value;
         filteredModels = matchedModels;
         recalledExemplars = recallResult || [];
+        recalledInstructions = insts || [];
       }
 
       compiledManifest = buildManifest(allModels, relationships, dbConfigMap, allOrgConfigs);
@@ -450,6 +462,12 @@ ${mcpToolNames.map(n => `- ${n}`).join("\n")}
         return `Example ${idx + 1}:\nNatural Language User Question: "${ex.question}"\nValid Dialect SQL Query: \`\`\`sql\n${ex.sql}\n\`\`\``;
       }).join("\n\n") + "\n"
       : "";
+
+    const instructionsSection = recalledInstructions?.length > 0
+      ? "\n### RELEVANT BUSINESS RULES & INSTRUCTIONS:\n" + recalledInstructions.map((inst: any, idx: number) => {
+        return `Rule ${idx + 1}: ${inst.title}\nGuideline: ${inst.content}`;
+      }).join("\n\n") + "\n"
+      : "";
     const skillInstructions = SkillsManager.getSkillInstructions(messageIntent, {
       MAX_ROWS: String(MAX_ROWS),
     });
@@ -464,6 +482,7 @@ ${schemaDescription}
 ${relationshipDescription}
 ${cubeDescription}
 ${exemplarsSection}
+${instructionsSection}
 
 ${dialectRules}
 

@@ -356,6 +356,41 @@ export default defineSchema({
       filterFields: ["organizationId", "configId"],
     }),
 
+  semanticInstructions: defineTable({
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    title: v.string(),
+    content: v.string(),
+    embedding_384: v.optional(v.array(v.float64())),  // Local Sentence Transformer
+    embedding_768: v.optional(v.array(v.float64())),  // Gemini, Ollama (nomic)
+    embedding_1024: v.optional(v.array(v.float64())), // Ollama (mxbai)
+    embedding_1536: v.optional(v.array(v.float64())), // OpenAI
+    createdAt: v.number(),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_config", ["configId"])
+    .vectorIndex("by_embedding_384", {
+      vectorField: "embedding_384",
+      dimensions: 384,
+      filterFields: ["organizationId", "configId"],
+    })
+    .vectorIndex("by_embedding_768", {
+      vectorField: "embedding_768",
+      dimensions: 768,
+      filterFields: ["organizationId", "configId"],
+    })
+    .vectorIndex("by_embedding_1024", {
+      vectorField: "embedding_1024",
+      dimensions: 1024,
+      filterFields: ["organizationId", "configId"],
+    })
+    .vectorIndex("by_embedding_1536", {
+      vectorField: "embedding_1536",
+      dimensions: 1536,
+      filterFields: ["organizationId", "configId"],
+    }),
+
+
   // ─── Bridge: Saved Data Lab Queries ──────────────────────
   savedQueries: defineTable({
     organizationId: v.id("organizations"),
