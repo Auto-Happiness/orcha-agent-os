@@ -22,7 +22,8 @@ import {
   Tabs,
   SegmentedControl,
   Loader,
-  Textarea
+  Textarea,
+  Modal
 } from "@mantine/core";
 import {
   IconTable,
@@ -30,7 +31,10 @@ import {
   IconFingerprint,
   IconSettings,
   IconChartDots,
-  IconActivity
+  IconActivity,
+  IconDatabaseImport,
+  IconUpload,
+  IconCheck
 } from "@tabler/icons-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction, usePaginatedQuery } from "convex/react";
@@ -60,6 +64,18 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
   const { data, updateData } = useCreationWizard();
 
   const [viewMode, setViewMode] = useState<string>("list");
+
+  // dbt Importer State
+  const [dbtModalOpen, setDbtModalOpen] = useState(false);
+  const [manifestFileName, setManifestFileName] = useState<string>("");
+  const [catalogFileName, setCatalogFileName] = useState<string>("");
+  const [manifestJson, setManifestJson] = useState<any>(null);
+  const [catalogJson, setCatalogJson] = useState<any>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [parsedStats, setParsedStats] = useState<{ modelsCount: number; relationshipsCount: number } | null>(null);
+
+  const manifestInputRef = useRef<HTMLInputElement>(null);
+  const catalogInputRef = useRef<HTMLInputElement>(null);
 
   // Infinite Scroll Sentinel
   const containerRef = useRef<HTMLDivElement>(null);
@@ -119,6 +135,125 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
       notifications.show({ title: "AI Failed", message: "Could not apply AI enrichment.", color: "red" });
     } finally {
       setIsEnriching(false);
+    }
+  };
+
+  const handleManifestFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setManifestFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (!json.nodes) {
+          notifications.show({
+            title: "Invalid File",
+            message: "This does not look like a valid dbt manifest.json (missing 'nodes' key).",
+            color: "red",
+          });
+          return;
+        }
+        setManifestJson(json);
+        
+        let modelsCount = 0;
+        let relationshipsCount = 0;
+        
+        const nodes = json.nodes || {};
+        const sources = json.sources || {};
+        const allNodes = { ...nodes, ...sources };
+        
+        for (const node of Object.values(allNodes) as any[]) {
+          if (node.resource_type === "model" || node.resource_type === "source") {
+            modelsCount++;
+          }
+          if (node.resource_type === "test" && node.test_metadata?.name === "relationships") {
+            relationshipsCount++;
+          }
+        }
+        
+        setParsedStats({ modelsCount, relationshipsCount });
+      } catch (err: any) {
+        notifications.show({
+          title: "Parse Error",
+          message: "Failed to parse manifest.json. Ensure it is valid JSON.",
+          color: "red",
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCatalogFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCatalogFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        setCatalogJson(json);
+        notifications.show({
+          title: "Catalog Loaded",
+          message: `Successfully loaded dbt catalog: ${file.name}`,
+          color: "green",
+        });
+      } catch (err: any) {
+        notifications.show({
+          title: "Parse Error",
+          message: "Failed to parse catalog.json. Ensure it is valid JSON.",
+          color: "red",
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDbtImport = async () => {
+    if (!manifestJson || !configId || !activeOrg?._id) return;
+    setIsImporting(true);
+    try {
+      const response = await fetch("/api/db/import-dbt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: activeOrg._id,
+          configId,
+          manifest: manifestJson,
+          catalog: catalogJson,
+        }),
+      });
+      const res = await response.json();
+      if (res.success) {
+        notifications.show({
+          title: "Import Successful",
+          message: `Successfully imported ${res.modelsCount} models and created ${res.relationshipsCreated} relationships from dbt.`,
+          color: "green",
+        });
+        setDbtModalOpen(false);
+        setManifestFileName("");
+        setCatalogFileName("");
+        setManifestJson(null);
+        setCatalogJson(null);
+        setParsedStats(null);
+        window.location.reload();
+      } else {
+        notifications.show({
+          title: "Import Failed",
+          message: res.message || "Failed to import dbt project.",
+          color: "red",
+        });
+      }
+    } catch (err: any) {
+      notifications.show({
+        title: "Network Error",
+        message: err.message || "Could not connect to import service.",
+        color: "red",
+      });
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -260,6 +395,15 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                       <Text size="xs" c="dimmed">Source: <span style={{ fontFamily: "monospace" }}>{selectedModel.tableName}</span></Text>
                     </Stack>
                     <Group>
+                      <Button
+                        variant="outline"
+                        color="violet"
+                        size="xs"
+                        onClick={() => setDbtModalOpen(true)}
+                        leftSection={<IconDatabaseImport size={14} />}
+                      >
+                        Import dbt metadata
+                      </Button>
                       <Button
                         variant="gradient"
                         gradient={{ from: 'violet', to: 'indigo' }}
@@ -432,6 +576,123 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
           </Grid.Col>
         </Grid>
       )}
+
+      {/* Modal: Import dbt Project Metadata */}
+      <Modal
+        opened={dbtModalOpen}
+        onClose={() => {
+          if (!isImporting) setDbtModalOpen(false);
+        }}
+        title="Import dbt Project Metadata"
+        centered
+        radius="md"
+        size="lg"
+        styles={{
+          content: { background: "#0c0814", border: "1px solid rgba(147, 51, 234, 0.2)" },
+          header: { background: "#0c0814", borderBottom: "1px solid rgba(255, 255, 255, 0.05)" },
+          title: { color: "white", fontWeight: 700 }
+        }}
+      >
+        <Stack gap="md" pt="xs">
+          <Text size="xs" c="dimmed">
+            Enrich your Orcha OS semantic models with column descriptions, layer documentation, primary keys, and relationships exported from your dbt project.
+          </Text>
+
+          <Paper withBorder p="md" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderStyle: "dashed" }}>
+            <Stack gap="sm">
+              <Group justify="space-between">
+                <Box style={{ flex: 1 }}>
+                  <Text size="xs" fw={700} c="white">dbt Manifest File (manifest.json)</Text>
+                  <Text size="10px" c="dimmed">Contains model descriptions, tests, and dependencies.</Text>
+                </Box>
+                <Button
+                  variant="light"
+                  color="violet"
+                  size="xs"
+                  onClick={() => manifestInputRef.current?.click()}
+                  leftSection={<IconUpload size={14} />}
+                >
+                  {manifestFileName ? "Change File" : "Select File"}
+                </Button>
+                <input
+                  ref={manifestInputRef}
+                  type="file"
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={handleManifestFileChange}
+                />
+              </Group>
+              {manifestFileName && (
+                <Group gap={6}>
+                  <IconCheck size={14} color="#22c55e" />
+                  <Text size="xs" c="green.4" fw={500}>{manifestFileName}</Text>
+                </Group>
+              )}
+            </Stack>
+          </Paper>
+
+          <Paper withBorder p="md" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderStyle: "dashed" }}>
+            <Stack gap="sm">
+              <Group justify="space-between">
+                <Box style={{ flex: 1 }}>
+                  <Text size="xs" fw={700} c="white">dbt Catalog File (catalog.json) — Optional</Text>
+                  <Text size="10px" c="dimmed">Contains verified database column types from your warehouse.</Text>
+                </Box>
+                <Button
+                  variant="light"
+                  color="violet"
+                  size="xs"
+                  onClick={() => catalogInputRef.current?.click()}
+                  leftSection={<IconUpload size={14} />}
+                >
+                  {catalogFileName ? "Change File" : "Select File"}
+                </Button>
+                <input
+                  ref={catalogInputRef}
+                  type="file"
+                  accept=".json"
+                  style={{ display: "none" }}
+                  onChange={handleCatalogFileChange}
+                />
+              </Group>
+              {catalogFileName && (
+                <Group gap={6}>
+                  <IconCheck size={14} color="#22c55e" />
+                  <Text size="xs" c="green.4" fw={500}>{catalogFileName}</Text>
+                </Group>
+              )}
+            </Stack>
+          </Paper>
+
+          {parsedStats && (
+            <Paper p="sm" radius="md" style={{ background: "rgba(147, 51, 234, 0.05)", border: "1px solid rgba(147, 51, 234, 0.15)" }}>
+              <Stack gap={6}>
+                <Text size="xs" fw={700} c="violet.2">Preview dbt Metadata:</Text>
+                <Group gap="xl">
+                  <Text size="xs" c="white">📁 Models found: <span style={{ fontWeight: 700, color: "#c084fc" }}>{parsedStats.modelsCount}</span></Text>
+                  <Text size="xs" c="white">🔗 Relationships found: <span style={{ fontWeight: 700, color: "#c084fc" }}>{parsedStats.relationshipsCount}</span></Text>
+                </Group>
+              </Stack>
+            </Paper>
+          )}
+
+          <Group justify="flex-end" gap="md" mt="md">
+            <Button variant="subtle" color="gray" size="xs" disabled={isImporting} onClick={() => setDbtModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              color="violet"
+              size="xs"
+              loading={isImporting}
+              disabled={!manifestJson}
+              onClick={handleDbtImport}
+              leftSection={<IconDatabaseImport size={14} />}
+            >
+              Confirm Import
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

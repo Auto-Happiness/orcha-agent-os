@@ -694,3 +694,160 @@ export const retrieveSchemaContext = action({
     }
   },
 });
+
+/**
+ * Mutation to import dbt metadata into Orcha OS semantic models and relationships.
+ */
+export const bulkImportDbt = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    models: v.array(
+      v.object({
+        name: v.string(),
+        displayName: v.string(),
+        description: v.string(),
+        isView: v.boolean(),
+        columns: v.array(
+          v.object({
+            name: v.string(),
+            description: v.string(),
+            dataType: v.string(),
+            isPrimary: v.boolean(),
+            isNullable: v.boolean(),
+          })
+        ),
+      })
+    ),
+    relationships: v.array(
+      v.object({
+        fromTable: v.string(),
+        fromColumn: v.string(),
+        toTable: v.string(),
+        toColumn: v.string(),
+        constraintName: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // 1. Fetch all existing models for this config to avoid O(N^2) reads
+    const existingModels = await ctx.db
+      .query("semanticModels")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+
+    const tableNameToModel = new Map(existingModels.map((m) => [m.tableName.toLowerCase(), m]));
+    const tableToId = new Map<string, string>();
+
+    // 2. Insert/Update Models
+    for (const model of args.models) {
+      const existing = tableNameToModel.get(model.name.toLowerCase());
+      const existingFields = existing ? existing.fields || [] : [];
+      const existingFieldsMap = new Map(existingFields.map(f => [f.columnName.toLowerCase(), f]));
+
+      const fields = model.columns.map((col) => {
+        const existingField = existingFieldsMap.get(col.name.toLowerCase());
+        const isMeasure =
+          col.dataType.toLowerCase().includes("int") ||
+          col.dataType.toLowerCase().includes("decimal") ||
+          col.dataType.toLowerCase().includes("float") ||
+          col.dataType.toLowerCase().includes("double") ||
+          col.dataType.toLowerCase().includes("numeric");
+
+        return {
+          columnName: col.name,
+          displayName: existingField?.displayName || col.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          description: col.description || existingField?.description || "",
+          remarks: existingField?.remarks || "",
+          type: existingField?.type || (isMeasure ? "measure" : "dimension"),
+          fieldType: existingField?.fieldType || (isMeasure ? "measure" : "dimension") as "measure" | "dimension",
+          rawType: col.dataType || existingField?.rawType || "VARCHAR",
+          dataType: col.dataType || existingField?.dataType || "VARCHAR",
+          defaultAggregation: existingField?.defaultAggregation || (isMeasure ? "sum" : undefined),
+          aggregation: existingField?.aggregation || (isMeasure ? "sum" : undefined),
+          sqlExpression: existingField?.sqlExpression,
+          isTimeDimension: existingField?.isTimeDimension || col.dataType.toLowerCase().includes("date") || col.dataType.toLowerCase().includes("time"),
+          isPrimary: col.isPrimary || existingField?.isPrimary || false,
+          isHidden: existingField?.isHidden || col.name.toLowerCase().includes("password") ||
+            col.name.toLowerCase().includes("secret") ||
+            col.name.toLowerCase().includes("token") ||
+            col.name.toLowerCase().includes("hash"),
+        };
+      });
+
+      let modelId;
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          displayName: model.displayName || existing.displayName,
+          description: model.description || existing.description || "",
+          fields,
+          isView: model.isView,
+          updatedAt: now,
+        });
+        modelId = existing._id;
+      } else {
+        modelId = await ctx.db.insert("semanticModels", {
+          organizationId: args.organizationId,
+          configId: args.configId,
+          tableName: model.name,
+          displayName: model.displayName || model.name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          isView: model.isView,
+          description: model.description || "",
+          fields,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      tableToId.set(model.name.toLowerCase(), modelId);
+    }
+
+    // Resolve model IDs for existing models that weren't in the imported payload
+    for (const [tableName, model] of tableNameToModel.entries()) {
+      if (!tableToId.has(tableName)) {
+        tableToId.set(tableName, model._id);
+      }
+    }
+
+    // 3. Insert/Update Relationships
+    const existingRels = await ctx.db
+      .query("semanticRelationships")
+      .withIndex("by_config", (q) => q.eq("configId", args.configId))
+      .collect();
+
+    const relKeySet = new Set(
+      existingRels.map(
+        (r) => `${r.fromModelId}|${r.fromColumn}|${r.toModelId}|${r.toColumn}`
+      )
+    );
+
+    let relCreatedCount = 0;
+    for (const rel of args.relationships) {
+      const fromModelId = tableToId.get(rel.fromTable.toLowerCase());
+      const toModelId = tableToId.get(rel.toTable.toLowerCase());
+
+      if (!fromModelId || !toModelId) continue;
+
+      const key = `${fromModelId}|${rel.fromColumn}|${toModelId}|${rel.toColumn}`;
+      if (relKeySet.has(key)) continue;
+
+      await ctx.db.insert("semanticRelationships", {
+        organizationId: args.organizationId,
+        configId: args.configId,
+        name: `${rel.fromTable}.${rel.fromColumn} → ${rel.toTable}.${rel.toColumn}`,
+        fromModelId: fromModelId as any,
+        fromColumn: rel.fromColumn,
+        toModelId: toModelId as any,
+        toColumn: rel.toColumn,
+        type: "many_to_one",
+        createdAt: now,
+      });
+      relCreatedCount++;
+      relKeySet.add(key);
+    }
+
+    return { success: true, modelsCount: args.models.length, relationshipsCreated: relCreatedCount };
+  },
+});
+
