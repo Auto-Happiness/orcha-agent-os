@@ -21,7 +21,8 @@ import {
   IconChevronDown,
   IconArrowRight,
   IconSparkles,
-  IconTable
+  IconTable,
+  IconSquare
 } from "@tabler/icons-react";
 import React, { useState, useEffect } from "react";
 import { MODEL_OPTIONS } from "@/lib/model-options";
@@ -39,6 +40,7 @@ interface ChatPromptBoxProps {
   setSelectedModel: (val: string) => void;
   showResults: boolean;
   setShowResults: (val: boolean) => void;
+  onStop?: () => void;
 }
 
 export function ChatPromptBox({
@@ -54,6 +56,7 @@ export function ChatPromptBox({
   setSelectedModel,
   showResults,
   setShowResults,
+  onStop,
 }: ChatPromptBoxProps) {
   const uniqueConfigIds = React.useMemo(() => {
     const rawUnique = Array.from(new Set((selectedConfigIds || []).filter(Boolean)));
@@ -303,23 +306,43 @@ export function ChatPromptBox({
                   </Group>
                 </Tooltip>
 
-                <ActionIcon
-                  type="submit"
-                  radius="xl"
-                  size="lg"
-                  variant="filled"
-                  disabled={!hasText || isLoading}
-                  style={{
-                    backgroundColor: hasText ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-                    color: hasText ? 'white' : 'rgba(255,255,255,0.3)',
-                    transition: 'all 0.15s ease-in-out',
-                    transform: hasText ? 'scale(1.08)' : 'scale(1)',
-                    boxShadow: hasText ? '0 4px 12px rgba(59, 130, 246, 0.4)' : 'none',
-                    cursor: (!hasText || isLoading) ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <IconArrowRight size={20} />
-                </ActionIcon>
+                {isLoading ? (
+                  <ActionIcon
+                    type="button"
+                    radius="xl"
+                    size="lg"
+                    variant="filled"
+                    onClick={onStop}
+                    style={{
+                      backgroundColor: '#ef4444',
+                      color: 'white',
+                      transition: 'all 0.15s ease-in-out',
+                      transform: 'scale(1.08)',
+                      boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <IconSquare size={14} style={{ fill: "currentColor" }} />
+                  </ActionIcon>
+                ) : (
+                  <ActionIcon
+                    type="submit"
+                    radius="xl"
+                    size="lg"
+                    variant="filled"
+                    disabled={!hasText}
+                    style={{
+                      backgroundColor: hasText ? '#3b82f6' : 'rgba(255,255,255,0.05)',
+                      color: hasText ? 'white' : 'rgba(255,255,255,0.3)',
+                      transition: 'all 0.15s ease-in-out',
+                      transform: hasText ? 'scale(1.08)' : 'scale(1)',
+                      boxShadow: hasText ? '0 4px 12px rgba(59, 130, 246, 0.4)' : 'none',
+                      cursor: !hasText ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <IconArrowRight size={20} />
+                  </ActionIcon>
+                )}
               </Group>
             </Group>
           </Stack>
