@@ -23,7 +23,8 @@ import {
   SegmentedControl,
   Loader,
   Textarea,
-  Modal
+  Modal,
+  Menu
 } from "@mantine/core";
 import {
   IconTable,
@@ -34,7 +35,9 @@ import {
   IconActivity,
   IconDatabaseImport,
   IconUpload,
-  IconCheck
+  IconCheck,
+  IconDownload,
+  IconDotsVertical
 } from "@tabler/icons-react";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction, usePaginatedQuery } from "convex/react";
@@ -395,26 +398,51 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                       <Text size="xs" c="dimmed">Source: <span style={{ fontFamily: "monospace" }}>{selectedModel.tableName}</span></Text>
                     </Stack>
                     <Group>
-                      <Button
-                        variant="outline"
-                        color="violet"
-                        size="xs"
-                        onClick={() => setDbtModalOpen(true)}
-                        leftSection={<IconDatabaseImport size={14} />}
-                      >
-                        Import dbt metadata
-                      </Button>
-                      <Button
-                        variant="gradient"
-                        gradient={{ from: 'violet', to: 'indigo' }}
-                        size="xs"
-                        loading={isEnriching}
-                        onClick={handleAiEnrich}
-                        leftSection={<IconSettings size={14} />}
-                      >
-                        AI Magic Enrichment
-                      </Button>
-                      <Button variant="light" color="gray" size="xs">Manual Settings</Button>
+                      <Menu shadow="md" width={220} position="bottom-end">
+                        <Menu.Target>
+                          <ActionIcon variant="subtle" color="gray" size="lg" radius="md">
+                            <IconDotsVertical size={18} />
+                          </ActionIcon>
+                        </Menu.Target>
+
+                        <Menu.Dropdown>
+                          <Menu.Label>Semantic Modeling Actions</Menu.Label>
+                          <Menu.Item
+                            leftSection={<IconDatabaseImport size={14} color="#a855f7" />}
+                            onClick={() => setDbtModalOpen(true)}
+                          >
+                            Import dbt metadata
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconDownload size={14} color="#a855f7" />}
+                            component="a"
+                            href={`/api/db/export-osi?configId=${configId}&organizationId=${activeOrg?._id}`}
+                            download
+                          >
+                            Export OSI Model
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconDownload size={14} color="#a855f7" />}
+                            component="a"
+                            href={`/api/db/export-dbt?configId=${configId}&organizationId=${activeOrg?._id}`}
+                            download
+                          >
+                            Export dbt Schema
+                          </Menu.Item>
+                          <Menu.Divider />
+                          <Menu.Label>AI & Settings</Menu.Label>
+                          <Menu.Item
+                            leftSection={<IconSettings size={14} color="#3b82f6" />}
+                            onClick={handleAiEnrich}
+                            disabled={isEnriching}
+                          >
+                            {isEnriching ? "Enriching..." : "AI Magic Enrichment"}
+                          </Menu.Item>
+                          <Menu.Item leftSection={<IconSettings size={14} color="#6b7280" />}>
+                            Manual Settings
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
                     </Group>
                   </Group>
                 </Box>
