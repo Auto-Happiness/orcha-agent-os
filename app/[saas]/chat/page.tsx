@@ -164,7 +164,7 @@ export default function ChatPage() {
     chatParamsRef.current = { activeOrgId, selectedConfigIds, selectedModel, saas, showResults, activeSessionId };
   }, [activeOrgId, selectedConfigIds, selectedModel, saas, showResults, activeSessionId]);
 
-  const { messages, sendMessage, setMessages, status } = (useChat as any)({
+  const { messages, sendMessage, setMessages, status, stop } = (useChat as any)({
     id: activeSessionId ?? undefined,
     experimental_throttle: 80,
     transport: new DefaultChatTransport({
@@ -211,6 +211,13 @@ export default function ChatPage() {
       }
     },
   });
+
+  const handleStop = useCallback(() => {
+    if (stop) {
+      stop();
+    }
+    setIsStreaming(false);
+  }, [stop]);
 
   const isLoading = status === "streaming" || status === "submitted";
 
@@ -342,7 +349,7 @@ export default function ChatPage() {
                 {messages?.length === 0 && (
                   <WelcomeScreen user={user} setInput={setInput} />
                 )}
-                <ChatMessages
+                 <ChatMessages
                   messages={messages || []}
                   isLoading={isLoading}
                   showResults={showResults}
@@ -368,6 +375,7 @@ export default function ChatPage() {
             setSelectedModel={handleModelChange}
             showResults={showResults}
             setShowResults={setShowResults}
+            onStop={handleStop}
           />
         </Box>
       </Stack>
