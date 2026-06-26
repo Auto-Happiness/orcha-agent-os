@@ -82,7 +82,10 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
     }
   };
   const columns = data && data.length > 0 ? Object.keys(data[0]) : [];
-  const hasMore = data.length >= 50;
+  const PREVIEW_LIMIT = 20;
+  const isDisplayCapped = data.length > PREVIEW_LIMIT;
+  const hasMoreInDb = data.length >= 20;
+  const displayData = isDisplayCapped ? data.slice(0, PREVIEW_LIMIT) : data;
 
   const exportPreviewCsv = useCallback(() => {
     const escape = (v: any) => {
@@ -231,7 +234,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                   </td>
                 </tr>
               ) : (
-                data.map((row, ri) => (
+                displayData.map((row, ri) => (
                   <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
@@ -279,17 +282,26 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
       </ScrollArea>
 
       {/* Footer */}
-      {hasMore && (
+      {(isDisplayCapped || hasMoreInDb) && (
         <Box style={{ padding: "8px 16px", borderTop: "1px solid rgba(147,51,234,0.1)", background: "rgba(19,16,42,0.6)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <Group gap={6}>
             <Box style={{ width: 4, height: 4, borderRadius: "50%", background: "rgba(147,51,234,0.5)" }} />
-            <Text size="11px" c="dimmed">Showing {data.length} rows (limit reached — download for full dataset)</Text>
+            <Text size="11px" c="dimmed">
+              {hasMoreInDb 
+                ? `Showing first 20 of ${data.length} rows (limit reached)` 
+                : `Showing first 20 of ${data.length} rows`}
+            </Text>
           </Group>
-          {sql && (
-            <Button size="compact-xs" variant="light" color="violet" radius="md" loading={isExporting} leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11 } }}>
-              Download full dataset
+          <Group gap={8}>
+            <Button size="compact-xs" variant="subtle" color="violet" radius="md" leftSection={<IconEye size={11} />} onClick={handleViewFullData} styles={{ root: { fontSize: 11 } }}>
+              View full dataset
             </Button>
-          )}
+            {sql && (
+              <Button size="compact-xs" variant="light" color="violet" radius="md" loading={isExporting} leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11 } }}>
+                Download CSV
+              </Button>
+            )}
+          </Group>
         </Box>
       )}
 

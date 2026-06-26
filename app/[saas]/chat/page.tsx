@@ -435,6 +435,7 @@ export default function ChatPage() {
         {/* Right Detail Panel (Claude/Gemini style) */}
         <DatasetDetailPanel
           activeDetailTable={activeDetailTable}
+          configId={selectedConfigIds[0]}
           onClose={() => setActiveDetailTable(null)}
         />
       </Box>

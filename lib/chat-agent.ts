@@ -13,7 +13,7 @@ import { compileToMdl } from "./semantic-compiler";
 import { classifyError, ErrorType } from "./errors";
 
 
-const MAX_ROWS = 50;
+const MAX_ROWS = 20;
 const ALLOWED_SQL_PREFIXES = ["select", "show", "describe", "explain", "with"];
 
 const intentSchema = z.object({

@@ -1,3 +1,7 @@
+// TODO: Temporary hotfix for Node.js IPv6 DNS resolution issues with Clerk/Convex
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
+
 import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { WebhookEvent } from '@clerk/nextjs/server';
