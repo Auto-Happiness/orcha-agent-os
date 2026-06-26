@@ -20,6 +20,7 @@ interface ChatMessagesProps {
   showResults: boolean;
   organizationId?: string;
   configId?: string | null;
+  onViewFullData?: (details: { data: any[], title: string, sql?: string }) => void;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -263,7 +264,8 @@ function renderToolPart(
   messageId?: string,
   parts?: any[],
   question?: string,
-  chatHistory?: any[]
+  chatHistory?: any[],
+  onViewFullData?: (details: { data: any[], title: string, sql?: string }) => void
 ) {
   const type: string = part.type ?? "";
 
@@ -349,7 +351,7 @@ function renderToolPart(
     if (!showResults) return null;
     return (
       <Box key={i} ml="3rem" mt="sm">
-        <DataTable data={result.data} sql={partSql} organizationId={organizationId} configId={configId} question={question} chatHistory={chatHistory} />
+        <DataTable data={result.data} sql={partSql} organizationId={organizationId} configId={configId} question={question} chatHistory={chatHistory} onViewFullData={onViewFullData} />
       </Box>
     );
   }
@@ -378,8 +380,8 @@ function renderToolPart(
 
 // ── MessageRow (memoized ── only re-renders when its own message changes) ─────
 
-const MessageRow = memo(function MessageRow({ m, showResults, organizationId, configId, onViewSql, onViewMcpTools, onViewRetryLogs, question, chatHistory }: {
-  m: any; showResults: boolean; organizationId?: string; configId?: string | null; onViewSql: (q: string[]) => void; onViewMcpTools: (calls: McpToolCall[]) => void; onViewRetryLogs: (logs: RetryLog[]) => void; question?: string; chatHistory?: any[];
+const MessageRow = memo(function MessageRow({ m, showResults, organizationId, configId, onViewSql, onViewMcpTools, onViewRetryLogs, question, chatHistory, onViewFullData }: {
+  m: any; showResults: boolean; organizationId?: string; configId?: string | null; onViewSql: (q: string[]) => void; onViewMcpTools: (calls: McpToolCall[]) => void; onViewRetryLogs: (logs: RetryLog[]) => void; question?: string; chatHistory?: any[]; onViewFullData?: (details: { data: any[], title: string, sql?: string }) => void;
 }) {
   const sqlQueries = m.role === "assistant" ? extractSQLFromParts(m.parts as any[]) : [];
   const mcpToolCalls = m.role === "assistant" ? extractMcpToolsFromParts(m.parts as any[]) : [];
@@ -478,14 +480,14 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
           )}
         </Stack>
       </Group>
-      {(m.parts as any[]).map((part: any, i: number) => renderToolPart(part, i, showResults, organizationId, configId, m.id || m._id, m.parts, question, chatHistory))}
+      {(m.parts as any[]).map((part: any, i: number) => renderToolPart(part, i, showResults, organizationId, configId, m.id || m._id, m.parts, question, chatHistory, onViewFullData))}
     </Stack>
   );
 });
 
 // ── ChatMessages ─────────────────────────────────────────────────────────────
 
-export function ChatMessages({ messages, isLoading, showResults, organizationId, configId }: ChatMessagesProps) {
+export function ChatMessages({ messages, isLoading, showResults, organizationId, configId, onViewFullData }: ChatMessagesProps) {
   const [sqlModal, setSqlModal] = useState<string[] | null>(null);
   const [mcpModal, setMcpModal] = useState<McpToolCall[] | null>(null);
   const [retryLogsModal, setRetryLogsModal] = useState<RetryLog[] | null>(null);
@@ -531,6 +533,7 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
             onViewRetryLogs={setRetryLogsModal}
             question={question}
             chatHistory={chatHistoryForMessage}
+            onViewFullData={onViewFullData}
           />
         );
       })}

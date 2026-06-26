@@ -2,25 +2,39 @@
 
 import React, { memo, useCallback, useState } from "react";
 import { Box, Group, Text, Button, ScrollArea, Modal, TextInput, Stack, Menu, ActionIcon } from "@mantine/core";
-import { IconTableExport, IconDownload, IconNotebook, IconCheck, IconDotsVertical } from "@tabler/icons-react";
+import { IconTableExport, IconDownload, IconNotebook, IconCheck, IconDotsVertical, IconEye } from "@tabler/icons-react";
 import { TableCellImage, isImageUrl } from "./TableCellImage";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { notifications } from "@mantine/notifications";
 
-export const DataTable = memo(function DataTable({ data, sql, organizationId, configId, question, chatHistory }: {
+export const DataTable = memo(function DataTable({ data, sql, organizationId, configId, question, chatHistory, onViewFullData }: {
   data: any[];
   sql?: string;
   organizationId?: string;
   configId?: string | null;
   question?: string;
   chatHistory?: any[];
+  onViewFullData?: (details: { data: any[], title: string, sql?: string }) => void;
 }) {
   const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [saveModalOpened, setSaveModalOpened] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [fullDataModalOpened, setFullDataModalOpened] = useState(false);
+
+  const handleViewFullData = () => {
+    if (onViewFullData) {
+      onViewFullData({
+        data,
+        title: question || "Query Result",
+        sql
+      });
+    } else {
+      setFullDataModalOpened(true);
+    }
+  };
 
   const saveResultMutation = useMutation(api.databook.saveResult);
   const currentUser = useQuery(api.users.getCurrentUser);
@@ -149,6 +163,14 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
               >
                 <Menu.Label c="dimmed" style={{ fontSize: "10px", textTransform: "uppercase" }}>Actions</Menu.Label>
                 
+                <Menu.Item
+                  leftSection={<IconEye size={14} />}
+                  onClick={handleViewFullData}
+                  style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
+                >
+                  View full data
+                </Menu.Item>
+
                 <Menu.Item
                   leftSection={<IconTableExport size={14} />}
                   onClick={exportPreviewCsv}
@@ -312,6 +334,82 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* View Full Data Modal */}
+      <Modal
+        opened={fullDataModalOpened}
+        onClose={() => setFullDataModalOpened(false)}
+        title={
+          <Group gap={8}>
+            <Text fw={700} c="white">Full Dataset View</Text>
+            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.12)", border: "1px solid rgba(147,51,234,0.2)" }}>
+              <Text size="10px" fw={700} c="violet.4">{data.length.toLocaleString()} rows · {columns.length} cols</Text>
+            </Box>
+          </Group>
+        }
+        size="95%"
+        styles={{
+          content: { background: "#0c0814", border: "1px solid rgba(147,51,234,0.2)" },
+          header: { background: "#0c0814" },
+        }}
+      >
+        <ScrollArea h="75vh" type="auto">
+          <Box style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(10,8,20,0.8)" }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 40, padding: "9px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", fontWeight: 500, borderBottom: "1px solid rgba(147,51,234,0.12)", background: "rgba(147,51,234,0.04)", userSelect: "none" }}>#</th>
+                  {columns.map((col) => (
+                    <th key={col} style={{ padding: "9px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "rgba(192,132,252,0.75)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid rgba(147,51,234,0.12)", borderLeft: "1px solid rgba(255,255,255,0.03)", background: "rgba(147,51,234,0.04)" }}>
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row, ri) => (
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
+                  >
+                    <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.03)", userSelect: "none" }}>{ri + 1}</td>
+                    {columns.map((col, ci) => {
+                      const val = row[col];
+                      const isNull = val == null;
+                      
+                      const isNumericString = typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim());
+                      const isNum = !isNull && (typeof val === "number" || isNumericString);
+                      
+                      const lowerCol = col.toLowerCase();
+                      const isIdentifier = lowerCol === "id" || lowerCol.endsWith("_id") || lowerCol.endsWith("id") || lowerCol === "year" || lowerCol === "zip" || lowerCol === "zipcode" || lowerCol.includes("phone");
+                      
+                      let displayVal = String(val);
+                      if (!isNull && isNum && !isIdentifier) {
+                        const numVal = Number(val);
+                        if (!isNaN(numVal)) {
+                          displayVal = numVal.toLocaleString();
+                        }
+                      } else if (isNull) {
+                        displayVal = "null";
+                      }
+
+                      const numericValue = !isNull && isNum ? Number(val) : NaN;
+                      const isNegative = !isNaN(numericValue) && numericValue < 0;
+                      const isImg = isImageUrl(val);
+
+                      return (
+                        <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
+                          {isImg ? <TableCellImage url={val} /> : displayVal}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Box>
+        </ScrollArea>
       </Modal>
     </Box>
   );

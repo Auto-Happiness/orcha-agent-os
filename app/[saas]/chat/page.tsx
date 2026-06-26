@@ -4,18 +4,19 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { Button, Stack, Text, ScrollArea, Box, Avatar, Title, Center, Loader } from "@mantine/core";
+import { Button, Stack, Text, ScrollArea, Box, Avatar, Title, Center, Loader, Group, ActionIcon, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { IconDatabaseOff } from "@tabler/icons-react";
+import { IconDatabaseOff, IconChevronRight } from "@tabler/icons-react";
 import { useParams } from "next/navigation";
 import { WelcomeScreen } from "@/components/Chat/WelcomeScreen";
 import { ChatMessages } from "@/components/Chat/ChatMessages";
 import { ChatPromptBox } from "@/components/Chat/ChatPromptBox";
 import { ChatSessionSidebar } from "@/components/Chat/ChatSessionSidebar";
+import { DatasetDetailPanel } from "@/components/Chat/DatasetDetailPanel";
 import { trimToolResultParts, normalizeChatParts, extractToolInvocations } from "@/lib/chat-utils";
 
 export default function ChatPage() {
@@ -113,6 +114,16 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [showResults, setShowResults] = useState(true);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [activeDetailTable, setActiveDetailTable] = useState<{ data: any[], title: string, sql?: string } | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+
+  const handleViewFullData = useCallback((tableDetails: { data: any[], title: string, sql?: string } | null) => {
+    setActiveDetailTable(tableDetails);
+    if (tableDetails) {
+      setIsSidebarCollapsed(true);
+    }
+  }, []);
 
   // ── Sync Session Config ────────────────────────────────────────────────
   // When activeSession changes (e.g. user selects a different session in sidebar),
@@ -284,6 +295,7 @@ export default function ChatPage() {
     restoredSessionRef.current = null;
     setInput("");
     setIsStreaming(false);
+    setActiveDetailTable(null);
   }, []);
 
   const handleNewSessionClick = useCallback(async () => {
@@ -298,6 +310,7 @@ export default function ChatPage() {
     restoredSessionRef.current = id;
     setInput("");
     setIsStreaming(false);
+    setActiveDetailTable(null);
   }, [activeOrg?._id, selectedConfigIds, selectedModel, createSession, setMessages]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -328,57 +341,103 @@ export default function ChatPage() {
     <Box h="calc(100vh - 56px)" style={{ display: "flex", overflow: "hidden" }}>
       <title>Chat</title>
       {activeOrg?._id && isSignedIn && (
-        <ChatSessionSidebar
-          organizationId={activeOrg._id}
-          activeSessionId={activeSessionId}
-          sessions={existingSessions}
-          onSelectSession={handleSelectSession}
-          onNewSession={handleNewSessionClick}
-        />
-      )}
-
-      <Stack style={{ flex: 1, minWidth: 0 }} gap={0}>
-        <ScrollArea viewportRef={scrollRef} style={{ flex: 1 }} scrollbarSize={6}>
-          <Stack gap={40} py="4rem" mx="auto" maw={860} px="md">
-            {persistedMessages === undefined ? (
-              <Center h="50vh">
-                <Loader color="violet" size="md" type="dots" />
-              </Center>
-            ) : (
-              <>
-                {messages?.length === 0 && (
-                  <WelcomeScreen user={user} setInput={setInput} />
-                )}
-                 <ChatMessages
-                  messages={messages || []}
-                  isLoading={isLoading}
-                  showResults={showResults}
-                  organizationId={activeOrgId}
-                  configId={selectedConfigIds[0]}
-                />
-              </>
-            )}
-          </Stack>
-        </ScrollArea>
-
-        <Box mx="auto" w="100%" maw={860} px="md">
-          <ChatPromptBox
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            allConfigs={allConfigs || []}
-            selectedConfigIds={selectedConfigIds}
-            setSelectedConfigIds={handleConfigChange}
-            aiKeys={aiKeys || []}
-            selectedModel={selectedModel}
-            setSelectedModel={handleModelChange}
-            showResults={showResults}
-            setShowResults={setShowResults}
-            onStop={handleStop}
+        <Box
+          style={{
+            width: isSidebarCollapsed ? 0 : 240,
+            transition: "width 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
+          }}
+        >
+          <ChatSessionSidebar
+            organizationId={activeOrg._id}
+            activeSessionId={activeSessionId}
+            sessions={existingSessions}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSessionClick}
+            onCollapse={() => setIsSidebarCollapsed(true)}
           />
         </Box>
-      </Stack>
+      )}
+
+      <Box style={{ flex: 1, display: "flex", overflow: "hidden", minWidth: 0, position: "relative" }}>
+        {isSidebarCollapsed && (
+          // Expand sidebar trigger button tooltip
+          <Tooltip label="Expand sidebar" withArrow position="right">
+            <ActionIcon
+              variant="subtle"
+              color="violet"
+              radius="md"
+              size="md"
+              onClick={() => setIsSidebarCollapsed(false)}
+              style={{
+                position: "absolute",
+                left: 16,
+                top: 16,
+                zIndex: 20,
+                background: "rgba(19, 15, 34, 0.6)",
+                border: "1px solid rgba(147, 51, 234, 0.2)",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <IconChevronRight size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+
+        {/* Chat Panel */}
+        <Stack style={{ flex: activeDetailTable ? 55 : 1, minWidth: 320, transition: "flex 0.3s cubic-bezier(0.16, 1, 0.3, 1)" }} gap={0}>
+          <ScrollArea viewportRef={scrollRef} style={{ flex: 1 }} scrollbarSize={6}>
+            <Stack gap={40} py="4rem" mx="auto" w="100%" maw={activeDetailTable ? "100%" : 860} px="md">
+              {persistedMessages === undefined ? (
+                <Center h="50vh">
+                  <Loader color="violet" size="md" type="dots" />
+                </Center>
+              ) : (
+                <>
+                  {messages?.length === 0 && (
+                    <WelcomeScreen user={user} setInput={setInput} />
+                  )}
+                  <ChatMessages
+                    messages={messages || []}
+                    isLoading={isLoading}
+                    showResults={showResults}
+                    organizationId={activeOrgId}
+                    configId={selectedConfigIds[0]}
+                    onViewFullData={handleViewFullData}
+                  />
+                </>
+              )}
+            </Stack>
+          </ScrollArea>
+
+          <Box mx="auto" w="100%" maw={activeDetailTable ? "100%" : 860} px="md">
+            <ChatPromptBox
+              input={input}
+              handleInputChange={handleInputChange}
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              allConfigs={allConfigs || []}
+              selectedConfigIds={selectedConfigIds}
+              setSelectedConfigIds={handleConfigChange}
+              aiKeys={aiKeys || []}
+              selectedModel={selectedModel}
+              setSelectedModel={handleModelChange}
+              showResults={showResults}
+              setShowResults={setShowResults}
+              onStop={handleStop}
+            />
+          </Box>
+        </Stack>
+
+        {/* Right Detail Panel (Claude/Gemini style) */}
+        <DatasetDetailPanel
+          activeDetailTable={activeDetailTable}
+          onClose={() => setActiveDetailTable(null)}
+        />
+      </Box>
     </Box>
   );
 }
