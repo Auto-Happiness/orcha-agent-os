@@ -2,25 +2,39 @@
 
 import React, { memo, useCallback, useState } from "react";
 import { Box, Group, Text, Button, ScrollArea, Modal, TextInput, Stack, Menu, ActionIcon } from "@mantine/core";
-import { IconTableExport, IconDownload, IconNotebook, IconCheck, IconDotsVertical } from "@tabler/icons-react";
+import { IconTableExport, IconDownload, IconNotebook, IconCheck, IconDotsVertical, IconEye } from "@tabler/icons-react";
 import { TableCellImage, isImageUrl } from "./TableCellImage";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { notifications } from "@mantine/notifications";
 
-export const DataTable = memo(function DataTable({ data, sql, organizationId, configId, question, chatHistory }: {
+export const DataTable = memo(function DataTable({ data, sql, organizationId, configId, question, chatHistory, onViewFullData }: {
   data: any[];
   sql?: string;
   organizationId?: string;
   configId?: string | null;
   question?: string;
   chatHistory?: any[];
+  onViewFullData?: (details: { data: any[], title: string, sql?: string }) => void;
 }) {
   const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [saveModalOpened, setSaveModalOpened] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [fullDataModalOpened, setFullDataModalOpened] = useState(false);
+
+  const handleViewFullData = () => {
+    if (onViewFullData) {
+      onViewFullData({
+        data,
+        title: question || "Query Result",
+        sql
+      });
+    } else {
+      setFullDataModalOpened(true);
+    }
+  };
 
   const saveResultMutation = useMutation(api.databook.saveResult);
   const currentUser = useQuery(api.users.getCurrentUser);
@@ -68,7 +82,10 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
     }
   };
   const columns = data && data.length > 0 ? Object.keys(data[0]) : [];
-  const hasMore = data.length >= 50;
+  const PREVIEW_LIMIT = 20;
+  const isDisplayCapped = data.length > PREVIEW_LIMIT;
+  const hasMoreInDb = data.length >= 20;
+  const displayData = isDisplayCapped ? data.slice(0, PREVIEW_LIMIT) : data;
 
   const exportPreviewCsv = useCallback(() => {
     const escape = (v: any) => {
@@ -150,6 +167,14 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                 <Menu.Label c="dimmed" style={{ fontSize: "10px", textTransform: "uppercase" }}>Actions</Menu.Label>
                 
                 <Menu.Item
+                  leftSection={<IconEye size={14} />}
+                  onClick={handleViewFullData}
+                  style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
+                >
+                  View full data
+                </Menu.Item>
+
+                <Menu.Item
                   leftSection={<IconTableExport size={14} />}
                   onClick={exportPreviewCsv}
                   style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
@@ -209,7 +234,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                   </td>
                 </tr>
               ) : (
-                data.map((row, ri) => (
+                displayData.map((row, ri) => (
                   <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
@@ -257,17 +282,26 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
       </ScrollArea>
 
       {/* Footer */}
-      {hasMore && (
+      {(isDisplayCapped || hasMoreInDb) && (
         <Box style={{ padding: "8px 16px", borderTop: "1px solid rgba(147,51,234,0.1)", background: "rgba(19,16,42,0.6)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <Group gap={6}>
             <Box style={{ width: 4, height: 4, borderRadius: "50%", background: "rgba(147,51,234,0.5)" }} />
-            <Text size="11px" c="dimmed">Showing {data.length} rows (limit reached — download for full dataset)</Text>
+            <Text size="11px" c="dimmed">
+              {hasMoreInDb 
+                ? `Showing first 20 of ${data.length} rows (limit reached)` 
+                : `Showing first 20 of ${data.length} rows`}
+            </Text>
           </Group>
-          {sql && (
-            <Button size="compact-xs" variant="light" color="violet" radius="md" loading={isExporting} leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11 } }}>
-              Download full dataset
+          <Group gap={8}>
+            <Button size="compact-xs" variant="subtle" color="violet" radius="md" leftSection={<IconEye size={11} />} onClick={handleViewFullData} styles={{ root: { fontSize: 11 } }}>
+              View full dataset
             </Button>
-          )}
+            {sql && (
+              <Button size="compact-xs" variant="light" color="violet" radius="md" loading={isExporting} leftSection={<IconDownload size={11} />} onClick={exportFullCsv} styles={{ root: { fontSize: 11 } }}>
+                Download CSV
+              </Button>
+            )}
+          </Group>
         </Box>
       )}
 
@@ -312,6 +346,82 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* View Full Data Modal */}
+      <Modal
+        opened={fullDataModalOpened}
+        onClose={() => setFullDataModalOpened(false)}
+        title={
+          <Group gap={8}>
+            <Text fw={700} c="white">Full Dataset View</Text>
+            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.12)", border: "1px solid rgba(147,51,234,0.2)" }}>
+              <Text size="10px" fw={700} c="violet.4">{data.length.toLocaleString()} rows · {columns.length} cols</Text>
+            </Box>
+          </Group>
+        }
+        size="95%"
+        styles={{
+          content: { background: "#0c0814", border: "1px solid rgba(147,51,234,0.2)" },
+          header: { background: "#0c0814" },
+        }}
+      >
+        <ScrollArea h="75vh" type="auto">
+          <Box style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(10,8,20,0.8)" }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 40, padding: "9px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", fontWeight: 500, borderBottom: "1px solid rgba(147,51,234,0.12)", background: "rgba(147,51,234,0.04)", userSelect: "none" }}>#</th>
+                  {columns.map((col) => (
+                    <th key={col} style={{ padding: "9px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "rgba(192,132,252,0.75)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid rgba(147,51,234,0.12)", borderLeft: "1px solid rgba(255,255,255,0.03)", background: "rgba(147,51,234,0.04)" }}>
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row, ri) => (
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
+                  >
+                    <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.03)", userSelect: "none" }}>{ri + 1}</td>
+                    {columns.map((col, ci) => {
+                      const val = row[col];
+                      const isNull = val == null;
+                      
+                      const isNumericString = typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim());
+                      const isNum = !isNull && (typeof val === "number" || isNumericString);
+                      
+                      const lowerCol = col.toLowerCase();
+                      const isIdentifier = lowerCol === "id" || lowerCol.endsWith("_id") || lowerCol.endsWith("id") || lowerCol === "year" || lowerCol === "zip" || lowerCol === "zipcode" || lowerCol.includes("phone");
+                      
+                      let displayVal = String(val);
+                      if (!isNull && isNum && !isIdentifier) {
+                        const numVal = Number(val);
+                        if (!isNaN(numVal)) {
+                          displayVal = numVal.toLocaleString();
+                        }
+                      } else if (isNull) {
+                        displayVal = "null";
+                      }
+
+                      const numericValue = !isNull && isNum ? Number(val) : NaN;
+                      const isNegative = !isNaN(numericValue) && numericValue < 0;
+                      const isImg = isImageUrl(val);
+
+                      return (
+                        <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
+                          {isImg ? <TableCellImage url={val} /> : displayVal}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Box>
+        </ScrollArea>
       </Modal>
     </Box>
   );

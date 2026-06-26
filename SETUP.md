@@ -301,6 +301,32 @@ If you are using the WinGet-provided **LLVM-MinGW** toolchain (`MartinStorsjo.LL
    wasm-pack build --target nodejs
    ```
 
+### 🛠️ Troubleshooting Clerk/Network Connection Errors ("fetch failed")
+
+If you get a `ClerkAPIResponseError` with `unexpected_error` and `fetch failed` at runtime when calling `clerkAuth.getToken()` (e.g. inside `app/api/chat/route.ts`), this is a known Node.js 18+ DNS resolution issue.
+
+Node's native HTTP/fetch client (`undici`) attempts to resolve external domains via IPv6 first. If your local network interface has IPv6 enabled but does not have valid routing/gateway out to the internet, the request will hang and fail, even if command-line tools like `curl` work (since they use different system-level fallbacks).
+
+You can resolve this using one of the following methods:
+
+#### Option A: Set Environment Variable globally in PowerShell (Permanent Windows Fix)
+Run this command in PowerShell to configure Node to prefer IPv4 DNS resolution globally:
+```powershell
+[System.Environment]::SetEnvironmentVariable("NODE_OPTIONS", "--dns-result-order=ipv4first", "User")
+```
+*Note: Restart your terminal/IDE (e.g., VS Code) after running this to apply the change.*
+
+#### Option B: Prepend to Development Startup Command (Temporary/Session Fix)
+- **PowerShell**:
+  ```powershell
+  $env:NODE_OPTIONS="--dns-result-order=ipv4first"
+  npm run dev
+  ```
+- **Git Bash / Linux / macOS**:
+  ```bash
+  NODE_OPTIONS="--dns-result-order=ipv4first" npm run dev
+  ```
+
 ## 📄 License
 
 MIT

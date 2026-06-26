@@ -1,3 +1,7 @@
+// TODO: Temporary hotfix for Node.js IPv6 DNS resolution issues with Clerk/Convex
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
+
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
 /**

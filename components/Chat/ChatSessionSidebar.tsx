@@ -1,7 +1,7 @@
 "use client";
 
 import { Box, Stack, Text, Group, ActionIcon, Tooltip, ScrollArea, Loader, Menu, Modal, Button as MantineButton } from "@mantine/core";
-import { IconPlus, IconTrash, IconMessage, IconPencil, IconCheck, IconX, IconDots } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconMessage, IconPencil, IconCheck, IconX, IconDots, IconChevronLeft } from "@tabler/icons-react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -19,6 +19,7 @@ interface ChatSessionSidebarProps {
   sessions: Session[] | undefined;
   onSelectSession: (id: string) => void;
   onNewSession: () => void;
+  onCollapse?: () => void;
 }
 
 export function ChatSessionSidebar({
@@ -27,6 +28,7 @@ export function ChatSessionSidebar({
   sessions,
   onSelectSession,
   onNewSession,
+  onCollapse,
 }: ChatSessionSidebarProps) {
   const removeSession = useMutation(api.chatSessions.remove);
   const updateTitle = useMutation(api.chatSessions.updateTitle);
@@ -83,16 +85,30 @@ export function ChatSessionSidebar({
         <Text size="xs" fw={600} c="rgba(255,255,255,0.5)" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>
           Conversations
         </Text>
-        <Tooltip label="New chat" withArrow position="right">
-          <ActionIcon
-            size="sm"
-            variant="subtle"
-            color="violet"
-            onClick={onNewSession}
-          >
-            <IconPlus size={14} />
-          </ActionIcon>
-        </Tooltip>
+        <Group gap={6}>
+          <Tooltip label="New chat" withArrow position="bottom">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="violet"
+              onClick={onNewSession}
+            >
+              <IconPlus size={14} />
+            </ActionIcon>
+          </Tooltip>
+          {onCollapse && (
+            <Tooltip label="Collapse sidebar" withArrow position="bottom">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                color="gray"
+                onClick={onCollapse}
+              >
+                <IconChevronLeft size={14} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
       </Group>
 
       {/* Session list */}
