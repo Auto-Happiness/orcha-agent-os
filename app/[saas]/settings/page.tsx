@@ -73,18 +73,19 @@ export default function SettingsPage() {
           variant="pills"
           orientation="vertical"
           color="violet"
+          className="config-tabs"
           styles={{
             root: { flex: 1, gap: "3rem" },
             list: {
               width: 240,
               borderLeft: "none",
-              borderRight: "1px solid rgba(255,255,255,0.05)",
+              borderRight: "1px solid var(--orcha-border)",
               paddingLeft: 0,
               paddingRight: "2rem",
               background: "transparent"
             },
             tab: {
-              color: "rgba(255,255,255,0.4)",
+              color: "var(--orcha-text-muted)",
               padding: "0.8rem 1.2rem",
               justifyContent: "flex-start",
               fontSize: "13px",
@@ -102,9 +103,9 @@ export default function SettingsPage() {
             <Tabs.Tab value="ai" leftSection={<IconSparkles size={16} />}>AI Intelligence</Tabs.Tab>
             <Tabs.Tab value="security" leftSection={<IconShieldLock size={16} />}>Security</Tabs.Tab>
 
-            <Divider color="rgba(255,255,255,0.05)" my="xl" />
+            <Divider color="var(--orcha-border)" my="xl" />
 
-            <Text size="11px" c="dimmed" px="xs">Need help? <Text span c="violet.4" style={{ cursor: "pointer" }}>View Documentation</Text></Text>
+            <Text size="11px" c="dimmed" px="xs">Need help? <Text span c="var(--orcha-purple)" style={{ cursor: "pointer" }}>View Documentation</Text></Text>
           </Tabs.List>
 
           {/* Main Content Area */}

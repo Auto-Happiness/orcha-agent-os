@@ -93,8 +93,8 @@ export function LivePreviewSection({
         h={280}
         style={{
           position: "relative",
-          background: "rgba(0,0,0,0.2)",
-          border: "1px solid rgba(147, 51, 234, 0.1)",
+          background: "var(--orcha-surface)",
+          border: "1px solid var(--orcha-border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

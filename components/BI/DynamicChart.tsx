@@ -102,7 +102,7 @@ export function DynamicChart({
 
   if (formattedData.length === 0) {
     return (
-      <Center style={{ height: "100%", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8 }}>
+      <Center style={{ height: "100%", border: "1px dashed var(--orcha-border)", borderRadius: 8 }}>
         <Text size="xs" c="dimmed">No data available for visualization</Text>
       </Center>
     );
@@ -111,7 +111,7 @@ export function DynamicChart({
   // Common styles
   const axisStyle = {
     fontSize: 10,
-    fill: "rgba(255,255,255,0.4)",
+    fill: "var(--orcha-text-muted)",
   };
 
   const defaultPalette = ["#9333ea", "#00D1FF", "#00FF94", "#FF00E5", "#FFB800", "#FF6B6B"];
@@ -130,13 +130,13 @@ export function DynamicChart({
         <Box
           p="xs"
           style={{
-            background: "#130f22",
-            border: "1px solid rgba(147, 51, 234, 0.2)",
+            background: "var(--orcha-panel)",
+            border: "1px solid var(--orcha-border)",
             borderRadius: 8,
-            boxShadow: "0 10px 20px rgba(0,0,0,0.3)",
+            boxShadow: "0 10px 20px rgba(0,0,0,0.05)",
           }}
         >
-          <Text size="xs" fw={700} c="white" mb={4}>
+          <Text size="xs" fw={700} c="var(--orcha-text-title)" mb={4}>
             {label}
           </Text>
           <Stack gap={2}>
@@ -144,7 +144,7 @@ export function DynamicChart({
               <Group key={index} gap={8} wrap="nowrap">
                 <Box w={8} h={8} style={{ borderRadius: "50%", background: entry.color || entry.fill }} />
                 <Text size="10px" c="dimmed" style={{ flex: 1 }}>{entry.name}:</Text>
-                <Text size="10px" fw={700} c="white">
+                <Text size="10px" fw={700} c="var(--orcha-text-title)">
                   {entry.value.toLocaleString()}
                 </Text>
               </Group>
@@ -163,15 +163,14 @@ export function DynamicChart({
         const cols = Object.keys(data[0] || {});
         return (
           <Box style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <ScrollArea h="100%" className="rounded-lg border border-white/[0.06] bg-black/20" style={{ flex: 1 }}>
-              <Table variant="unstyled" style={{ color: "rgba(255,255,255,0.85)" }}>
-                <Table.Thead className="bg-[#120a2a]/80 backdrop-blur-md sticky top-0 z-10 border-b border-purple-500/25">
+            <ScrollArea h="100%" style={{ flex: 1, border: "1px solid var(--orcha-border)", background: "var(--orcha-surface)", borderRadius: 8 }}>
+              <Table variant="unstyled" style={{ color: "var(--orcha-text-body)" }}>
+                <Table.Thead style={{ background: "var(--orcha-sidebar-hover-bg)", backdropFilter: "blur(8px)", position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid var(--orcha-border)" }}>
                   <Table.Tr>
                     {cols.map((col) => (
                       <Table.Th 
                         key={col} 
-                        className="text-purple-300/80 font-bold uppercase tracking-wider text-[10px] py-3.5 px-4 text-left border-b border-purple-500/20"
-                        style={{ borderBottom: "1px solid rgba(147, 51, 234, 0.25)" }}
+                        style={{ borderBottom: "1px solid var(--orcha-border)", padding: "14px 16px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, fontSize: 10, color: "var(--orcha-purple)" }}
                       >
                         {col.replace(/_/g, " ")}
                       </Table.Th>
@@ -182,14 +181,14 @@ export function DynamicChart({
                   {data.map((row, rowIndex) => (
                     <Table.Tr 
                       key={rowIndex} 
-                      className="border-b border-white/[0.03] hover:bg-purple-500/[0.04] transition-colors duration-150"
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+                      className="border-b border-[var(--orcha-table-border)] hover:bg-[var(--orcha-sidebar-hover-bg)] transition-colors duration-150"
+                      style={{ borderBottom: "1px solid var(--orcha-table-border)" }}
                     >
                       {cols.map((col) => {
                         const val = row[col];
                         const displayVal = typeof val === "number" ? val.toLocaleString() : String(val ?? "");
                         return (
-                          <Table.Td key={col} className="text-slate-200 font-medium text-[11px] py-3 px-4" style={{ whiteSpace: "nowrap" }}>
+                          <Table.Td key={col} className="text-[var(--orcha-text-body)] font-medium text-[11px] py-3 px-4" style={{ whiteSpace: "nowrap" }}>
                             {displayVal}
                           </Table.Td>
                         );
@@ -275,7 +274,7 @@ export function DynamicChart({
       case "line":
         return (
           <LineChart data={formattedData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--orcha-border)" vertical={false} />
             <XAxis dataKey={resolvedLabelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
             <YAxis {...axisStyle} tickLine={false} axisLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v} />
             <Tooltip content={<CustomTooltip />} />
@@ -289,7 +288,7 @@ export function DynamicChart({
                   name={key}
                   stroke={sColor}
                   strokeWidth={3}
-                  dot={{ r: 4, fill: sColor, strokeWidth: 2, stroke: "#0c0918" }}
+                  dot={{ r: 4, fill: sColor, strokeWidth: 2, stroke: "var(--orcha-panel)" }}
                   activeDot={{ r: 6, strokeWidth: 0 }}
                 />
               );
@@ -311,7 +310,7 @@ export function DynamicChart({
                 );
               })}
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--orcha-border)" vertical={false} />
             <XAxis dataKey={resolvedLabelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
             <YAxis {...axisStyle} tickLine={false} axisLine={false} />
             <Tooltip content={<CustomTooltip />} />
@@ -336,15 +335,15 @@ export function DynamicChart({
       case "radar":
         return (
           <RadarChart cx="50%" cy="50%" outerRadius="70%" data={formattedData}>
-            <PolarGrid stroke="rgba(255,255,255,0.06)" />
+            <PolarGrid stroke="var(--orcha-border)" />
             <PolarAngleAxis
               dataKey={resolvedLabelKey}
-              tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+              tick={{ fill: "var(--orcha-text-muted)", fontSize: 10 }}
             />
             <PolarRadiusAxis
               angle={90}
               domain={[0, "auto"]}
-              tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 8 }}
+              tick={{ fill: "var(--orcha-text-muted)", fontSize: 8 }}
               axisLine={false}
             />
             <Tooltip content={<CustomTooltip />} />
@@ -366,7 +365,7 @@ export function DynamicChart({
               verticalAlign="bottom"
               align="center"
               iconType="circle"
-              wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}
+              wrapperStyle={{ fontSize: 11, color: "var(--orcha-text-muted)" }}
             />
           </RadarChart>
         );
@@ -400,7 +399,7 @@ export function DynamicChart({
               verticalAlign="bottom"
               align="center"
               iconType="circle"
-              wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}
+              wrapperStyle={{ fontSize: 11, color: "var(--orcha-text-muted)" }}
             />
           </PieChart>
         );
@@ -409,10 +408,10 @@ export function DynamicChart({
       default:
         return (
           <BarChart data={formattedData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--orcha-border)" vertical={false} />
             <XAxis dataKey={resolvedLabelKey} {...axisStyle} tickLine={false} axisLine={false} dy={10} />
             <YAxis {...axisStyle} tickLine={false} axisLine={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--orcha-sidebar-hover-bg)" }} />
             {valueKeys.map((key, index) => {
               const sColor = getSeriesColor(key, index);
               return (

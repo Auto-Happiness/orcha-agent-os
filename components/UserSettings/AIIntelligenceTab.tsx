@@ -157,14 +157,14 @@ export function AIIntelligenceTab({ organization }: AIIntelligenceTabProps) {
   };
 
   return (
-    <Paper withBorder p="2.5rem" radius="lg" style={{ background: "rgba(255,255,255,0.01)" }}>
+    <Paper withBorder p="2.5rem" radius="lg" style={{ background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" }}>
       <Stack gap="xl">
         <Box>
           <Title order={3} size="1.5rem">AI Intelligence Providers</Title>
           <Text size="sm" c="dimmed">Configure the intelligence layers powering your agentic swarms.</Text>
         </Box>
 
-        <Divider color="rgba(255,255,255,0.05)" />
+        <Divider color="var(--orcha-border)" />
 
         <Stack gap="lg">
           {PROVIDERS.map((p) => {
@@ -179,8 +179,8 @@ export function AIIntelligenceTab({ organization }: AIIntelligenceTabProps) {
                 p="md" 
                 radius="md" 
                 style={{ 
-                  background: keyRecord ? "rgba(147,51,234,0.02)" : "rgba(255,255,255,0.012)",
-                  borderColor: keyRecord ? "rgba(147,51,234,0.2)" : "rgba(255,255,255,0.05)"
+                  background: keyRecord ? "var(--orcha-sidebar-hover-bg)" : "var(--orcha-surface)",
+                  borderColor: keyRecord ? "var(--orcha-purple)" : "var(--orcha-border)"
                 }}
               >
                 <Stack>
@@ -188,7 +188,7 @@ export function AIIntelligenceTab({ organization }: AIIntelligenceTabProps) {
                     <Group gap="md">
                       <Avatar size="sm" src={p.icon} radius="xs" />
                       <Box>
-                        <Text size="sm" fw={700} c="white">{p.name}</Text>
+                        <Text size="sm" fw={700} c="var(--orcha-text-title)">{p.name}</Text>
                         <Text size="xs" c="dimmed">{p.description}</Text>
                       </Box>
                     </Group>

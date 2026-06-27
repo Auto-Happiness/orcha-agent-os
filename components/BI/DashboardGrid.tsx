@@ -7,7 +7,7 @@ import {
   LayoutItem,
   useContainerWidth
 } from "react-grid-layout";
-import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center, Table, ScrollArea } from "@mantine/core";
+import { Box, Paper, Text, Group, ActionIcon, Menu, Stack, Loader, Center, Table, ScrollArea, useMantineColorScheme } from "@mantine/core";
 import { IconDotsVertical, IconTrash, IconSettings, IconChartBar } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { DynamicChart } from "./DynamicChart";
@@ -30,7 +30,7 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
   if (widget.type === "text") {
     return (
       <Box p="xs" style={{ height: "100%", overflow: "auto" }}>
-        <Text size="sm" c="gray.2" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+        <Text size="sm" c="var(--orcha-text-body)" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
           {widget.description || "Add text content from Configure > Text Box."}
         </Text>
       </Box>
@@ -52,9 +52,9 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
     return (
       <Center h="100%">
         <Stack align="center" gap={4}>
-          <IconChartBar size={32} color="rgba(255,255,255,0.05)" />
+          <IconChartBar size={32} color="var(--orcha-border)" />
           <Text size="xs" c="dimmed">Not Configured</Text>
-          <Text size="10px" c="violet.4">Click to setup intelligence</Text>
+          <Text size="10px" c="var(--orcha-purple)">Click to setup intelligence</Text>
         </Stack>
       </Center>
     );
@@ -71,15 +71,14 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
     const columns = Object.keys(queryData[0]);
     return (
       <Box p="xs" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <ScrollArea h="100%" className="rounded-lg border border-white/[0.06] bg-black/20" style={{ flex: 1 }}>
-          <Table variant="unstyled" style={{ color: "rgba(255,255,255,0.85)" }}>
-            <Table.Thead className="bg-[#120a2a]/80 backdrop-blur-md sticky top-0 z-10 border-b border-purple-500/25">
+        <ScrollArea h="100%" style={{ flex: 1, border: "1px solid var(--orcha-border)", background: "var(--orcha-surface)", borderRadius: 8 }}>
+          <Table variant="unstyled" style={{ color: "var(--orcha-text-body)" }}>
+            <Table.Thead style={{ background: "var(--orcha-sidebar-hover-bg)", backdropFilter: "blur(8px)", position: "sticky", top: 0, zIndex: 10, borderBottom: "1px solid var(--orcha-border)" }}>
               <Table.Tr>
                 {columns.map((col) => (
                   <Table.Th
                     key={col}
-                    className="text-purple-300/80 font-bold uppercase tracking-wider text-[10px] py-3.5 px-4 text-left border-b border-purple-500/20"
-                    style={{ borderBottom: "1px solid rgba(147, 51, 234, 0.25)" }}
+                    style={{ borderBottom: "1px solid var(--orcha-border)", padding: "14px 16px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, fontSize: 10, color: "var(--orcha-purple)" }}
                   >
                     {col.replace(/_/g, " ")}
                   </Table.Th>
@@ -90,14 +89,14 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
               {queryData.map((row, rowIndex) => (
                 <Table.Tr
                   key={rowIndex}
-                  className="border-b border-white/[0.03] hover:bg-purple-500/[0.04] transition-colors duration-150"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+                  className="border-b border-[var(--orcha-table-border)] hover:bg-[var(--orcha-sidebar-hover-bg)] transition-colors duration-150"
+                  style={{ borderBottom: "1px solid var(--orcha-table-border)" }}
                 >
                   {columns.map((col) => {
                     const val = row[col];
                     const displayVal = typeof val === "number" ? val.toLocaleString() : String(val ?? "");
                     return (
-                      <Table.Td key={col} className="text-slate-200 font-medium text-[11px] py-3 px-4" style={{ whiteSpace: "nowrap" }}>
+                      <Table.Td key={col} className="text-[var(--orcha-text-body)] font-medium text-[11px] py-3 px-4" style={{ whiteSpace: "nowrap" }}>
                         {displayVal}
                       </Table.Td>
                     );
@@ -205,6 +204,9 @@ function WidgetRenderer({ widget, queryData, queryError }: { widget: any, queryD
 }
 
 export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWidget, onSaveWidget, saas }: DashboardGridProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const [selectedWidget, setSelectedWidget] = useState<any>(null);
   const [panelOpened, setPanelOpened] = useState(false);
@@ -306,7 +308,7 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
             position: "absolute",
             inset: 0,
             zIndex: 50,
-            background: "rgba(19, 15, 34, 0.5)",
+            background: isDark ? "rgba(19, 15, 34, 0.5)" : "rgba(255, 255, 255, 0.5)",
             backdropFilter: "blur(2px)",
             display: "flex",
             alignItems: "center",
@@ -362,8 +364,8 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                 height: "100%",
                 display: "flex",
                 flexDirection: "column",
-                background: "rgba(19, 15, 34, 0.4)",
-                border: `1px solid ${isEditMode ? "rgba(147, 51, 234, 0.4)" : "rgba(147, 51, 234, 0.15)"}`,
+                background: "var(--orcha-panel)",
+                border: `1px solid ${isEditMode ? "var(--orcha-purple)" : "var(--orcha-border)"}`,
                 backdropFilter: "blur(12px)",
                 position: "relative",
                 overflow: "hidden",
@@ -388,7 +390,7 @@ export function DashboardGrid({ widgets, isEditMode, onLayoutChange, onRemoveWid
                       <IconDotsVertical size={14} />
                     </ActionIcon>
                   </Menu.Target>
-                  <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <Menu.Dropdown bg="var(--orcha-panel)" style={{ border: "1px solid var(--orcha-border)" }}>
                     <Menu.Item
                       leftSection={<IconTrash size={14} />}
                       color="red"

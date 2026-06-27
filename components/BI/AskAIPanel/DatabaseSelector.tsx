@@ -29,17 +29,17 @@ export function DatabaseSelector({
       shadow="xl"
       styles={{
         dropdown: {
-          background: "#0c0a1a",
-          borderColor: "rgba(147, 51, 234, 0.2)",
+          background: "var(--orcha-panel)",
+          borderColor: "var(--orcha-border)",
           borderRadius: "8px",
           padding: "4px",
         },
         item: {
           padding: "8px 12px",
           borderRadius: "6px",
-          color: "white",
+          color: "var(--orcha-text-title)",
           "&:hover": {
-            background: "rgba(255, 255, 255, 0.05)",
+            background: "var(--orcha-sidebar-hover-bg)",
           },
         },
       }}
@@ -52,8 +52,8 @@ export function DatabaseSelector({
           style={{
             cursor: "pointer",
             borderRadius: "8px",
-            border: "1px solid rgba(147, 51, 234, 0.2)",
-            background: "rgba(255, 255, 255, 0.02)",
+            border: "1px solid var(--orcha-border)",
+            background: "var(--orcha-surface)",
             height: "32px",
             minWidth: "150px",
             transition: "all 0.15s ease",
@@ -62,17 +62,17 @@ export function DatabaseSelector({
         >
           <style jsx>{`
             .db-select-pill-hover:hover {
-              background: rgba(255, 255, 255, 0.06) !important;
-              border-color: rgba(147, 51, 234, 0.4) !important;
+              background: var(--orcha-sidebar-hover-bg) !important;
+              border-color: var(--orcha-purple) !important;
             }
           `}</style>
-          <IconTable size={14} color="rgba(255,255,255,0.4)" />
-          <Text size="xs" fw={600} c="rgba(255,255,255,0.8)" style={{ flex: 1 }}>
+          <IconTable size={14} color="var(--orcha-text-muted)" />
+          <Text size="xs" fw={600} c="var(--orcha-text-body)" style={{ flex: 1 }}>
             {selectedConfigIds.length === 0
               ? "Select Databases"
               : `${selectedConfigIds.length} DB${selectedConfigIds.length > 1 ? "s" : ""} Selected`}
           </Text>
-          <IconChevronDown size={10} color="rgba(255,255,255,0.4)" />
+          <IconChevronDown size={10} color="var(--orcha-text-muted)" />
         </Group>
       </Menu.Target>
       <Menu.Dropdown>
@@ -103,7 +103,7 @@ export function DatabaseSelector({
                   style={{ background: "transparent", opacity: 0.8 }}
                 />
                 <Stack gap={2} style={{ flex: 1 }}>
-                  <Text size="xs" fw={700} c="white">
+                  <Text size="xs" fw={700} c="var(--orcha-text-title)">
                     {config.name}
                   </Text>
                   <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>

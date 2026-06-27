@@ -155,7 +155,7 @@ export default function DevelopersPage() {
       p="xl"
       style={{
         minHeight: "calc(100vh - 56px)",
-        background: "radial-gradient(circle at top right, rgba(147,51,234,0.08) 0%, rgba(7,5,15,1) 50%)",
+        background: "var(--orcha-surface)",
       }}
     >
       <Stack gap="xl">
@@ -179,10 +179,10 @@ export default function DevelopersPage() {
             radius="xl"
             p={rem(32)}
             style={{
-              background: "rgba(19,15,34,0.6)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "var(--orcha-panel)",
+              border: "1px solid var(--orcha-border)",
               backdropFilter: "blur(24px)",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.05)",
             }}
           >
             <Tabs variant="pills" defaultValue="keys" color="violet" styles={{
@@ -222,26 +222,26 @@ export default function DevelopersPage() {
                     </Button>
                   </Group>
 
-                  <Paper withBorder radius="lg" style={{ background: "rgba(0,0,0,0.3)", borderColor: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
+                  <Paper withBorder radius="lg" style={{ background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", overflow: "hidden" }}>
                     <Table verticalSpacing="md">
-                      <Table.Thead style={{ background: "rgba(255,255,255,0.02)" }}>
-                        <Table.Tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                          <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Key Name</Table.Th>
-                          <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Secret Key</Table.Th>
-                          <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Created</Table.Th>
-                          <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Rate Limit</Table.Th>
-                          <Table.Th c="dimmed" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Last Used</Table.Th>
+                      <Table.Thead style={{ background: "var(--orcha-sidebar-hover-bg)" }}>
+                        <Table.Tr style={{ borderBottom: "1px solid var(--orcha-border)" }}>
+                          <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Key Name</Table.Th>
+                          <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Secret Key</Table.Th>
+                          <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Created</Table.Th>
+                          <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Rate Limit</Table.Th>
+                          <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(11), fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", padding: "16px" }}>Last Used</Table.Th>
                           <Table.Th style={{ padding: "16px" }} />
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
 
                         {apiKeys?.map((key) => (
-                          <Table.Tr key={key._id} style={{ borderColor: "rgba(255,255,255,0.03)" }}>
+                          <Table.Tr key={key._id} style={{ borderBottom: "1px solid var(--orcha-table-border)" }}>
                             <Table.Td fw={600} c="var(--orcha-text-title)">{key.name}</Table.Td>
                             <Table.Td>
                               <Group gap="xs">
-                                <Code color="violet.9" c="violet.1" px="md" py={4}>
+                                <Code color="violet" px="md" py={4}>
                                   {key.key.substring(0, 8)}...{key.key.substring(key.key.length - 4)}
                                 </Code>
                                 <Tooltip label="Copy API Key" position="top">
@@ -298,7 +298,7 @@ export default function DevelopersPage() {
                             <Table.Td colSpan={5}>
                               <Center py={40}>
                                 <Stack align="center" gap="xs">
-                                  <IconKey size={32} color="rgba(255,255,255,0.1)" />
+                                  <IconKey size={32} color="var(--orcha-border)" />
                                   <Text c="dimmed" size="sm">No API keys generated yet.</Text>
                                 </Stack>
                               </Center>
@@ -309,7 +309,7 @@ export default function DevelopersPage() {
                     </Table>
                   </Paper>
 
-                  <Divider color="rgba(255,255,255,0.05)" my="sm" />
+                  <Divider color="var(--orcha-border)" my="sm" />
 
                   <QuickIntegration organizationId={orgDoc._id} />
                 </Stack>
@@ -329,9 +329,9 @@ export default function DevelopersPage() {
             blur: 10,
           }}
           styles={{
-            content: { background: "#0c0814", border: "1px solid rgba(255,0,0,0.2)", padding: "1rem" },
-            header: { background: "#0c0814", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "1rem" },
-            title: { color: "white" }
+            content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", padding: "1rem" },
+            header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)", paddingBottom: "1rem" },
+            title: { color: "var(--orcha-text-title)" }
           }}
         >
           <Stack gap="xl">
@@ -352,7 +352,7 @@ export default function DevelopersPage() {
               <TextInput
                 placeholder={keyToDelete?.name}
                 styles={{
-                    input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" }
+                    input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                 }}
                 value={deleteConfirmName}
                 onChange={(e) => setDeleteConfirmName(e.target.value)}
@@ -382,8 +382,8 @@ export default function DevelopersPage() {
         <Tabs.Panel value="usage">
           <Center py={100}>
             <Stack align="center" gap="md">
-              <Box style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(147,51,234,0.05)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed rgba(147,51,234,0.2)" }}>
-                <IconActivity size={32} color="rgba(147,51,234,0.4)" />
+              <Box style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--orcha-sidebar-hover-bg)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed var(--orcha-border)" }}>
+                <IconActivity size={32} color="var(--orcha-purple)" />
               </Box>
               <Box style={{ textAlign: "center" }}>
                 <Text fw={600} c="var(--orcha-text-title)">Usage Metrics Coming Soon</Text>
@@ -415,9 +415,9 @@ export default function DevelopersPage() {
             blur: 10,
           }}
           styles={{
-            content: { background: "#0c0814", border: "1px solid rgba(147,51,234,0.2)", padding: "1rem" },
-            header: { background: "#0c0814", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "1rem" },
-            title: { color: "white" }
+            content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", padding: "1rem" },
+            header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)", paddingBottom: "1rem" },
+            title: { color: "var(--orcha-text-title)" }
           }}
         >
           <Stack>
@@ -427,8 +427,8 @@ export default function DevelopersPage() {
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.currentTarget.value)}
               styles={{
-                input: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(147,51,234,0.2)", color: "white" },
-                label: { color: "rgba(255,255,255,0.7)", marginBottom: 4 }
+                input: { background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)", color: "var(--orcha-text-title)" },
+                label: { color: "var(--orcha-text-title)", marginBottom: 4 }
               }}
             />
             <Text size="xs" c="dimmed">Give this key a unique name to identify it in your usage reports.</Text>

@@ -47,8 +47,8 @@ export function PromptInputArea({
     <Box
       p="xl"
       style={{
-        background: "rgba(13, 10, 26, 0.8)",
-        borderTop: "1px solid rgba(255,255,255,0.05)",
+        background: "var(--orcha-surface)",
+        borderTop: "1px solid var(--orcha-border)",
         backdropFilter: "blur(10px)",
       }}
     >
@@ -62,9 +62,9 @@ export function PromptInputArea({
           disabled={isGenerating || draftPromptsCount >= 10}
           styles={{
             input: {
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(147, 51, 234, 0.2)",
-              color: "white",
+              background: "var(--orcha-panel)",
+              border: "1px solid var(--orcha-border)",
+              color: "var(--orcha-text-title)",
               borderRadius: "12px",
               paddingRight: "90px",
             },

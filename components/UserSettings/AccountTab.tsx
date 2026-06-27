@@ -20,7 +20,7 @@ export function AccountTab() {
 
   return (
     <Stack gap="xl">
-      <Paper withBorder p="2.5rem" radius="lg" style={{ background: "rgba(255,255,255,0.01)" }}>
+      <Paper withBorder p="2.5rem" radius="lg" style={{ background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" }}>
         <Stack gap="2.5rem">
           <Group align="flex-start" gap="2rem">
             <Avatar src={user?.imageUrl} size={100} radius="xl" style={{ border: "2px solid rgba(147,51,234,0.3)" }} />
@@ -34,7 +34,7 @@ export function AccountTab() {
             </Stack>
           </Group>
 
-          <Divider color="rgba(255,255,255,0.05)" />
+          <Divider color="var(--orcha-border)" />
 
           <Stack gap="md">
             <Group grow>

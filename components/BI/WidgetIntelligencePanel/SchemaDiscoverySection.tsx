@@ -48,7 +48,7 @@ export function SchemaDiscoverySection({
               Smart Advisor {validationLogs.length > 0 && `(${validationLogs.length})`}
             </Button>
           </Popover.Target>
-          <Popover.Dropdown bg="#130f22" style={{ border: "1px solid rgba(147, 51, 234, 0.2)" }}>
+          <Popover.Dropdown bg="var(--orcha-panel)" style={{ border: "1px solid var(--orcha-border)" }}>
             <Stack gap="md">
               <Text size="sm" fw={700} c="dimmed" mb={4}>
                 DIAGNOSTIC LOGS
@@ -78,7 +78,7 @@ export function SchemaDiscoverySection({
                         </ThemeIcon>
                       }
                     >
-                      <Text size="sm" c={log.type === "warning" ? "orange.4" : "gray.4"} ml={4}>
+                      <Text size="sm" c={log.type === "warning" ? "orange.4" : "var(--orcha-text-body)"} ml={4}>
                         {log.message}
                       </Text>
                     </List.Item>
@@ -109,13 +109,13 @@ export function SchemaDiscoverySection({
 
       {discoveredColumns.length > 0 && (
         <Stack gap="md" mt="md">
-          <Box p="xs" style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
-            <Text size="xs" fw={700} mb="xs" c="cyan">
+          <Box p="xs" style={{ background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)", borderRadius: 8 }}>
+            <Text size="xs" fw={700} mb="xs" c="var(--orcha-purple)">
               DISCOVERED SCHEMA
             </Text>
             <Group gap={4}>
               {discoveredColumns.map((col) => (
-                <Badge key={col} variant="dot" color="cyan" size="sm">
+                <Badge key={col} variant="dot" color="violet" size="sm">
                   {col}
                 </Badge>
               ))}
@@ -130,21 +130,21 @@ export function SchemaDiscoverySection({
               radius="md"
               withBorder
               style={{
-                background: "rgba(0,0,0,0.2)",
-                borderColor: "rgba(255,255,255,0.05)",
+                background: "var(--orcha-surface)",
+                borderColor: "var(--orcha-border)",
                 overflow: "hidden",
               }}
             >
               <ScrollArea h={200}>
                 <Table highlightOnHover withColumnBorders verticalSpacing="xs">
-                  <Table.Thead style={{ background: "rgba(147, 51, 234, 0.05)" }}>
+                  <Table.Thead style={{ background: "var(--orcha-sidebar-hover-bg)" }}>
                     <Table.Tr>
                       {discoveredColumns.map((col) => (
                         <Table.Th
                           key={col}
                           style={{
-                            color: "rgba(255,255,255,0.7)",
-                            borderBottom: "1px solid rgba(255,255,255,0.05)",
+                            color: "var(--orcha-text-body)",
+                            borderBottom: "1px solid var(--orcha-border)",
                           }}
                         >
                           {col}
@@ -159,8 +159,8 @@ export function SchemaDiscoverySection({
                           <Table.Td
                             key={col}
                             style={{
-                              color: "rgba(255,255,255,0.5)",
-                              borderColor: "rgba(255,255,255,0.05)",
+                              color: "var(--orcha-text-body)",
+                              borderColor: "var(--orcha-table-border)",
                             }}
                           >
                             {row[col]}

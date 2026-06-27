@@ -73,11 +73,11 @@ function parseMarkdown(text: string): React.ReactNode[] {
     } else if (match[2]) {
       parts.push(<Text key={`italic-${match.index}`} component="span" style={{ fontStyle: "italic" }} c="inherit">{match[2]}</Text>);
     } else if (match[3]) {
-      parts.push(<Text key={`code-${match.index}`} component="span" size="xs" style={{ background: "rgba(147,51,234,0.15)", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }} c="violet.2">{match[3]}</Text>);
+      parts.push(<Text key={`code-${match.index}`} component="span" size="xs" style={{ background: "var(--orcha-sidebar-hover-bg)", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }} c="var(--orcha-purple)">{match[3]}</Text>);
     } else if (match[5] && match[6]) {
       const linkText = match[5];
       const linkUrl = match[6];
-      parts.push(<Text key={`link-${match.index}`} component="a" href={linkUrl} target="_blank" rel="noopener noreferrer" c="violet.3" style={{ textDecoration: "underline", cursor: "pointer" }}>{linkText}</Text>);
+      parts.push(<Text key={`link-${match.index}`} component="a" href={linkUrl} target="_blank" rel="noopener noreferrer" c="var(--orcha-purple)" style={{ textDecoration: "underline", cursor: "pointer" }}>{linkText}</Text>);
     }
     lastIndex = regex.lastIndex;
   }
@@ -202,10 +202,10 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
 
   if (databookEntries.length === 0) {
     return (
-      <Paper withBorder p="3rem" radius="md" style={{ background: "rgba(255,255,255,0.012)", borderColor: "rgba(147,51,234,0.15)" }}>
+      <Paper withBorder p="3rem" radius="md" style={{ background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" }}>
         <Stack align="center" gap="sm">
-          <IconNotebook size={48} color="rgba(147,51,234,0.3)" />
-          <Text fw={600} c="white">Your Databook is empty</Text>
+          <IconNotebook size={48} color="var(--orcha-purple)" />
+          <Text fw={600} c="var(--orcha-text-title)">Your Databook is empty</Text>
           <Text size="xs" c="dimmed" mb="md" ta="center">
             Save query results in the Chat screen to reuse them here later without re-running.
           </Text>
@@ -236,9 +236,9 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
             { label: <Center><IconLayoutGrid size={16} /><Text size="xs" ml={6}>Grid</Text></Center>, value: "grid" }
           ]}
           styles={{
-            root: { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(147,51,234,0.15)" },
-            indicator: { background: "rgba(147,51,234,0.25)" },
-            label: { color: "rgba(255,255,255,0.7)" }
+            root: { background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)" },
+            indicator: { background: "var(--orcha-sidebar-hover-bg)" },
+            label: { color: "var(--orcha-text-title)" }
           }}
         />
       </Group>
@@ -246,8 +246,8 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
       {viewMode === "list" ? (
         /* ─── List View ─── */
         <Paper withBorder style={{
-          background: "rgba(255,255,255,0.012)",
-          borderColor: "rgba(147,51,234,0.12)",
+          background: "var(--orcha-panel)",
+          borderColor: "var(--orcha-border)",
           overflow: "hidden"
         }} radius="md">
           <Stack gap={0}>
@@ -264,7 +264,7 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                 <Box
                   key={entry._id}
                   style={{
-                    borderBottom: index !== filteredEntries.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    borderBottom: index !== filteredEntries.length - 1 ? "1px solid var(--orcha-table-border)" : "none",
                     transition: "all 200ms ease"
                   }}
                 >
@@ -285,8 +285,8 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                         transition: all 0.2s ease;
                       }
                       .config-row-hover:hover {
-                        background: rgba(147, 51, 234, 0.05) !important;
-                        box-shadow: inset 2px 0 0 #9333ea;
+                        background: var(--orcha-sidebar-hover-bg) !important;
+                        box-shadow: inset 2px 0 0 var(--orcha-purple) !important;
                       }
                     `}</style>
                     <Group gap="xl">
@@ -296,12 +296,12 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                           color="violet"
                           radius="md"
                           size="md"
-                          style={{ border: "1px solid rgba(147,51,234,0.2)" }}
+                          style={{ border: "1px solid var(--orcha-border)" }}
                         >
                           <IconNotebook size={18} />
                         </Avatar>
                         <Stack gap={2}>
-                          <Text fw={600} size="sm" c="white">{entry.name}</Text>
+                          <Text fw={600} size="sm" c="var(--orcha-text-title)">{entry.name}</Text>
                           {entry.question && (
                             <Text size="xs" c="dimmed" style={{ fontStyle: "italic", maxWidth: "400px" }} truncate>
                               "{entry.question}"
@@ -317,8 +317,8 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                         <Stack gap={0} w={150}>
                           {config && dbInfo && (
                             <Group gap="xs">
-                              <DbIcon size={14} color="#9333ea" />
-                              <Text size="11px" fw={500} c="white">{config.name}</Text>
+                              <DbIcon size={14} color="var(--orcha-purple)" />
+                              <Text size="11px" fw={500} c="var(--orcha-text-title)">{config.name}</Text>
                             </Group>
                           )}
                           <Group gap={4} mt={2}>
@@ -329,7 +329,7 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                         
                         {/* Calendar info */}
                         <Group gap="xs" w={120}>
-                          <IconCalendar size={12} color="rgba(255,255,255,0.3)" />
+                          <IconCalendar size={12} color="var(--orcha-text-muted)" />
                           <Text size="xs" c="dimmed">
                             {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(entry.createdAt)}
                           </Text>
@@ -388,8 +388,8 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                 p="md"
                 radius="md"
                 style={{
-                  background: "rgba(255,255,255,0.015)",
-                  borderColor: "rgba(147,51,234,0.12)",
+                  background: "var(--orcha-panel)",
+                  borderColor: "var(--orcha-border)",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
@@ -403,13 +403,13 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                 <style jsx>{`
                   .grid-card-hover:hover {
                     transform: translateY(-2px);
-                    border-color: rgba(147, 51, 234, 0.3) !important;
-                    background: rgba(147, 51, 234, 0.04) !important;
+                    border-color: var(--orcha-purple) !important;
+                    background: var(--orcha-sidebar-hover-bg) !important;
                   }
                 `}</style>
                 <Stack gap="xs" style={{ flexGrow: 1 }}>
                   <Group justify="space-between" wrap="nowrap" align="flex-start">
-                    <Text fw={600} size="sm" c="white" truncate style={{ flexGrow: 1 }}>{entry.name}</Text>
+                    <Text fw={600} size="sm" c="var(--orcha-text-title)" truncate style={{ flexGrow: 1 }}>{entry.name}</Text>
                     {config && (
                       <Badge size="xs" variant="light" color="violet" leftSection={dbInfo ? <DbIcon size={10} /> : null}>
                         {config.name}
@@ -423,15 +423,15 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
                     </Text>
                   )}
 
-                  <Box style={{ background: "rgba(0,0,0,0.2)", borderRadius: 6, padding: "6px 10px", maxHeight: 50, overflow: "hidden" }}>
-                    <Code block style={{ background: "transparent", color: "rgba(255,255,255,0.6)", fontSize: 10, padding: 0 }}>
+                  <Box style={{ background: "var(--orcha-surface)", borderRadius: 6, padding: "6px 10px", maxHeight: 50, overflow: "hidden" }}>
+                    <Code block style={{ background: "transparent", color: "var(--orcha-text-body)", fontSize: 10, padding: 0 }}>
                       {entry.sql}
                     </Code>
                   </Box>
                 </Stack>
 
                 <Box mt="md">
-                  <Divider color="rgba(255,255,255,0.04)" mb="xs" />
+                  <Divider color="var(--orcha-border)" mb="xs" />
                   <Group justify="space-between">
                     <Group gap="xs">
                       <Badge size="xs" color="green" variant="dot">
@@ -469,11 +469,11 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
       <Modal
         opened={renameModalOpen}
         onClose={() => setRenameModalOpen(false)}
-        title={<Text fw={700} c="white">Rename Saved Query</Text>}
+        title={<Text fw={700} c="var(--orcha-text-title)">Rename Saved Query</Text>}
         centered
         styles={{
-          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.18)" },
-          header: { background: "#130f22" },
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+          header: { background: "var(--orcha-panel)" },
         }}
       >
         <Stack gap="md">
@@ -484,11 +484,11 @@ export function SavedResultsList({ organizationId }: SavedResultsListProps) {
             data-autofocus
             styles={{
               input: {
-                background: "rgba(0,0,0,0.2)",
-                border: "1px solid rgba(147,51,234,0.15)",
-                color: "white"
+                background: "var(--orcha-surface)",
+                border: "1px solid var(--orcha-border)",
+                color: "var(--orcha-text-title)"
               },
-              label: { color: "white" }
+              label: { color: "var(--orcha-text-title)" }
             }}
           />
           <Group justify="flex-end" mt="md">

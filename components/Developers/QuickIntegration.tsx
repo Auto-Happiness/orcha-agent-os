@@ -40,12 +40,12 @@ const HighlightCode = ({ code, lang }: { code: string; lang: string }) => {
       block 
       p="md" 
       style={{ 
-        background: "rgba(0,0,0,0.5)", 
-        color: "#d4d4d4", 
+        background: "var(--orcha-surface)", 
+        color: "var(--orcha-text-body)", 
         fontSize: rem(11), 
         fontFamily: "monospace",
         lineHeight: 1.6,
-        border: "1px solid rgba(255,255,255,0.05)"
+        border: "1px solid var(--orcha-border)"
       }}
       dangerouslySetInnerHTML={{ __html: highlighted }}
     />
@@ -57,14 +57,14 @@ export function QuickIntegration({ organizationId }: QuickIntegrationProps) {
     <Box>
       <Group gap="xs" mb="sm">
         <IconCode size={18} color="#a855f7" />
-        <Title order={4} c="white">Quick Integration</Title>
+        <Title order={4} c="var(--orcha-text-title)">Quick Integration</Title>
       </Group>
       <Paper
         p="xl"
         radius="lg"
         style={{
-          background: "rgba(147,51,234,0.03)",
-          border: "1px solid rgba(147,51,234,0.15)",
+          background: "var(--orcha-panel)",
+          border: "1px solid var(--orcha-border)",
           position: "relative",
           overflow: "hidden"
         }}
@@ -81,7 +81,7 @@ export function QuickIntegration({ organizationId }: QuickIntegrationProps) {
 
         <Stack gap="md">
           <Box>
-            <Text size="sm" fw={600} c="white" mb={4}>Streaming API (SSE)</Text>
+            <Text size="sm" fw={600} c="var(--orcha-text-title)" mb={4}>Streaming API (SSE)</Text>
             <Text size="xs" c="dimmed" lh={1.5}>
               This endpoint uses <strong>Server-Sent Events (SSE)</strong> to stream responses 
               in real-time chunks, allowing your application to display 
@@ -92,7 +92,7 @@ export function QuickIntegration({ organizationId }: QuickIntegrationProps) {
           <Text size="sm" c="dimmed">Select your language to see integration examples:</Text>
           
           <Tabs variant="outline" defaultValue="curl" styles={{
-              tab: { fontSize: rem(11), padding: "6px 16px", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" },
+              tab: { fontSize: rem(11), padding: "6px 16px", borderColor: "var(--orcha-border)", color: "var(--orcha-text-muted)" },
               list: { borderBottom: "none", marginBottom: rem(12), gap: rem(8) }
           }}>
             <Tabs.List>

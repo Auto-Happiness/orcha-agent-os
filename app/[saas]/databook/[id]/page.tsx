@@ -193,9 +193,9 @@ export default function DatabookDetailPage() {
             styles={{
               root: {
                 paddingLeft: 0,
-                color: "rgba(255,255,255,0.6)",
+                color: "var(--orcha-text-muted)",
                 "&:hover": {
-                  color: "white",
+                  color: "var(--orcha-purple)",
                   background: "transparent"
                 }
               }
@@ -221,9 +221,9 @@ export default function DatabookDetailPage() {
                     }}
                     styles={{
                       input: {
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(147,51,234,0.3)",
-                        color: "white",
+                        background: "var(--orcha-surface)",
+                        border: "1px solid var(--orcha-border)",
+                        color: "var(--orcha-text-title)",
                         fontSize: "1.8rem",
                         fontWeight: 700,
                         height: "auto",
@@ -293,7 +293,7 @@ export default function DatabookDetailPage() {
             <Group gap="sm" mt="md" wrap="wrap" align="center">
               {dbConfig ? (
                 <>
-                  <Badge variant="dot" color="violet" styles={{ label: { textTransform: "none", color: "rgba(255,255,255,0.85)" } }}>
+                  <Badge variant="dot" color="violet" styles={{ label: { textTransform: "none", color: "var(--orcha-text-title)" } }}>
                     Database: {dbConfig.name}
                   </Badge>
                   <Badge variant="light" color="violet" size="sm">
@@ -301,7 +301,7 @@ export default function DatabookDetailPage() {
                   </Badge>
                 </>
               ) : (
-                <Badge variant="dot" color="gray" styles={{ label: { textTransform: "none", color: "rgba(255,255,255,0.5)" } }}>
+                <Badge variant="dot" color="gray" styles={{ label: { textTransform: "none", color: "var(--orcha-text-muted)" } }}>
                   Database: Unknown / Deleted
                 </Badge>
               )}
@@ -330,7 +330,7 @@ export default function DatabookDetailPage() {
                   Filtered: {entry.filterDateColumn} ({entry.filterDateFrom} to {entry.filterDateTo})
                 </Badge>
               ) : null}
-              <Text size="xs" c="dimmed" style={{ borderLeft: "1px solid rgba(255,255,255,0.1)", paddingLeft: "10px" }}>
+              <Text size="xs" c="dimmed" style={{ borderLeft: "1px solid var(--orcha-border)", paddingLeft: "10px" }}>
                 Saved on {(() => {
                   const d = new Date(entry.createdAt);
                   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -341,8 +341,8 @@ export default function DatabookDetailPage() {
             </Group>
           </Box>
           <Menu shadow="md" width={180} position="bottom-end" styles={{
-            dropdown: { background: "#13102a", borderColor: "rgba(147,51,234,0.2)" },
-            item: { color: "white", transition: "all 0.2s ease" }
+            dropdown: { background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" },
+            item: { color: "var(--orcha-text-title)", transition: "all 0.2s ease" }
           }}>
             <Menu.Target>
               <ActionIcon variant="light" color="violet" size="lg" radius="md">
@@ -385,7 +385,7 @@ export default function DatabookDetailPage() {
               <Menu.Item leftSection={<IconTerminal2 size={14} color="#a855f7" />} onClick={() => setSqlModalOpen(true)}>
                 View SQL Query
               </Menu.Item>
-              <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />
+              <Menu.Divider style={{ borderColor: "var(--orcha-border)" }} />
               <Menu.Item 
                 leftSection={<IconTrash size={14} color="#ef4444" />} 
                 onClick={() => setDeleteModalOpen(true)}
@@ -409,7 +409,7 @@ export default function DatabookDetailPage() {
                 sql={entry.sql}
               />
             ) : (
-              <Box style={{ background: "rgba(10,8,20,0.8)", border: "1px solid rgba(147,51,234,0.18)", borderRadius: 14, height: "200px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Box style={{ background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", borderRadius: 14, height: "200px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Stack align="center" gap="xs">
                   <Loader color="violet" size="sm" />
                   <Text size="xs" c="violet.3" fw={600}>Executing database query...</Text>
@@ -425,7 +425,8 @@ export default function DatabookDetailPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  background: "rgba(12, 8, 20, 0.7)",
+                  background: "var(--orcha-panel)",
+                  opacity: 0.85,
                   backdropFilter: "blur(2px)",
                   display: "flex",
                   alignItems: "center",
@@ -455,7 +456,7 @@ export default function DatabookDetailPage() {
         </Box>
 
         {/* 2. Chat/Conversation History (Bottom) */}
-        <Box style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(147,51,234,0.08)", borderRadius: 12, padding: "24px" }}>
+        <Box style={{ background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", borderRadius: 12, padding: "24px" }}>
           <Text size="xs" fw={700} c="violet.4" mb="md" style={{ letterSpacing: "0.08em", textTransform: "uppercase" }}>
             Conversation Transcript
           </Text>

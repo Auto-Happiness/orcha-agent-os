@@ -294,14 +294,14 @@ export function WidgetIntelligencePanel({
       padding="xl"
       styles={{
         content: {
-          background: "#0c0a1a",
-          borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
-          color: "white",
+          background: "var(--orcha-panel)",
+          borderLeft: "1px solid var(--orcha-border)",
+          color: "var(--orcha-text-title)",
         },
         header: {
-          background: "#0c0a1a",
-          color: "white",
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          background: "var(--orcha-panel)",
+          color: "var(--orcha-text-title)",
+          borderBottom: "1px solid var(--orcha-border)",
           paddingBottom: 20,
         },
       }}

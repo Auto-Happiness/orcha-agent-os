@@ -256,7 +256,7 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
             <IconSparkles size={20} color="white" />
           </Box>
           <Box>
-            <Text fw={800} size="lg" c="white" style={{ letterSpacing: "-0.5px" }}>
+            <Text fw={800} size="lg" c="var(--orcha-text-title)" style={{ letterSpacing: "-0.5px" }}>
               Orcha Genie
             </Text>
             <Badge variant="dot" color="violet" size="xs">
@@ -268,14 +268,14 @@ export function AskAIPanel({ opened, onClose, organizationId, saas }: AskAIPanel
       padding="xl"
       styles={{
         content: {
-          background: "#07050f",
-          borderLeft: "1px solid rgba(147, 51, 234, 0.15)",
+          background: "var(--orcha-panel)",
+          borderLeft: "1px solid var(--orcha-border)",
           display: "flex",
           flexDirection: "column",
         },
         header: {
-          background: "#07050f",
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          background: "var(--orcha-panel)",
+          borderBottom: "1px solid var(--orcha-border)",
           paddingBottom: 20,
         },
         body: {

@@ -35,9 +35,9 @@ export function SqlQueryDrawer({ opened, onClose, sql }: SqlQueryDrawerProps) {
         blur: 10,
       }}
       styles={{
-        content: { background: "#0c0814", borderLeft: "1px solid rgba(147,51,234,0.2)", padding: "1.5rem" },
-        header: { background: "#0c0814", borderBottom: "1px solid rgba(147,51,234,0.1)", paddingBottom: "1rem" },
-        title: { color: "white", fontWeight: 600 }
+        content: { background: "var(--orcha-panel)", borderLeft: "1px solid var(--orcha-border)", padding: "1.5rem" },
+        header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)", paddingBottom: "1rem" },
+        title: { color: "var(--orcha-text-title)", fontWeight: 600 }
       }}
     >
       <Stack gap="md" style={{ height: "calc(100vh - 100px)", display: "flex", flexDirection: "column" }}>
@@ -55,8 +55,8 @@ export function SqlQueryDrawer({ opened, onClose, sql }: SqlQueryDrawerProps) {
             Copy SQL
           </Button>
         </Group>
-        <Box style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(147,51,234,0.12)", borderRadius: 8, padding: "12px", flex: 1, overflowY: "auto" }}>
-          <Code block style={{ background: "transparent", color: "rgba(255,255,255,0.85)", fontSize: 11, padding: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+        <Box style={{ background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)", borderRadius: 8, padding: "12px", flex: 1, overflowY: "auto" }}>
+          <Code block style={{ background: "transparent", color: "var(--orcha-text-body)", fontSize: 11, padding: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {sql}
           </Code>
         </Box>
