@@ -133,20 +133,20 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
   }, [sql, organizationId, configId]);
 
   return (
-    <Box style={{ borderRadius: 14, overflow: "hidden", border: "1px solid rgba(147,51,234,0.18)", boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(147,51,234,0.06)" }}>
+    <Box style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--orcha-border)", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
       {/* Toolbar */}
-      <Box style={{ background: "rgba(19,16,42,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(147,51,234,0.12)", padding: "10px 16px" }}>
+      <Box style={{ background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)", padding: "10px 16px" }}>
         <Group justify="space-between">
           <Group gap={10}>
             <Group gap={5}>
-              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--orcha-border)" }} />
+              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--orcha-border)" }} />
               <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(147,51,234,0.6)", boxShadow: "0 0 8px rgba(147,51,234,0.8)" }} />
             </Group>
-            <Box style={{ width: 1, height: 14, background: "rgba(255,255,255,0.06)" }} />
-            <Text size="11px" fw={600} c="rgba(192,132,252,0.8)" style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}>Result Set</Text>
-            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.12)", border: "1px solid rgba(147,51,234,0.2)" }}>
-              <Text size="10px" fw={700} c="violet.4">{data.length.toLocaleString()} rows · {columns.length} cols</Text>
+            <Box style={{ width: 1, height: 14, background: "var(--orcha-border)" }} />
+            <Text size="11px" fw={600} c="var(--orcha-purple)" style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}>Result Set</Text>
+            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "var(--orcha-sidebar-hover-bg)", border: "1px solid var(--orcha-border)" }}>
+              <Text size="10px" fw={700} c="var(--orcha-purple)">{data.length.toLocaleString()} rows · {columns.length} cols</Text>
             </Box>
           </Group>
           <Group gap={8}>
@@ -159,8 +159,8 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
 
               <Menu.Dropdown
                 style={{
-                  background: "#130f22",
-                  border: "1px solid rgba(147,51,234,0.18)",
+                  background: "var(--orcha-panel)",
+                  border: "1px solid var(--orcha-border)",
                   borderRadius: "10px",
                 }}
               >
@@ -169,7 +169,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                 <Menu.Item
                   leftSection={<IconEye size={14} />}
                   onClick={handleViewFullData}
-                  style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
+                  style={{ fontSize: "12px", color: "var(--orcha-text-body)" }}
                 >
                   View full data
                 </Menu.Item>
@@ -177,7 +177,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                 <Menu.Item
                   leftSection={<IconTableExport size={14} />}
                   onClick={exportPreviewCsv}
-                  style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
+                  style={{ fontSize: "12px", color: "var(--orcha-text-body)" }}
                 >
                   Export preview
                 </Menu.Item>
@@ -187,7 +187,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                     leftSection={<IconDownload size={14} />}
                     onClick={exportFullCsv}
                     disabled={isExporting}
-                    style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}
+                    style={{ fontSize: "12px", color: "var(--orcha-text-body)" }}
                   >
                     {isExporting ? "Exporting..." : "Full dataset"}
                   </Menu.Item>
@@ -200,7 +200,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                     disabled={isSaved}
                     style={{ 
                       fontSize: "12px", 
-                      color: isSaved ? "var(--mantine-color-green-4)" : "rgba(255,255,255,0.75)" 
+                      color: isSaved ? "var(--mantine-color-green-6)" : "var(--orcha-text-body)" 
                     }}
                   >
                     {isSaved ? "Saved to Databook" : "Save to Databook"}
@@ -215,12 +215,12 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
       {/* Table */}
       <ScrollArea>
         <Box style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(10,8,20,0.8)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", background: "var(--orcha-surface)" }}>
             <thead>
               <tr>
-                <th style={{ width: 40, padding: "9px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", fontWeight: 500, borderBottom: "1px solid rgba(147,51,234,0.12)", background: "rgba(147,51,234,0.04)", userSelect: "none" }}>#</th>
+                <th style={{ width: 40, padding: "9px 12px", textAlign: "right", fontSize: 10, color: "var(--orcha-text-muted)", fontWeight: 500, borderBottom: "1px solid var(--orcha-border)", background: "var(--orcha-sidebar-hover-bg)", userSelect: "none" }}>#</th>
                 {columns.map((col) => (
-                  <th key={col} style={{ padding: "9px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "rgba(192,132,252,0.75)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid rgba(147,51,234,0.12)", borderLeft: "1px solid rgba(255,255,255,0.03)", background: "rgba(147,51,234,0.04)" }}>
+                  <th key={col} style={{ padding: "9px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--orcha-purple)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid var(--orcha-border)", borderLeft: "1px solid var(--orcha-table-border)", background: "var(--orcha-sidebar-hover-bg)" }}>
                     {col}
                   </th>
                 ))}
@@ -229,17 +229,17 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
             <tbody>
               {data.length === 0 ? (
                 <tr>
-                  <td colSpan={1} style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
+                  <td colSpan={1} style={{ padding: "24px", textAlign: "center", color: "var(--orcha-text-muted)", fontSize: 12 }}>
                     No records found matching your filters.
                   </td>
                 </tr>
               ) : (
                 displayData.map((row, ri) => (
-                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "var(--orcha-table-border)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "var(--orcha-sidebar-hover-bg)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "var(--orcha-table-border)"; }}
                   >
-                    <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.03)", userSelect: "none" }}>{ri + 1}</td>
+                    <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "var(--orcha-text-muted)", borderBottom: "1px solid var(--orcha-table-border)", userSelect: "none" }}>{ri + 1}</td>
                     {columns.map((col, ci) => {
                       const val = row[col];
                       const isNull = val == null;
@@ -268,7 +268,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
 
                       const isImg = isImageUrl(val);
                       return (
-                        <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
+                        <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "var(--orcha-null-color)" : isNum && isNegative ? "#ef4444" : isNum ? "var(--orcha-number-color)" : "var(--orcha-text-body)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid var(--orcha-table-border)", borderLeft: "1px solid var(--orcha-table-border)", textAlign: isNum ? "right" : "left" }}>
                           {isImg ? <TableCellImage url={val} /> : displayVal}
                         </td>
                       );
@@ -283,7 +283,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
 
       {/* Footer */}
       {(isDisplayCapped || hasMoreInDb) && (
-        <Box style={{ padding: "8px 16px", borderTop: "1px solid rgba(147,51,234,0.1)", background: "rgba(19,16,42,0.6)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <Box style={{ padding: "8px 16px", borderTop: "1px solid var(--orcha-border)", background: "var(--orcha-panel)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <Group gap={6}>
             <Box style={{ width: 4, height: 4, borderRadius: "50%", background: "rgba(147,51,234,0.5)" }} />
             <Text size="11px" c="dimmed">
@@ -309,11 +309,11 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
       <Modal
         opened={saveModalOpened}
         onClose={() => setSaveModalOpened(false)}
-        title={<Text fw={700} c="white">Save Query to Databook</Text>}
+        title={<Text fw={700} c="var(--orcha-text-title)">Save Query to Databook</Text>}
         centered
         styles={{
-          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.18)" },
-          header: { background: "#130f22" },
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+          header: { background: "var(--orcha-panel)" },
         }}
       >
         <Stack gap="md">
@@ -326,11 +326,12 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
             data-autofocus
             styles={{
               input: {
-                background: "rgba(0,0,0,0.2)",
-                border: "1px solid rgba(147,51,234,0.15)",
-                color: "white"
+                background: "var(--orcha-surface)",
+                border: "1px solid var(--orcha-border)",
+                color: "var(--orcha-text-title)"
               },
-              label: { color: "white" }
+              label: { color: "var(--orcha-text-title)" },
+              description: { color: "var(--orcha-text-muted)" }
             }}
           />
           <Group justify="flex-end" mt="md">
@@ -354,26 +355,26 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
         onClose={() => setFullDataModalOpened(false)}
         title={
           <Group gap={8}>
-            <Text fw={700} c="white">Full Dataset View</Text>
-            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.12)", border: "1px solid rgba(147,51,234,0.2)" }}>
-              <Text size="10px" fw={700} c="violet.4">{data.length.toLocaleString()} rows · {columns.length} cols</Text>
+            <Text fw={700} c="var(--orcha-text-title)">Full Dataset View</Text>
+            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "var(--orcha-sidebar-hover-bg)", border: "1px solid var(--orcha-border)" }}>
+              <Text size="10px" fw={700} c="var(--orcha-purple)">{data.length.toLocaleString()} rows · {columns.length} cols</Text>
             </Box>
           </Group>
         }
         size="95%"
         styles={{
-          content: { background: "#0c0814", border: "1px solid rgba(147,51,234,0.2)" },
-          header: { background: "#0c0814" },
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+          header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)" },
         }}
       >
         <ScrollArea h="75vh" type="auto">
           <Box style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(10,8,20,0.8)" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", background: "var(--orcha-surface)" }}>
               <thead>
                 <tr>
-                  <th style={{ width: 40, padding: "9px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", fontWeight: 500, borderBottom: "1px solid rgba(147,51,234,0.12)", background: "rgba(147,51,234,0.04)", userSelect: "none" }}>#</th>
+                  <th style={{ width: 40, padding: "9px 12px", textAlign: "right", fontSize: 10, color: "var(--orcha-text-muted)", fontWeight: 500, borderBottom: "1px solid var(--orcha-border)", background: "var(--orcha-sidebar-hover-bg)", userSelect: "none" }}>#</th>
                   {columns.map((col) => (
-                    <th key={col} style={{ padding: "9px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "rgba(192,132,252,0.75)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid rgba(147,51,234,0.12)", borderLeft: "1px solid rgba(255,255,255,0.03)", background: "rgba(147,51,234,0.04)" }}>
+                    <th key={col} style={{ padding: "9px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--orcha-purple)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid var(--orcha-border)", borderLeft: "1px solid var(--orcha-table-border)", background: "var(--orcha-sidebar-hover-bg)" }}>
                       {col}
                     </th>
                   ))}
@@ -381,11 +382,11 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
               </thead>
               <tbody>
                 {data.map((row, ri) => (
-                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "var(--orcha-table-border)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "var(--orcha-sidebar-hover-bg)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "var(--orcha-table-border)"; }}
                   >
-                    <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.03)", userSelect: "none" }}>{ri + 1}</td>
+                    <td style={{ padding: "7px 12px", textAlign: "right", fontSize: 10, color: "var(--orcha-text-muted)", borderBottom: "1px solid var(--orcha-table-border)", userSelect: "none" }}>{ri + 1}</td>
                     {columns.map((col, ci) => {
                       const val = row[col];
                       const isNull = val == null;
@@ -411,7 +412,7 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
                       const isImg = isImageUrl(val);
 
                       return (
-                        <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
+                        <td key={ci} style={{ padding: "7px 16px", fontSize: 12, color: isNull ? "var(--orcha-null-color)" : isNum && isNegative ? "#ef4444" : isNum ? "var(--orcha-number-color)" : "var(--orcha-text-body)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid var(--orcha-table-border)", borderLeft: "1px solid var(--orcha-table-border)", textAlign: isNum ? "right" : "left" }}>
                           {isImg ? <TableCellImage url={val} /> : displayVal}
                         </td>
                       );

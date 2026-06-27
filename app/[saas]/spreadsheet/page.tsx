@@ -56,7 +56,7 @@ export default function SpreadsheetListPage() {
               <IconTableFilled size={16} color="#a855f7" />
               <Text size="xs" fw={700} c="violet.4" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>Spreadsheets</Text>
             </Group>
-            <Title order={1} c="white">Reports & Spreadsheets</Title>
+            <Title order={1} c="var(--orcha-text-title)">Reports & Spreadsheets</Title>
             <Text c="dimmed" size="sm" mt={4}>Create and manage spreadsheets shared across your organization.</Text>
           </Box>
           <Button leftSection={<IconPlus size={16} />} color="violet" radius="md" onClick={handleCreate}>
@@ -111,7 +111,7 @@ export default function SpreadsheetListPage() {
                     style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(147,51,234,0.3)", borderRadius: 4, padding: "4px 8px", color: "white", fontSize: 14, outline: "none" }}
                   />
                 ) : (
-                  <Text fw={600} c="white" size="sm" truncate>{s.name}</Text>
+                  <Text fw={600} c="var(--orcha-text-title)" size="sm" truncate>{s.name}</Text>
                 )}
 
                 <Text size="11px" c="dimmed" mt={4}>

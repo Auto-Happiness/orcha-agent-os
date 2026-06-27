@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { useMantineColorScheme } from "@mantine/core";
 import CodeMirror, { Extension, ViewUpdate } from "@uiw/react-codemirror";
 import { sql, MySQL, PostgreSQL, MSSQL } from "@codemirror/lang-sql";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -23,6 +24,8 @@ export function SqlEditor({
   minHeight = 300,
   onSelectionChange
 }: SqlEditorProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
 
   // 1. Determine Dialect
   const getDialect = () => {
@@ -79,11 +82,11 @@ export function SqlEditor({
   const extensions = useMemo(() => {
     const exts: Extension[] = [
       sql({ dialect: getDialect() }),
-      oneDark,
+      ...(isDark ? [oneDark] : []),
       autocompletion({ override: [myCompletions] }),
     ];
     return exts;
-  }, [language, semanticModels]);
+  }, [language, semanticModels, isDark]);
 
   return (
     <div style={{ 
@@ -91,14 +94,14 @@ export function SqlEditor({
       width: "100%", 
       borderRadius: "12px", 
       overflow: "hidden", 
-      border: "1px solid rgba(147,51,234,0.15)", 
-      background: "#13102a",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.2)"
+      border: "1px solid var(--orcha-border)", 
+      background: "var(--orcha-panel)",
+      boxShadow: isDark ? "0 4px 20px rgba(0,0,0,0.2)" : "0 4px 20px rgba(0,0,0,0.05)"
     }}>
       <CodeMirror
         value={value}
         height={typeof minHeight === 'number' ? `${minHeight}px` : String(minHeight)}
-        theme={oneDark}
+        theme={isDark ? oneDark : "light"}
         extensions={extensions}
         onChange={(val) => onChange(val)}
         onUpdate={(update: ViewUpdate) => {

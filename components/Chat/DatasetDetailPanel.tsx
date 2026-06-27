@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { Box, Group, Stack, Text, ActionIcon, Loader, Button, Center } from "@mantine/core";
+import { Box, Group, Stack, Text, ActionIcon, Loader, Button, Center, useMantineColorScheme } from "@mantine/core";
 import { IconDownload, IconX } from "@tabler/icons-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -18,6 +18,9 @@ interface DatasetDetailPanelProps {
 const PAGE_SIZE = 50;
 
 export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: DatasetDetailPanelProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+
   const dbConfig = useQuery(
     api.databaseConfigs.getById,
     configId ? { configId: configId as any } : "skip"
@@ -196,14 +199,14 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
       style={{
         flex: 65,
         minWidth: 320,
-        borderLeft: "1px solid rgba(147, 51, 234, 0.15)",
-        background: "#0c0814",
+        borderLeft: "1px solid var(--orcha-border)",
+        background: "var(--orcha-panel)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
         overflow: "hidden",
         animation: "slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-        boxShadow: "-8px 0 32px rgba(0,0,0,0.6)",
+        boxShadow: isDark ? "-8px 0 32px rgba(0,0,0,0.6)" : "-8px 0 32px rgba(0,0,0,0.06)",
         zIndex: 10,
       }}
     >
@@ -215,11 +218,11 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
       `}</style>
       
       {/* Header */}
-      <Box style={{ background: "#130f22", borderBottom: "1px solid rgba(147, 51, 234, 0.12)", padding: "14px 20px" }}>
+      <Box style={{ background: "var(--orcha-surface)", borderBottom: "1px solid var(--orcha-border)", padding: "14px 20px" }}>
         <Group justify="space-between" align="center" wrap="nowrap">
           <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-            <Text size="xs" fw={700} c="violet.4" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>Dataset View</Text>
-            <Text fw={700} size="sm" c="white" truncate>{activeDetailTable.title}</Text>
+            <Text size="xs" fw={700} c="var(--orcha-purple)" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>Dataset View</Text>
+            <Text fw={700} size="sm" c="var(--orcha-text-title)" truncate>{activeDetailTable.title}</Text>
           </Stack>
           <Group gap={8}>
             <ActionIcon variant="subtle" color="violet" radius="md" size="md" onClick={handleDownloadCSV} title="Download CSV">
@@ -235,7 +238,7 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
       {/* Table Body */}
       <Box style={{ flex: 1, overflow: "auto", position: "relative" }} p="md">
         {loading && (
-          <Center style={{ position: "absolute", inset: 0, background: "rgba(12,8,20,0.7)", zIndex: 5 }}>
+          <Center style={{ position: "absolute", inset: 0, background: isDark ? "rgba(12,8,20,0.7)" : "rgba(255,255,255,0.7)", zIndex: 5 }}>
             <Loader color="violet" size="md" />
           </Center>
         )}
@@ -247,12 +250,12 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
         )}
 
         <Box style={{ overflowX: "auto", minWidth: "100%" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(10,8,20,0.8)", border: "1px solid rgba(147, 51, 234, 0.1)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)" }}>
             <thead>
               <tr>
-                <th style={{ width: 40, padding: "10px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", fontWeight: 500, borderBottom: "1px solid rgba(147,51,234,0.12)", background: "rgba(147,51,234,0.04)", userSelect: "none" }}>#</th>
+                <th style={{ width: 40, padding: "10px 12px", textAlign: "right", fontSize: 10, color: "var(--orcha-text-muted)", fontWeight: 500, borderBottom: "1px solid var(--orcha-border)", background: "var(--orcha-sidebar-hover-bg)", userSelect: "none" }}>#</th>
                 {pageData.length > 0 && Object.keys(pageData[0]).map((col) => (
-                  <th key={col} style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "rgba(192,132,252,0.75)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid rgba(147,51,234,0.12)", borderLeft: "1px solid rgba(255,255,255,0.03)", background: "rgba(147,51,234,0.04)" }}>
+                  <th key={col} style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--orcha-purple)", textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap", borderBottom: "1px solid var(--orcha-border)", borderLeft: "1px solid var(--orcha-table-border)", background: "var(--orcha-sidebar-hover-bg)" }}>
                     {col}
                   </th>
                 ))}
@@ -263,11 +266,11 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
                 const columns = Object.keys(row);
                 const absoluteIndex = (currentPage - 1) * PAGE_SIZE + ri + 1;
                 return (
-                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "rgba(147,51,234,0.06)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)"; }}
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "var(--orcha-table-border)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = "var(--orcha-sidebar-hover-bg)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = ri % 2 === 0 ? "transparent" : "var(--orcha-table-border)"; }}
                   >
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.15)", borderBottom: "1px solid rgba(255,255,255,0.03)", userSelect: "none" }}>{absoluteIndex}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 10, color: "var(--orcha-text-muted)", borderBottom: "1px solid var(--orcha-table-border)", userSelect: "none" }}>{absoluteIndex}</td>
                     {columns.map((col, ci) => {
                       const val = row[col];
                       const isNull = val == null;
@@ -291,7 +294,7 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
                       const isNegative = !isNaN(numericValue) && numericValue < 0;
 
                       return (
-                        <td key={ci} style={{ padding: "8px 16px", fontSize: 12, color: isNull ? "rgba(255,255,255,0.2)" : isNum && isNegative ? "#f87171" : isNum ? "#a5f3fc" : "rgba(255,255,255,0.82)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,0.03)", borderLeft: "1px solid rgba(255,255,255,0.03)", textAlign: isNum ? "right" : "left" }}>
+                        <td key={ci} style={{ padding: "8px 16px", fontSize: 12, color: isNull ? "var(--orcha-null-color)" : isNum && isNegative ? "#ef4444" : isNum ? "var(--orcha-number-color)" : "var(--orcha-text-body)", fontStyle: isNull ? "italic" : "normal", fontFamily: isNum ? "var(--font-geist-mono,monospace)" : "inherit", whiteSpace: "nowrap", borderBottom: "1px solid var(--orcha-table-border)", borderLeft: "1px solid var(--orcha-table-border)", textAlign: isNum ? "right" : "left" }}>
                           {displayVal}
                         </td>
                       );
@@ -301,7 +304,7 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
               })}
               {pageData.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={100} style={{ padding: "30px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>
+                  <td colSpan={100} style={{ padding: "30px", textAlign: "center", color: "var(--orcha-text-muted)", fontSize: "12px" }}>
                     No rows returned.
                   </td>
                 </tr>
@@ -315,8 +318,8 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
       {hasSqlPagination && totalCount !== null && (
         <Box
           style={{
-            background: "#130f22",
-            borderTop: "1px solid rgba(147, 51, 234, 0.12)",
+            background: "var(--orcha-surface)",
+            borderTop: "1px solid var(--orcha-border)",
             padding: "12px 20px",
             display: "flex",
             justifyContent: "space-between",
@@ -336,7 +339,7 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
             >
               Previous
             </Button>
-            <Text size="xs" fw={600} c="white">
+            <Text size="xs" fw={600} c="var(--orcha-text-title)">
               Page {currentPage} of {totalPages || 1}
             </Text>
             <Button
@@ -355,8 +358,8 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
       {!hasSqlPagination && pageData.length > 0 && (
         <Box
           style={{
-            background: "#130f22",
-            borderTop: "1px solid rgba(147, 51, 234, 0.12)",
+            background: "var(--orcha-surface)",
+            borderTop: "1px solid var(--orcha-border)",
             padding: "12px 20px",
           }}
         >

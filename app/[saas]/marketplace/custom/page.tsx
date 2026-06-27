@@ -110,9 +110,9 @@ export default function CustomToolsPage() {
         </Stack>
 
         {customMcpServers.length === 0 ? (
-          <Box p="xl" style={{ border: "2px dashed rgba(147,51,234,0.15)", borderRadius: 12, textAlign: "center", backgroundColor: "rgba(19,15,34,0.2)" }}>
+          <Box p="xl" style={{ border: "2px dashed var(--orcha-border)", borderRadius: 12, textAlign: "center", backgroundColor: "var(--orcha-surface)" }}>
             <IconTool size={48} color="rgba(147,51,234,0.3)" style={{ margin: "0 auto 16px" }} />
-            <Text c="white" fw={600} size="lg">No custom tools yet</Text>
+            <Text c="var(--orcha-text-title)" fw={600} size="lg">No custom tools yet</Text>
             <Text c="dimmed" size="sm" mt={4} maw={500} mx="auto">Any HTTP server that speaks JSON-RPC 2.0 MCP can be added. Your tools will be immediately available to the Orcha Agent.</Text>
             <Button mt="xl" variant="subtle" color="violet" onClick={() => setCustomMcpModal(true)}>Add your first server</Button>
           </Box>
@@ -130,9 +130,9 @@ export default function CustomToolsPage() {
                     padding="lg" 
                     radius="md" 
                     style={{ 
-                      backgroundColor: "rgba(19,15,34,0.4)", 
+                      backgroundColor: "var(--orcha-panel)", 
                       backdropFilter: "blur(10px)", 
-                      borderColor: "rgba(34,197,94,0.2)",
+                      borderColor: "var(--orcha-border)",
                       cursor: "pointer",
                       transition: "transform 0.2s ease, border-color 0.2s ease",
                     }}
@@ -140,11 +140,11 @@ export default function CustomToolsPage() {
                   >
                     <Group justify="space-between" mb="sm">
                       <Group gap="sm">
-                        <Box style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(147,51,234,0.15)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(147,51,234,0.2)" }}>
+                        <Box style={{ width: 40, height: 40, borderRadius: 10, background: "var(--orcha-sidebar-hover-bg)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--orcha-border)" }}>
                           <IconTool size={20} color="#a855f7" />
                         </Box>
                         <Box>
-                          <Text fw={700} c="white" size="md" style={{ textTransform: "capitalize" }}>{displayName}</Text>
+                          <Text fw={700} c="var(--orcha-text-title)" size="md" style={{ textTransform: "capitalize" }}>{displayName}</Text>
                           <Text size="xs" c="dimmed" truncate style={{ maxWidth: 200 }}>{serverUrl}</Text>
                         </Box>
                       </Group>
@@ -172,7 +172,7 @@ export default function CustomToolsPage() {
       <Modal
         opened={customMcpModal}
         onClose={() => setCustomMcpModal(false)}
-        title={<Group gap={8}><IconTool size={16} color="#a855f7" /><Text fw={600} c="white">Add Custom MCP Server</Text></Group>}
+        title={<Group gap={8}><IconTool size={16} color="#a855f7" /><Text fw={600} c="var(--orcha-text-title)">Add Custom MCP Server</Text></Group>}
         radius="md"
         styles={{ content: { background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)" }, header: { background: "#0d0a1a", borderBottom: "1px solid rgba(147,51,234,0.1)" } }}
       >

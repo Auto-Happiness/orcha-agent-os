@@ -47,6 +47,7 @@ import { MantineUiProvider } from "@/lib/mantine-provider";
 import { Spotlight, spotlight } from "@mantine/spotlight";
 import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 /* ─── Brand logo ─────────────────────────────────────────────────────────── */
 
@@ -62,7 +63,7 @@ function OrchaLogo({ collapsed }: { collapsed: boolean }) {
       </Box>
       {!collapsed && (
         <Box>
-          <Text fw={700} size="sm" c="white" lh={1}>Orcha</Text>
+          <Text fw={700} size="sm" c="var(--orcha-text-title)" lh={1}>Orcha</Text>
           <Text size="9px" c="violet.3" fw={600} style={{ letterSpacing: "0.15em" }}>AGENT OS</Text>
         </Box>
       )}
@@ -156,11 +157,11 @@ function SideNavItem({
         root: {
           borderRadius: "8px",
           padding: "9px 10px",
-          color: active ? "#e2d9f3" : "rgba(255,255,255,0.5)",
-          backgroundColor: active ? "rgba(147,51,234,0.15)" : "transparent",
+          color: active ? "var(--orcha-purple)" : "var(--orcha-sidebar-text)",
+          backgroundColor: active ? "var(--orcha-sidebar-hover-bg)" : "transparent",
           "&:hover": {
-            backgroundColor: "rgba(147,51,234,0.08)",
-            color: "rgba(255,255,255,0.85)",
+            backgroundColor: "var(--orcha-sidebar-hover-bg)",
+            color: "var(--orcha-sidebar-hover-text)",
           },
         },
         label: { fontSize: "13px", fontWeight: 500 },
@@ -334,9 +335,9 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   }
 
   const SIDEBAR_W = collapsed ? 70 : 240;
-  const BG_SIDEBAR = "#0c0918";
-  const BG_PAGE = "#07050f";
-  const BORDER_COL = "rgba(147,51,234,0.12)";
+  const BG_SIDEBAR = "var(--sidebar)";
+  const BG_PAGE = "var(--background)";
+  const BORDER_COL = "var(--orcha-border)";
 
   return (
     <MantineUiProvider>
@@ -356,11 +357,11 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
             transition: "width 200ms ease",
           },
           header: {
-            background: "rgba(7,5,16,0.85)",
+            background: "var(--orcha-header-bg)",
             backdropFilter: "blur(12px)",
             borderBottom: `1px solid ${BORDER_COL}`,
           },
-          main: { background: BG_PAGE, color: "white" },
+          main: { background: BG_PAGE, color: "var(--foreground)" },
         }}
       >
         {/* ── Header ─────────────────────────────────────────────────── */}
@@ -382,30 +383,33 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                 py={5}
                 onClick={spotlight.open}
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "var(--orcha-surface)",
+                  border: "1px solid var(--orcha-border)",
                   borderRadius: "8px",
                   cursor: "pointer",
                   minWidth: 220,
                   transition: "all 0.2s ease"
                 }}
-                className="hover:bg-white/10"
+                className="hover:bg-black/5 dark:hover:bg-white/10"
                 visibleFrom="sm"
               >
-                <IconSearch size={14} color="rgba(255,255,255,0.3)" />
+                <IconSearch size={14} color="var(--orcha-text-muted)" />
                 <Text size="xs" c="dimmed" style={{ flex: 1 }}>Search configurations…</Text>
-                <Kbd size="xs" style={{ background: "rgba(255,255,255,0.06)", border: "none", color: "rgba(255,255,255,0.3)" }}>⌘K</Kbd>
+                <Kbd size="xs" style={{ background: "var(--orcha-bg)", border: "none", color: "var(--orcha-text-muted)" }}>⌘K</Kbd>
               </Group>
             </Group>
 
             {/* Right */}
             <Group gap="xs">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+
               {/* Notifications */}
               <Tooltip label="Notifications" withArrow>
                 <ActionIcon
                   variant="subtle"
                   size="lg"
-                  style={{ color: "rgba(255,255,255,0.5)", position: "relative" }}
+                  style={{ color: "var(--orcha-text-muted)", position: "relative" }}
                 >
                   <IconBell size={18} />
                   {/* Dot indicator */}
@@ -417,8 +421,8 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                       width: 7,
                       height: 7,
                       borderRadius: "50%",
-                      background: "#9333ea",
-                      border: "2px solid #07050f",
+                      background: "var(--orcha-purple)",
+                      border: "2px solid var(--orcha-bg)",
                     }}
                   />
                 </ActionIcon>
@@ -432,8 +436,8 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                     px="xs"
                     py={4}
                     style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "var(--orcha-surface)",
+                      border: "1px solid var(--orcha-border)",
                       borderRadius: "8px",
                       cursor: "pointer",
                     }}
@@ -445,10 +449,10 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                       radius="xl"
                       color="violet"
                     />
-                    <Text size="xs" c="rgba(255,255,255,0.75)" fw={500} visibleFrom="sm">
+                    <Text size="xs" c="var(--orcha-text-body)" fw={500} visibleFrom="sm">
                       {user?.firstName}
                     </Text>
-                    <IconChevronDown size={12} color="rgba(255,255,255,0.3)" />
+                    <IconChevronDown size={12} color="var(--orcha-text-muted)" />
                   </Group>
                 </Menu.Target>
 

@@ -15,33 +15,41 @@ import ReactFlow, {
   BackgroundVariant
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { Box, Text, Group, Stack, Badge, rem, Divider } from "@mantine/core";
+import { Box, Text, Group, Stack, Badge, rem, useMantineColorScheme } from "@mantine/core";
 import { IconDatabase, IconFingerprint, IconRelationOneToOne } from "@tabler/icons-react";
 
 const PRIMARY_PURPLE = "#a855f7";
-const BACKGROUND_DARK = "#0c0c0e";
-const NODE_BG = "#1a1b1e";
-const HEADER_BG = "#2c2e33";
 
 const TableNode = ({ data }: { data: any }) => {
+  const isDark = data._isDark;
+  const nodeBg       = isDark ? "#1a1b1e"                    : "#ffffff";
+  const headerBg     = isDark ? "#2c2e33"                    : "#f1f5f9";
+  const borderCol    = isDark ? "rgba(255,255,255,0.08)"     : "rgba(0,0,0,0.08)";
+  const handleBorder = isDark ? "#0c0c0e"                    : "#ffffff";
+  const textCol      = isDark ? "white"                      : "#0f172a";
+  const iconCol      = isDark ? "rgba(255,255,255,0.2)"      : "rgba(0,0,0,0.2)";
+  const fieldText    = isDark ? "gray.4"                     : "gray.7";
+
   return (
     <Box
       style={{
         width: 280,
-        backgroundColor: NODE_BG,
+        backgroundColor: nodeBg,
         borderRadius: "8px",
-        border: `1px solid rgba(255,255,255,0.08)`,
+        border: `1px solid ${borderCol}`,
         overflow: "hidden",
-        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.4)",
-        color: "white"
+        boxShadow: isDark
+          ? "0 10px 15px -3px rgba(0,0,0,0.4)"
+          : "0 4px 12px rgba(0,0,0,0.08)",
+        color: textCol
       }}
     >
       {/* Header */}
       <Box
         p="xs"
         style={{
-          backgroundColor: HEADER_BG,
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          backgroundColor: headerBg,
+          borderBottom: `1px solid ${borderCol}`,
           cursor: "grab"
         }}
         className="drag-handle"
@@ -50,7 +58,7 @@ const TableNode = ({ data }: { data: any }) => {
           <Group gap={8}>
             <IconDatabase size={16} color={PRIMARY_PURPLE} />
             <Box style={{ flex: 1, minWidth: 0 }}>
-              <Text size="xs" fw={700} truncate title={data.displayName}>{data.displayName}</Text>
+              <Text size="xs" fw={700} truncate title={data.displayName} style={{ color: textCol }}>{data.displayName}</Text>
             </Box>
           </Group>
           <Badge size="xs" variant="outline" color="gray" styles={{ label: { fontSize: '9px', textTransform: 'lowercase' } }}>{data.tableName}</Badge>
@@ -87,7 +95,7 @@ const TableNode = ({ data }: { data: any }) => {
                 background: PRIMARY_PURPLE,
                 width: 8,
                 height: 8,
-                border: "2px solid #0c0c0e",
+                border: `2px solid ${handleBorder}`,
                 zIndex: 10
               }}
             />
@@ -97,9 +105,9 @@ const TableNode = ({ data }: { data: any }) => {
                 {field.isPrimary ? (
                   <IconFingerprint size={12} color={PRIMARY_PURPLE} />
                 ) : (
-                  <IconRelationOneToOne size={12} color="rgba(255,255,255,0.2)" />
+                  <IconRelationOneToOne size={12} color={iconCol} />
                 )}
-                <Text size="xs" c={field.isPrimary ? "white" : "gray.4"} truncate>{field.displayName}</Text>
+                <Text size="xs" c={field.isPrimary ? (isDark ? "white" : "dark") : fieldText} truncate>{field.displayName}</Text>
               </Group>
               <Text size="9px" c="dimmed" style={{ fontFamily: "monospace" }}>{field.type === 'dimension' ? 'DIM' : 'MEA'}</Text>
             </Group>
@@ -113,7 +121,7 @@ const TableNode = ({ data }: { data: any }) => {
                 background: PRIMARY_PURPLE,
                 width: 8,
                 height: 8,
-                border: "2px solid #0c0c0e",
+                border: `2px solid ${handleBorder}`,
                 zIndex: 10
               }}
             />
@@ -161,13 +169,8 @@ const RelationshipEdge = ({
   );
 };
 
-const nodeTypes = {
-  table: TableNode,
-};
-
-const edgeTypes = {
-  relationship: RelationshipEdge,
-};
+const nodeTypes = { table: TableNode };
+const edgeTypes = { relationship: RelationshipEdge };
 
 interface SchemaDiagramProps {
   models: any[];
@@ -175,16 +178,25 @@ interface SchemaDiagramProps {
 }
 
 export function SchemaDiagram({ models, relationships }: SchemaDiagramProps) {
-  // Convert models to React Flow Nodes
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+
+  const canvasBg       = isDark ? "#0c0c0e"                : "#f8fafc";
+  const canvasBorder   = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.08)";
+  const controlsBg     = isDark ? "#1a1b1e"                : "#ffffff";
+  const controlsBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const gridColor      = isDark ? "rgba(168,85,247,0.05)"  : "rgba(168,85,247,0.10)";
+
+  // Inject _isDark into node data so TableNode can read the palette without a React context
   const nodes: Node[] = useMemo(() => {
     return models.map((model, idx) => ({
       id: model._id,
       type: "table",
       position: { x: (idx % 3) * 380, y: Math.floor(idx / 3) * 450 },
-      data: model,
+      data: { ...model, _isDark: isDark },
       dragHandle: ".drag-handle",
     }));
-  }, [models]);
+  }, [models, isDark]);
 
   // Convert relationships to React Flow Edges
   const edges: Edge[] = useMemo(() => {
@@ -207,10 +219,10 @@ export function SchemaDiagram({ models, relationships }: SchemaDiagramProps) {
 
   return (
     <Box h="700px" style={{
-      border: "1px solid rgba(255,255,255,0.05)",
+      border: `1px solid ${canvasBorder}`,
       borderRadius: rem(12),
       overflow: "hidden",
-      background: BACKGROUND_DARK
+      background: canvasBg
     }}>
       <ReactFlow
         nodes={nodes}
@@ -221,13 +233,13 @@ export function SchemaDiagram({ models, relationships }: SchemaDiagramProps) {
       >
         <Background
           gap={24}
-          color="rgba(168, 85, 247, 0.05)" // Subtle purple grid
+          color={gridColor}
           variant={BackgroundVariant.Lines}
         />
         <Controls
           style={{
-            background: NODE_BG,
-            border: "1px solid rgba(255,255,255,0.08)"
+            background: controlsBg,
+            border: `1px solid ${controlsBorder}`
           }}
         />
       </ReactFlow>

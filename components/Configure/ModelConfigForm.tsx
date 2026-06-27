@@ -61,7 +61,7 @@ export function ModelConfigForm({ provider }: ModelFormProps) {
       <Stack gap={10}>
         <Group gap="xs">
           <IconShieldCheck size={18} color="#22c55e" />
-          <Text fw={600} size="sm" c="white">Language Model Parameters</Text>
+          <Text fw={600} size="sm" c="var(--orcha-text-title)">Language Model Parameters</Text>
           <Badge variant="dot" color="violet" size="xs">{provider.toUpperCase()}</Badge>
         </Group>
       </Stack>
@@ -71,10 +71,10 @@ export function ModelConfigForm({ provider }: ModelFormProps) {
         {renderForm()}
       </Box>
 
-      <Box p="md" style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: "8px" }}>
+      <Box p="md" style={{ background: "var(--orcha-surface)", border: "1px dashed var(--orcha-border)", borderRadius: "8px" }}>
         <Group gap="xs">
-          <IconSettings2 size={16} color="rgba(255,255,255,0.4)" />
-          <Text size="xs" fw={700} c="white">Advanced Context Tuning</Text>
+          <IconSettings2 size={16} color="var(--orcha-text-muted)" />
+          <Text size="xs" fw={700} c="var(--orcha-text-title)">Advanced Context Tuning</Text>
         </Group>
         <Text size="xs" c="dimmed" mt={4}>
           Fine-tune the reasoning tokens and context window limitations for this specific agent engine. 
@@ -82,7 +82,7 @@ export function ModelConfigForm({ provider }: ModelFormProps) {
         </Text>
       </Box>
 
-      <Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />
+      <Divider style={{ borderColor: "var(--orcha-border)" }} />
 
       <Group justify="flex-end" mt="md">
         <Button variant="light" color="violet" leftSection={<IconSparkles size={16} />}>Test Intelligence</Button>

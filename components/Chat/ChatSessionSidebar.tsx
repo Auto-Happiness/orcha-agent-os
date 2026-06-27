@@ -73,16 +73,16 @@ export function ChatSessionSidebar({
       style={{
         width: 240,
         flexShrink: 0,
-        borderRight: "1px solid rgba(147,51,234,0.12)",
-        background: "#0a0814",
+        borderRight: "1px solid var(--orcha-border)",
+        background: "var(--sidebar)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
       }}
     >
       {/* Header */}
-      <Group justify="space-between" px="md" py="sm" style={{ borderBottom: "1px solid rgba(147,51,234,0.1)" }}>
-        <Text size="xs" fw={600} c="rgba(255,255,255,0.5)" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>
+      <Group justify="space-between" px="md" py="sm" style={{ borderBottom: "1px solid var(--orcha-border)" }}>
+        <Text size="xs" fw={600} c="var(--orcha-text-muted)" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>
           Conversations
         </Text>
         <Group gap={6}>
@@ -140,8 +140,8 @@ export function ChatSessionSidebar({
                   borderRadius: 8,
                   padding: "8px 10px",
                   cursor: "pointer",
-                  background: isActive ? "rgba(147,51,234,0.15)" : hoveredId === session._id ? "rgba(255,255,255,0.04)" : "transparent",
-                  border: isActive ? "1px solid rgba(147,51,234,0.2)" : "1px solid transparent",
+                  background: isActive ? "var(--orcha-sidebar-hover-bg)" : hoveredId === session._id ? "var(--orcha-sidebar-hover-bg)" : "transparent",
+                  border: isActive ? "1px solid var(--orcha-border)" : "1px solid transparent",
                   transition: "all 0.15s ease",
                   position: "relative",
                 }}
@@ -159,11 +159,11 @@ export function ChatSessionSidebar({
                       onClick={(e) => e.stopPropagation()}
                       style={{
                         flex: 1,
-                        background: "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(147,51,234,0.3)",
+                        background: "var(--orcha-surface)",
+                        border: "1px solid var(--orcha-border)",
                         borderRadius: 4,
                         padding: "2px 6px",
-                        color: "white",
+                        color: "var(--orcha-text-title)",
                         fontSize: 12,
                         outline: "none",
                         minWidth: 0,
@@ -179,8 +179,8 @@ export function ChatSessionSidebar({
                 ) : (
                   <Group gap={6} wrap="nowrap" justify="space-between">
                     <Group gap={6} wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
-                      <IconMessage size={13} color={isActive ? "#a855f7" : "rgba(255,255,255,0.3)"} style={{ flexShrink: 0 }} />
-                      <Text size="xs" c={isActive ? "white" : "rgba(255,255,255,0.6)"} fw={isActive ? 500 : 400} truncate style={{ flex: 1 }}>
+                      <IconMessage size={13} color={isActive ? "var(--orcha-purple)" : "var(--orcha-text-muted)"} style={{ flexShrink: 0 }} />
+                      <Text size="xs" c={isActive ? "var(--orcha-text-title)" : "var(--orcha-text-body)"} fw={isActive ? 500 : 400} truncate style={{ flex: 1 }}>
                         {session.title}
                       </Text>
                     </Group>
@@ -191,12 +191,12 @@ export function ChatSessionSidebar({
                             <IconDots size={13} />
                           </ActionIcon>
                         </Menu.Target>
-                        <Menu.Dropdown style={{ background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 8 }}>
-                          <Menu.Item leftSection={<IconPencil size={13} />} c="rgba(255,255,255,0.75)"
+                        <Menu.Dropdown style={{ background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", borderRadius: 8 }}>
+                          <Menu.Item leftSection={<IconPencil size={13} />} c="var(--orcha-text-body)"
                             onClick={(e) => { e.stopPropagation(); setEditingId(session._id); setEditValue(session.title); }}>
                             Rename
                           </Menu.Item>
-                          <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.06)" }} />
+                          <Menu.Divider style={{ borderColor: "var(--orcha-border)" }} />
                           <Menu.Item leftSection={<IconTrash size={13} />} c="red.4" onClick={(e) => handleDeleteClick(e, session._id)}>
                             Delete
                           </Menu.Item>
@@ -219,13 +219,13 @@ export function ChatSessionSidebar({
         size="sm"
         overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
         styles={{
-          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 12 },
-          header: { background: "#130f22", color: "white" },
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", borderRadius: 12 },
+          header: { background: "var(--orcha-panel)", color: "var(--orcha-text-title)" },
           title: { fontWeight: 600 }
         }}
       >
         <Stack gap="md">
-          <Text size="sm" c="rgba(255,255,255,0.7)">
+          <Text size="sm" c="var(--orcha-text-body)">
             Are you sure you want to delete this conversation? This action cannot be undone.
           </Text>
           <Group justify="flex-end" gap="sm">

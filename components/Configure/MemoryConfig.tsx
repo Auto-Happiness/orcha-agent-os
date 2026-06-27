@@ -83,14 +83,14 @@ export function MemoryConfig() {
       <Box>
         <Group justify="space-between" mb="md">
           <Stack gap={2}>
-            <Title order={3} size="h3" c="white">Semantic Memory Layer</Title>
+            <Title order={3} size="h3" c="var(--orcha-text-title)">Semantic Memory Layer</Title>
             <Text size="xs" c="dimmed">Choose the search engine used for indexing your tables (RAG). Higher resolution provides better accuracy for large schemas.</Text>
           </Stack>
           <ThemeIcon variant="light" color="violet" size="lg" radius="md">
             <IconBrain size={20} />
           </ThemeIcon>
         </Group>
-        <Divider style={{ borderColor: "rgba(147,51,234,0.12)" }} mt="md" />
+        <Divider style={{ borderColor: "var(--orcha-border)" }} mt="md" />
       </Box>
 
       <Stack gap="md">
@@ -106,8 +106,8 @@ export function MemoryConfig() {
               component="div"
               shadow={isSelected ? "md" : "xs"}
               style={{
-                background: isSelected ? "rgba(147,51,234,0.06)" : "rgba(255,255,255,0.01)",
-                border: `1px solid ${isSelected ? "rgba(147,51,234,0.4)" : "rgba(255,255,255,0.05)"}`,
+                background: isSelected ? "rgba(147,51,234,0.06)" : "var(--orcha-panel)",
+                border: `1px solid ${isSelected ? "rgba(147,51,234,0.4)" : "var(--orcha-border)"}`,
                 borderRadius: rem(12),
                 padding: rem(20),
                 transition: "all 0.2s ease",
@@ -123,12 +123,12 @@ export function MemoryConfig() {
                       color={provider.color} 
                       size="xl" 
                       radius="md"
-                      style={{ background: isSelected ? undefined : "rgba(255,255,255,0.03)" }}
+                      style={{ background: isSelected ? undefined : "var(--orcha-surface)" }}
                     >
                       <Icon size={24} />
                     </ThemeIcon>
                     <Stack gap={0}>
-                      <Text fw={700} size="md" c={isSelected ? "white" : "dimmed"}>{provider.name}</Text>
+                      <Text fw={700} size="md" c={isSelected ? "var(--orcha-text-title)" : "dimmed"}>{provider.name}</Text>
                       <Group gap={6}>
                         <Badge variant="dot" size="xs" color="gray" styles={{ label: { textTransform: "none" }}}>{provider.dimensions} dimensions</Badge>
                         {isSelected && (
@@ -144,7 +144,7 @@ export function MemoryConfig() {
                   {isSelected ? (
                     <IconCircleCheckFilled size={24} color="var(--mantine-color-violet-6)" />
                   ) : (
-                    <IconCircle size={24} color="rgba(255,255,255,0.1)" />
+                    <IconCircle size={24} color="var(--orcha-border)" />
                   )}
                 </Group>
 
@@ -180,9 +180,9 @@ export function MemoryConfig() {
       </Stack>
 
       {/* Pro Tip Section */}
-      <Paper p="md" radius="sm" style={{ border: "1px dashed rgba(255,255,255,0.1)", background: "transparent" }}>
+      <Paper p="md" radius="sm" style={{ border: "1px dashed var(--orcha-border)", background: "transparent" }}>
           <Group gap="xs" mb={4}>
-            <IconNetwork size={14} color="rgba(255,255,255,0.4)" />
+            <IconNetwork size={14} color="var(--orcha-text-muted)" />
             <Text size="xs" fw={700} c="dimmed">Architecture Guide</Text>
           </Group>
           <Text size="xs" c="dimmed" lh={1.5}>

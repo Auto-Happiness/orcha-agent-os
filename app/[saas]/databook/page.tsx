@@ -59,7 +59,7 @@ export default function DatabookPage() {
       <title>{saas ? `Databook - ${saas}` : "Databook"}</title>
       <Stack gap="4rem">
         <Box mb="xl">
-          <Title order={1} c="white" size="2rem" mb="xs" style={{ letterSpacing: "-0.02em" }}>
+          <Title order={1} c="var(--orcha-text-title)" size="2rem" mb="xs" style={{ letterSpacing: "-0.02em" }}>
             Databook
           </Title>
           <Text c="dimmed" size="md">Access and search saved query results and database insights.</Text>

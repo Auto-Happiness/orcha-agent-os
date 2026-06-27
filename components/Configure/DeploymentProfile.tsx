@@ -26,7 +26,7 @@ export function DeploymentProfile({
   return (
     <Grid styles={{ inner: { gap: "var(--mantine-spacing-xl)" } }}>
       <Grid.Col span={8}>
-        <Paper withBorder p="2.5rem" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
+        <Paper withBorder p="2.5rem" radius="md" style={{ background: "var(--orcha-panel)" }}>
            <Stack gap="xl">
               <TextInput label="Friendly Name" size="md" styles={inputStyles} value={name} onChange={(e) => setName(e.target.value)} />
               <Textarea label="Environment Description" styles={inputStyles} minRows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
@@ -37,7 +37,7 @@ export function DeploymentProfile({
       
       <Grid.Col span={4}>
         <Stack gap="xl">
-            <Paper withBorder p="xl" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
+            <Paper withBorder p="xl" radius="md" style={{ background: "var(--orcha-panel)" }}>
                <Stack gap="md">
                   <Text size="xs" fw={700} c="dimmed">Environment Tags</Text>
                   <Group gap="xs">
@@ -50,7 +50,7 @@ export function DeploymentProfile({
             </Paper>
             <Paper withBorder p="xl" radius="md" style={{ background: "rgba(147, 51, 234, 0.05)", borderColor: "rgba(147,51,234,0.2)" }}>
                <Stack gap="xs">
-                  <Group gap="xs"><IconCheck size={16} color="#a855f7" /><Text size="sm" fw={700} c="white">Sync Status</Text></Group>
+                  <Group gap="xs"><IconCheck size={16} color="#a855f7" /><Text size="sm" fw={700} c="var(--orcha-text-title)">Sync Status</Text></Group>
                   <Text size="xs" c="dimmed">Your semantic bridge is synchronized with your database schema.</Text>
                </Stack>
             </Paper>

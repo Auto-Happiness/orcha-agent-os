@@ -73,12 +73,12 @@ function parseMarkdown(text: string, stripTables?: boolean): React.ReactNode[] {
           component="span"
           size="xs"
           style={{
-            background: "rgba(147,51,234,0.15)",
+            background: "var(--orcha-surface)",
             padding: "2px 6px",
             borderRadius: 4,
             fontFamily: "monospace",
           }}
-          c="violet.2"
+          c="var(--orcha-purple)"
         >
           {match[3]}
         </Text>
@@ -102,7 +102,7 @@ function parseMarkdown(text: string, stripTables?: boolean): React.ReactNode[] {
             href={linkUrl}
             target="_blank"
             rel="noopener noreferrer"
-            c="violet.3"
+            c="var(--orcha-purple)"
             style={{ textDecoration: "underline", cursor: "pointer" }}
           >
             {linkText}
@@ -364,13 +364,13 @@ function renderToolPart(
   return (
     <Box key={i} ml="3rem" mt="xs">
       <Group gap={6}>
-        <IconCheck size={12} color="var(--mantine-color-green-4)" />
-        <Text size="xs" fw={600} c="green.3">
+        <IconCheck size={12} color="var(--mantine-color-green-6)" />
+        <Text size="xs" fw={600} c="green">
           Completed {toolName.replace(/_/g, ' ')}
         </Text>
       </Group>
       {result.content && typeof result.content === 'string' && (
-        <Box mt={4} p="6px 12px" style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, border: "1px solid rgba(147,51,234,0.1)" }}>
+        <Box mt={4} p="6px 12px" style={{ background: "var(--orcha-surface)", borderRadius: 8, border: "1px solid var(--orcha-border)" }}>
           <Text size="xs" c="dimmed">{result.content}</Text>
         </Box>
       )}
@@ -402,7 +402,7 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
           {m.role === "user" ? <IconUser size={20} /> : <IconSparkles size={24} style={{ color: "#a855f7" }} />}
         </Avatar>
         <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-          <Text fw={700} size="sm" c="white">{m.role === "user" ? "You" : "Orcha Agent"}</Text>
+          <Text fw={700} size="sm" c="var(--orcha-text-title)">{m.role === "user" ? "You" : "Orcha Agent"}</Text>
           {m.parts.map((part: any, i: number) => {
             if (part.type !== "text" || !part.text) return null;
 
@@ -411,40 +411,40 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
 
             // Combined Reasoning Split Logic
             // Combined Reasoning Split Logic
-            if (markerIdx !== -1) {
-              const before = part.text.slice(0, markerIdx).trim();
-              const reasoningAndAfter = part.text.slice(markerIdx);
-              const afterMarker = reasoningAndAfter.slice(MARKER.length).trimStart();
-              
-              // Smart split: Group reasoning paragraphs until we hit one that doesn't look like reasoning
-              const sections = afterMarker.split(/\n{2,}/);
-              let reasoningEndIndex = 0;
-              
-              for (let j = 1; j < sections.length; j++) {
-                const s = sections[j].trimStart();
-                const lowerS = s.toLowerCase();
-                // If it starts with a common answer transition or doesn't look like a bullet/bold header, we break
-                if (lowerS.startsWith("final") || lowerS.startsWith("based on") || lowerS.startsWith("here") || lowerS.startsWith("the ") || (!s.startsWith("*") && !s.startsWith("-") && !s.startsWith("#") && !/^\d+\./.test(s))) {
-                  break;
+              if (markerIdx !== -1) {
+                const before = part.text.slice(0, markerIdx).trim();
+                const reasoningAndAfter = part.text.slice(markerIdx);
+                const afterMarker = reasoningAndAfter.slice(MARKER.length).trimStart();
+                
+                // Smart split: Group reasoning paragraphs until we hit one that doesn't look like reasoning
+                const sections = afterMarker.split(/\n{2,}/);
+                let reasoningEndIndex = 0;
+                
+                for (let j = 1; j < sections.length; j++) {
+                  const s = sections[j].trimStart();
+                  const lowerS = s.toLowerCase();
+                  // If it starts with a common answer transition or doesn't look like a bullet/bold header, we break
+                  if (lowerS.startsWith("final") || lowerS.startsWith("based on") || lowerS.startsWith("here") || lowerS.startsWith("the ") || (!s.startsWith("*") && !s.startsWith("-") && !s.startsWith("#") && !/^\d+\./.test(s))) {
+                    break;
+                  }
+                  reasoningEndIndex = j;
                 }
-                reasoningEndIndex = j;
+                
+                const reasoningContent = sections.slice(0, reasoningEndIndex + 1).join("\n\n").trim();
+                const afterAnswer = sections.slice(reasoningEndIndex + 1).join("\n\n").trim();
+  
+                return (
+                  <React.Fragment key={i}>
+                    {before ? <Text size="sm" c="var(--orcha-text-body)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }} component="div">{parseMarkdown(before, hasSqlResult)}</Text> : null}
+                    <ReasoningBlock text={MARKER + "\n" + reasoningContent} renderMarkdown={renderMarkdown} />
+                    {afterAnswer ? <Text size="sm" c="var(--orcha-text-body)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }} component="div">{parseMarkdown(afterAnswer, hasSqlResult)}</Text> : null}
+                  </React.Fragment>
+                );
               }
-              
-              const reasoningContent = sections.slice(0, reasoningEndIndex + 1).join("\n\n").trim();
-              const afterAnswer = sections.slice(reasoningEndIndex + 1).join("\n\n").trim();
-
-              return (
-                <React.Fragment key={i}>
-                  {before ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 12 }} component="div">{parseMarkdown(before, hasSqlResult)}</Text> : null}
-                  <ReasoningBlock text={MARKER + "\n" + reasoningContent} renderMarkdown={renderMarkdown} />
-                  {afterAnswer ? <Text size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 4 }} component="div">{parseMarkdown(afterAnswer, hasSqlResult)}</Text> : null}
-                </React.Fragment>
-              );
-            }
 
             // Plain text part — no reasoning marker
             return (
-              <Text key={i} size="sm" c="rgba(255,255,255,0.88)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }} component="div">
+              <Text key={i} size="sm" c="var(--orcha-text-body)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }} component="div">
                 {parseMarkdown(part.text, hasSqlResult)}
               </Text>
             );
@@ -467,10 +467,10 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
                 </Button>
               )}
               <MantineTooltip label="Estimated tokens used for this turn (prompt + response)" position="top" withArrow>
-                <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.1)", border: "1px solid rgba(147,51,234,0.2)", cursor: "help" }}>
+                <Box style={{ padding: "2px 8px", borderRadius: 20, background: "var(--orcha-sidebar-hover-bg)", border: "1px solid var(--orcha-border)", cursor: "help" }}>
                   <Group gap={4}>
-                    <IconBrain size={10} color="rgba(192,132,252,0.8)" />
-                    <Text size="10px" fw={600} c="violet.3">
+                    <IconBrain size={10} color="var(--orcha-purple)" />
+                    <Text size="10px" fw={600} c="var(--orcha-purple)">
                       ~{Math.ceil(JSON.stringify(m.parts).length / 4) + 850} tokens spent
                     </Text>
                   </Group>
@@ -544,7 +544,7 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
             <IconSparkles size={24} style={{ color: "#a855f7" }} />
           </Avatar>
           <Stack gap={4} py={8}>
-            <Text fw={700} size="sm" c="white">Orcha Agent</Text>
+            <Text fw={700} size="sm" c="var(--orcha-text-title)">Orcha Agent</Text>
             <ThinkingLoader />
           </Stack>
         </Group>
@@ -556,24 +556,24 @@ export function ChatMessages({ messages, isLoading, showResults, organizationId,
         title={
           <Group gap={8}>
             <IconAlertCircle size={16} color="var(--mantine-color-red-6)" />
-            <Text size="sm" fw={600} c="white">Retry Logs (Agent Auto-Correction Attempts)</Text>
+            <Text size="sm" fw={600} c="var(--orcha-text-title)">Retry Logs (Agent Auto-Correction Attempts)</Text>
           </Group>
         }
         size="lg" radius="md"
-        styles={{ content: { background: "#0d0a1a", border: "1px solid rgba(239,68,68,0.2)" }, header: { background: "#0d0a1a", borderBottom: "1px solid rgba(239,68,68,0.1)" }, title: { color: "white" } }}
+        styles={{ content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" }, header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)" }, title: { color: "var(--orcha-text-title)" } }}
       >
         <Stack gap="md" pt="xs">
           <Text size="xs" c="dimmed">
             The database agent encountered these errors and automatically attempted to correct them:
           </Text>
           {retryLogsModal?.map((log, idx) => (
-            <Box key={idx} p="sm" style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, border: "1px solid rgba(239,68,68,0.15)" }}>
+            <Box key={idx} p="sm" style={{ background: "var(--orcha-surface)", borderRadius: 8, border: "1px solid var(--orcha-border)" }}>
               <Group justify="space-between" mb={4}>
-                <Text size="xs" fw={700} c="red.3" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <Text size="xs" fw={700} c="red" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Attempt {idx + 1} ({log.toolName.replace(/_/g, ' ')})
                 </Text>
               </Group>
-              <Text size="xs" c="gray.4" ff="monospace" style={{ whiteSpace: "pre-wrap" }}>
+              <Text size="xs" c="var(--orcha-text-body)" ff="monospace" style={{ whiteSpace: "pre-wrap" }}>
                 {log.error}
               </Text>
             </Box>

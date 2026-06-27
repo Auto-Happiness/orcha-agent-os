@@ -45,7 +45,7 @@ import dynamic from "next/dynamic";
 const SqlEditor = dynamic(() => import("./SqlEditor").then(m => m.SqlEditor), {
   ssr: false,
   loading: () => (
-    <Box h={300} bg="rgba(255,255,255,0.02)" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+    <Box h={300} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: '1px solid var(--orcha-border)', background: "var(--orcha-surface)" }}>
       <Stack align="center" gap="xs">
         <Loader size="sm" color="violet" />
         <Text size="xs" c="dimmed">Loading Editor...</Text>
@@ -270,11 +270,11 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
     <Grid styles={{ inner: { gap: "var(--mantine-spacing-xs)" } }}>
       <Grid.Col span={9}>
         <Stack gap="xs">
-          <Paper withBorder radius="md" style={{ background: "#0c0a1a", borderColor: "rgba(255,255,255,0.05)" }}>
-            <Group p="xs" justify="space-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <Paper withBorder radius="md" style={{ background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" }}>
+            <Group p="xs" justify="space-between" style={{ borderBottom: "1px solid var(--orcha-border)" }}>
               <Group gap="xs">
                 <IconTerminal2 size={16} color="#a855f7" />
-                <Text size="xs" fw={700} c="white" style={{ textTransform: "uppercase", letterSpacing: "1px" }}>SQL Editor</Text>
+                <Text size="xs" fw={700} c="var(--orcha-text-title)" style={{ textTransform: "uppercase", letterSpacing: "1px" }}>SQL Editor</Text>
               </Group>
               <Group gap="xs">
                 <Button size="compact-xs" variant="subtle" color="dimmed" leftSection={<IconBookmark size={12} />} onClick={handleSaveQuery}>Save Query</Button>
@@ -301,10 +301,10 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
             </Box>
           </Paper>
 
-          <Paper withBorder radius="md" style={{ background: "#0c0a1a", borderColor: "rgba(255,255,255,0.05)", flex: 1, minHeight: "400px" }}>
-            <Group p="xs" justify="space-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <Paper withBorder radius="md" style={{ background: "var(--orcha-panel)", borderColor: "var(--orcha-border)", flex: 1, minHeight: "400px" }}>
+            <Group p="xs" justify="space-between" style={{ borderBottom: "1px solid var(--orcha-border)" }}>
               <Group gap="xs">
-                <IconTableExport size={16} color="rgba(255,255,255,0.3)" />
+                <IconTableExport size={16} color="var(--orcha-text-muted)" />
                 <Text size="xs" fw={700} c="dimmed">Query Results</Text>
               </Group>
               <Group gap="xs">
@@ -334,9 +334,9 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
               <ScrollArea h={400}>
                 <Table variant="simple" verticalSpacing="xs" stickyHeader stickyHeaderOffset={0}>
                   <Table.Thead style={{ zIndex: 1 }}>
-                    <Table.Tr style={{ background: "#0c0a1a" }}>
+                    <Table.Tr style={{ background: "var(--orcha-panel)" }}>
                       {queryResults.columns.map(col => (
-                        <Table.Th key={col} style={{ color: "white", fontSize: "11px", borderColor: "rgba(255,255,255,0.05)", background: "#0c0a1a" }}>{col}</Table.Th>
+                        <Table.Th key={col} style={{ color: "var(--orcha-text-title)", fontSize: "11px", borderColor: "var(--orcha-border)", background: "var(--orcha-panel)" }}>{col}</Table.Th>
                       ))}
                     </Table.Tr>
                   </Table.Thead>
@@ -344,7 +344,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                     {queryResults.rows.map((row, i) => (
                       <Table.Tr key={i}>
                         {queryResults.columns.map(col => (
-                          <Table.Td key={col} style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px", borderColor: "rgba(255,255,255,0.02)" }}>
+                          <Table.Td key={col} style={{ color: "var(--orcha-text-body)", fontSize: "11px", borderColor: "var(--orcha-border)" }}>
                             {typeof row[col] === 'object' && row[col] !== null
                               ? JSON.stringify(row[col])
                               : row[col]?.toString() ?? <Text span c="dimmed" size="10px">NULL</Text>
@@ -359,7 +359,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
             ) : (
               <Center h={200}>
                 <Stack align="center" gap="xs">
-                  <IconSearch size={32} color="rgba(255,255,255,0.1)" />
+                  <IconSearch size={32} color="var(--orcha-border)" />
                   <Text size="xs" c="dimmed">Run a query to see structured results here.</Text>
                 </Stack>
               </Center>
@@ -369,10 +369,10 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
       </Grid.Col>
 
       <Grid.Col span={3}>
-        <Paper withBorder h="100%" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderColor: "rgba(255,255,255,0.05)" }}>
+        <Paper withBorder h="100%" radius="md" style={{ background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" }}>
           <Tabs value={activeSidebarTab} onChange={setActiveSidebarTab} color="violet" variant="pills" styles={{
             root: { height: "100%", display: "flex", flexDirection: "column" },
-            list: { padding: "12px", borderBottom: "1px solid rgba(255,255,255,0.05)" },
+            list: { padding: "12px", borderBottom: "1px solid var(--orcha-border)" },
             tab: { fontSize: "10px", fontWeight: 700, textTransform: "uppercase" },
             panel: { flex: 1, padding: "12px" }
           }}>
@@ -392,9 +392,9 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
 
                 <ScrollArea h={600} offsetScrollbars viewportRef={containerRef}>
                   <Accordion variant="separated" styles={{
-                    item: { border: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)", marginBottom: "4px" },
+                    item: { border: "1px solid var(--orcha-border)", background: "var(--orcha-surface)", marginBottom: "4px" },
                     control: { padding: "8px 12px" },
-                    label: { fontSize: "12px", color: "white", fontWeight: 600 },
+                    label: { fontSize: "12px", color: "var(--orcha-text-title)", fontWeight: 600 },
                     content: { padding: "8px" }
                   }}>
                     {semanticModels?.map((model) => (
@@ -422,7 +422,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                               <Group key={f.columnName} justify="space-between" wrap="nowrap" style={{
                                 padding: "4px 8px",
                                 borderRadius: "4px",
-                                background: "rgba(255,255,255,0.02)",
+                                background: "var(--orcha-panel)",
                                 cursor: "pointer"
                               }} onClick={() => insertAtCursor(f.columnName)}>
                                 <Text size="10px" c="dimmed" truncate>{f.columnName}</Text>
@@ -464,7 +464,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                       >
                         <Group justify="space-between" mb={4} wrap="nowrap">
                           <Group gap="xs" style={{ flex: 1, minWidth: 0 }}>
-                            <Text size="xs" fw={700} c="white" truncate style={{ flex: 1 }}>{item.name}</Text>
+                            <Text size="xs" fw={700} c="var(--orcha-text-title)" truncate style={{ flex: 1 }}>{item.name}</Text>
                           </Group>
                           <Group gap={4} style={{ flexShrink: 0 }}>
                             <IconStar size={10} color="#a855f7" />
@@ -509,14 +509,14 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
         size="sm"
         overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
         styles={{
-          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 12 },
-          header: { background: "#130f22", color: "white" },
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", borderRadius: 12 },
+          header: { background: "var(--orcha-panel)", color: "var(--orcha-text-title)" },
           title: { fontWeight: 600 }
         }}
       >
         <Stack gap="md">
-          <Text size="sm" c="rgba(255,255,255,0.7)">
-            Are you sure you want to delete <Text span fw={600} c="white">"{queryToDelete?.name}"</Text>? This action cannot be undone.
+          <Text size="sm" c="var(--orcha-text-body)">
+            Are you sure you want to delete <Text span fw={600} c="var(--orcha-text-title)">"{queryToDelete?.name}"</Text>? This action cannot be undone.
           </Text>
 
           <Group justify="flex-end" gap="sm">

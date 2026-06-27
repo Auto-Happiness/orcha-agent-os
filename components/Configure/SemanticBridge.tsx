@@ -325,7 +325,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
           {/* Sidebar: Selected Tables */}
           <Grid.Col span={3}>
             <Stack gap="md">
-              <Card withBorder radius="md" p="sm" bg="rgba(255,255,255,0.01)">
+              <Card withBorder radius="md" p="sm" style={{ background: "var(--orcha-surface)" }}>
                 <Stack gap={8}>
                   <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase", letterSpacing: rem(1) }}>Business Context</Text>
                   <Text size="10px" c="dimmed">Help the AI understand this DB (e.g. "SaaS Billing")</Text>
@@ -334,7 +334,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                     size="xs"
                     value={data.businessContext}
                     onChange={(e) => updateData({ businessContext: e.currentTarget.value })}
-                    styles={{ input: { background: "rgba(0,0,0,0.2)" } }}
+                    styles={{ input: { background: "var(--orcha-panel)" } }}
                   />
                 </Stack>
               </Card>
@@ -358,9 +358,9 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                         onClick={() => setActiveTable(m.tableName)}
                       >
                         <Group gap="sm" wrap="nowrap">
-                          <IconTable size={16} color={activeTable === m.tableName ? "#a855f7" : "rgba(255,255,255,0.3)"} />
+                          <IconTable size={16} color={activeTable === m.tableName ? "#a855f7" : "var(--orcha-text-muted)"} />
                           <Box style={{ flex: 1 }}>
-                            <Text size="sm" fw={600} c={activeTable === m.tableName ? "white" : "gray.5"}>{m.displayName}</Text>
+                            <Text size="sm" fw={600} c={activeTable === m.tableName ? "var(--orcha-text-title)" : "dimmed"}>{m.displayName}</Text>
                             <Text size="10px" c="dimmed">{m.fieldCount} fields</Text>
                           </Box>
                         </Group>
@@ -393,7 +393,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                         placeholder="Table Display Name"
                         defaultValue={selectedModel.displayName}
                         onBlur={(e) => updateModel({ id: selectedModel._id, displayName: e.currentTarget.value })}
-                        styles={{ input: { background: "transparent", border: "none", padding: 0, fontWeight: 700, fontSize: rem(20), color: "white" } }}
+                        styles={{ input: { background: "transparent", border: "none", padding: 0, fontWeight: 700, fontSize: rem(20), color: "var(--orcha-text-title)" } }}
                       />
                       <Text size="xs" c="dimmed">Source: <span style={{ fontFamily: "monospace" }}>{selectedModel.tableName}</span></Text>
                     </Stack>
@@ -481,8 +481,8 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                     ) : (
                       selectedModel.fields.map((field: any, idx: number) => (
                         <Card key={field.columnName} withBorder style={{
-                          background: "rgba(255,255,255,0.02)",
-                          borderColor: field.isPrimary ? "rgba(147,51,234,0.4)" : "rgba(255,255,255,0.06)",
+                           background: "var(--orcha-surface)",
+                           borderColor: field.isPrimary ? "rgba(147,51,234,0.4)" : "var(--orcha-border)",
                           boxShadow: field.isPrimary ? "0 0 10px rgba(147,51,234,0.1)" : "none"
                         }} radius="md" p="sm">
                           <Grid align="center">
@@ -493,7 +493,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                                   label="Business Name"
                                   defaultValue={field.displayName}
                                   onBlur={(e) => handleFieldUpdate(idx, { displayName: e.currentTarget.value })}
-                                  styles={{ input: { background: "transparent", border: "none", padding: 0, fontWeight: 700, fontSize: rem(14) }, label: { fontSize: rem(10), color: "rgba(255,255,255,0.3)" } }}
+                                   styles={{ input: { background: "transparent", border: "none", padding: 0, fontWeight: 700, fontSize: rem(14) }, label: { fontSize: rem(10), color: "var(--orcha-text-muted)" } }}
                                 />
                                 <Group gap={4}>
                                   <Text size="10px" c="dimmed" ff="monospace">{field.columnName}</Text>
@@ -512,7 +512,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                                 ]}
                                 value={field.fieldType || (field.type === 'measure' ? 'measure' : 'dimension')}
                                 onChange={(val) => handleFieldUpdate(idx, { fieldType: val!, defaultAggregation: val === 'measure' ? 'sum' : undefined })}
-                                styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) } }}
+                                styles={{ input: { background: "var(--orcha-panel)", height: rem(32) } }}
                               />
                             </Grid.Col>
 
@@ -530,7 +530,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                                   ]}
                                   value={field.defaultAggregation || field.aggregation || 'sum'}
                                   onChange={(val) => handleFieldUpdate(idx, { defaultAggregation: val! })}
-                                  styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) } }}
+                                  styles={{ input: { background: "var(--orcha-panel)", height: rem(32) }, label: { fontSize: rem(10), color: "var(--orcha-text-muted)" } }}
                                 />
                               ) : (
                                 <TextInput
@@ -539,7 +539,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                                   placeholder="e.g. currency"
                                   defaultValue={field.dataType}
                                   onBlur={(e) => handleFieldUpdate(idx, { dataType: e.currentTarget.value })}
-                                  styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) } }}
+                                  styles={{ input: { background: "var(--orcha-panel)", height: rem(32) }, label: { fontSize: rem(10), color: "var(--orcha-text-muted)" } }}
                                 />
                               )}
                             </Grid.Col>
@@ -552,7 +552,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                                   placeholder="What is this column?"
                                   defaultValue={field.description}
                                   onBlur={(e) => handleFieldUpdate(idx, { description: e.currentTarget.value })}
-                                  styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) }, label: { fontSize: rem(10), color: "rgba(255,255,255,0.3)" } }}
+                                  styles={{ input: { background: "var(--orcha-panel)", height: rem(32) }, label: { fontSize: rem(10), color: "var(--orcha-text-muted)" } }}
                                 />
                                 <TextInput
                                   size="xs"
@@ -560,7 +560,7 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
                                   placeholder="Notes for AI..."
                                   defaultValue={field.remarks}
                                   onBlur={(e) => handleFieldUpdate(idx, { remarks: e.currentTarget.value })}
-                                  styles={{ input: { background: "rgba(0,0,0,0.2)", height: rem(32) }, label: { fontSize: rem(10), color: "rgba(255,255,255,0.3)" } }}
+                                  styles={{ input: { background: "var(--orcha-panel)", height: rem(32) }, label: { fontSize: rem(10), color: "var(--orcha-text-muted)" } }}
                                 />
                               </Stack>
                             </Grid.Col>
@@ -616,9 +616,9 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
         radius="md"
         size="lg"
         styles={{
-          content: { background: "#0c0814", border: "1px solid rgba(147, 51, 234, 0.2)" },
-          header: { background: "#0c0814", borderBottom: "1px solid rgba(255, 255, 255, 0.05)" },
-          title: { color: "white", fontWeight: 700 }
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+          header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)" },
+          title: { color: "var(--orcha-text-title)", fontWeight: 700 }
         }}
       >
         <Stack gap="md" pt="xs">
@@ -626,11 +626,11 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
             Enrich your Orcha OS semantic models with column descriptions, layer documentation, primary keys, and relationships exported from your dbt project.
           </Text>
 
-          <Paper withBorder p="md" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderStyle: "dashed" }}>
+          <Paper withBorder p="md" radius="md" style={{ background: "var(--orcha-surface)", borderStyle: "dashed" }}>
             <Stack gap="sm">
               <Group justify="space-between">
                 <Box style={{ flex: 1 }}>
-                  <Text size="xs" fw={700} c="white">dbt Manifest File (manifest.json)</Text>
+                  <Text size="xs" fw={700} c="var(--orcha-text-title)">dbt Manifest File (manifest.json)</Text>
                   <Text size="10px" c="dimmed">Contains model descriptions, tests, and dependencies.</Text>
                 </Box>
                 <Button
@@ -659,11 +659,11 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
             </Stack>
           </Paper>
 
-          <Paper withBorder p="md" radius="md" style={{ background: "rgba(255,255,255,0.01)", borderStyle: "dashed" }}>
+          <Paper withBorder p="md" radius="md" style={{ background: "var(--orcha-surface)", borderStyle: "dashed" }}>
             <Stack gap="sm">
               <Group justify="space-between">
                 <Box style={{ flex: 1 }}>
-                  <Text size="xs" fw={700} c="white">dbt Catalog File (catalog.json) — Optional</Text>
+                  <Text size="xs" fw={700} c="var(--orcha-text-title)">dbt Catalog File (catalog.json) — Optional</Text>
                   <Text size="10px" c="dimmed">Contains verified database column types from your warehouse.</Text>
                 </Box>
                 <Button
@@ -697,8 +697,8 @@ export function SemanticBridge({ configId }: SemanticBridgeProps) {
               <Stack gap={6}>
                 <Text size="xs" fw={700} c="violet.2">Preview dbt Metadata:</Text>
                 <Group gap="xl">
-                  <Text size="xs" c="white">📁 Models found: <span style={{ fontWeight: 700, color: "#c084fc" }}>{parsedStats.modelsCount}</span></Text>
-                  <Text size="xs" c="white">🔗 Relationships found: <span style={{ fontWeight: 700, color: "#c084fc" }}>{parsedStats.relationshipsCount}</span></Text>
+                  <Text size="xs" c="var(--orcha-text-body)">📁 Models found: <span style={{ fontWeight: 700, color: "var(--orcha-purple)" }}>{parsedStats.modelsCount}</span></Text>
+                  <Text size="xs" c="var(--orcha-text-body)">🔗 Relationships found: <span style={{ fontWeight: 700, color: "var(--orcha-purple)" }}>{parsedStats.relationshipsCount}</span></Text>
                 </Group>
               </Stack>
             </Paper>

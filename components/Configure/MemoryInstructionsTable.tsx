@@ -97,9 +97,9 @@ export function MemoryInstructionsTable({ configId, organizationId }: MemoryInst
   };
 
   const rows = instructions?.map((inst) => (
-    <Table.Tr key={inst._id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}>
+    <Table.Tr key={inst._id} style={{ borderBottom: "1px solid var(--orcha-border)" }}>
       <Table.Td style={{ verticalAlign: "top", py: "md" }}>
-        <Text size="xs" fw={700} c="white">
+        <Text size="xs" fw={700} c="var(--orcha-text-title)">
           {inst.title}
         </Text>
       </Table.Td>
@@ -141,7 +141,7 @@ export function MemoryInstructionsTable({ configId, organizationId }: MemoryInst
         <Box>
           <Group gap={8}>
             <IconAdjustmentsHorizontal size={18} color="#a855f7" />
-            <Text size="sm" fw={700} c="white">Dynamic Semantic Guidelines & Policies</Text>
+            <Text size="sm" fw={700} c="var(--orcha-text-title)">Dynamic Semantic Guidelines & Policies</Text>
           </Group>
           <Text size="11px" c="dimmed" mt={2}>
             Retrieve and inject company policies dynamically based on query contexts (e.g. "Only count active clients").
@@ -158,13 +158,13 @@ export function MemoryInstructionsTable({ configId, organizationId }: MemoryInst
         </Button>
       </Group>
 
-      <Paper withBorder p="md" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
+      <Paper withBorder p="md" radius="md" style={{ background: "var(--orcha-panel)" }}>
         {instructions === undefined ? (
           <Group justify="center" py="xl"><Text size="xs" c="dimmed">Syncing semantic guidelines index...</Text></Group>
         ) : instructions.length === 0 ? (
           <Group justify="center" py="3rem">
             <Stack align="center" gap="xs">
-              <IconAlertCircle size={28} color="rgba(255, 255, 255, 0.2)" />
+              <IconAlertCircle size={28} color="var(--orcha-text-muted)" />
               <Text size="xs" c="dimmed">No custom guidelines defined yet. Create a guideline to route query intent safely.</Text>
             </Stack>
           </Group>
@@ -172,7 +172,7 @@ export function MemoryInstructionsTable({ configId, organizationId }: MemoryInst
           <ScrollArea h={320} offsetScrollbars>
             <Table variant="unstyled" style={{ width: "100%" }}>
               <Table.Thead>
-                <Table.Tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                <Table.Tr style={{ borderBottom: "1px solid var(--orcha-border)" }}>
                   <Table.Th style={{ width: "25%" }}><Text size="10px" fw={700} c="dimmed">GUIDELINE TITLE</Text></Table.Th>
                   <Table.Th style={{ width: "60%" }}><Text size="10px" fw={700} c="dimmed">INSTRUCTION CONTENT</Text></Table.Th>
                   <Table.Th style={{ width: "15%", textAlign: "right" }}><Text size="10px" fw={700} c="dimmed">ACTIONS</Text></Table.Th>
@@ -193,9 +193,9 @@ export function MemoryInstructionsTable({ configId, organizationId }: MemoryInst
         radius="md"
         size="lg"
         styles={{
-          content: { background: "#0c0814", border: "1px solid rgba(147, 51, 234, 0.2)" },
-          header: { background: "#0c0814", borderBottom: "1px solid rgba(255, 255, 255, 0.05)" },
-          title: { color: "white", fontWeight: 700 }
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+          header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)" },
+          title: { color: "var(--orcha-text-title)", fontWeight: 700 }
         }}
       >
         <Stack gap="md" pt="xs">

@@ -94,20 +94,20 @@ export function CatalogScan({ configId }: CatalogScanProps) {
     <Stack gap="md">
       <Group justify="space-between">
         <Stack gap={0}>
-          <Text fw={600} size="sm" c="white">Detected Tables ({models.length})</Text>
+          <Text fw={600} size="sm" c="var(--orcha-text-title)">Detected Tables ({models.length})</Text>
           <Text size="11px" c="dimmed">Select the tables you want to include in your semantic layer.</Text>
         </Stack>
         <Badge variant="dot" color="violet">{data.selectedTables?.length || 0} selected</Badge>
       </Group>
 
       <Paper withBorder style={{
-        background: "rgba(255,255,255,0.01)",
-        borderColor: "rgba(147,51,234,0.12)",
+        background: "var(--orcha-panel)",
+        borderColor: "var(--orcha-border)",
         overflow: "hidden"
       }} radius="md">
         <ScrollArea h={600} offsetScrollbars viewportRef={containerRef}>
           <Table verticalSpacing="sm" highlightOnHover>
-            <Table.Thead style={{ background: "rgba(0,0,0,0.2)", position: "sticky", top: 0, zIndex: 10 }}>
+            <Table.Thead style={{ background: "var(--orcha-surface)", position: "sticky", top: 0, zIndex: 10 }}>
               <Table.Tr style={{ borderColor: "rgba(147,51,234,0.1)" }}>
                 <Table.Th w={40}>
                   <Checkbox
@@ -142,7 +142,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                     <Table.Td onClick={() => toggleTable(model.tableName)}>
                       <Group gap="xs">
                         <IconTable size={14} color="rgba(147,51,234,0.6)" />
-                        <Text size="sm" fw={500} c="white">{model.tableName}</Text>
+                        <Text size="sm" fw={500} c="var(--orcha-text-title)">{model.tableName}</Text>
                       </Group>
                     </Table.Td>
                     <Table.Td onClick={() => toggleTable(model.tableName)}>
@@ -152,7 +152,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                         w={350}
                         withArrow
                         disabled={!model.fields?.length}
-                        styles={{ tooltip: { background: "#130f22", border: "1px solid rgba(147,51,234,0.3)", color: "white" } }}
+                        styles={{ tooltip: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", color: "var(--foreground)" } }}
                       >
                         <Box>
                           <Text size="xs" c="dimmed" fw={500} mb={2}>
@@ -178,7 +178,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                       </ActionIcon>
                     </Table.Td>
                   </Table.Tr>
-                  <Table.Tr style={{ display: openedTables[model.tableName] ? "table-row" : "none", background: "rgba(0,0,0,0.15)" }}>
+                  <Table.Tr style={{ display: openedTables[model.tableName] ? "table-row" : "none", background: "var(--orcha-surface)" }}>
                     <Table.Td colSpan={5} p={0}>
                       <Box p="md" pl={rem(60)}>
                         <ScrollArea mah={200} type="auto" offsetScrollbars>
@@ -187,7 +187,7 @@ export function CatalogScan({ configId }: CatalogScanProps) {
                               <Group key={field.columnName} justify="space-between" wrap="nowrap" style={{
                                 padding: "6px 12px",
                                 borderRadius: "4px",
-                                background: "rgba(255,255,255,0.02)",
+                              background: "var(--orcha-panel)",
                               }}>
                                 <Group gap="xs">
                                   <Box

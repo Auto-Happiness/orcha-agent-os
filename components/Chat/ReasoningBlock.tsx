@@ -44,13 +44,13 @@ export function ReasoningBlock({
         }}
       >
         <IconBrain size={15} color="#a855f7" />
-        <Text fw={600} c="violet.2" style={{ flex: 1, fontSize: 10.5, letterSpacing: "0.01em" }}>Reasoning Process</Text>
+        <Text fw={600} c="var(--orcha-purple)" style={{ flex: 1, fontSize: 10.5, letterSpacing: "0.01em" }}>Reasoning Process</Text>
         {opened ? <IconChevronUp size={14} opacity={0.5} /> : <IconChevronDown size={14} opacity={0.5} />}
       </UnstyledButton>
       
       <Collapse expanded={opened}>
         <Box p="xs" px="sm" pb="sm">
-          <Text size="xs" c="rgba(255, 255, 255, 0.65)" style={{ lineHeight: 1.6, whiteSpace: "pre-wrap" }} component="div">
+          <Text size="xs" c="var(--orcha-text-muted)" style={{ lineHeight: 1.6, whiteSpace: "pre-wrap" }} component="div">
             {renderMarkdown(content)}
           </Text>
         </Box>

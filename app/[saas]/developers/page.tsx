@@ -167,7 +167,7 @@ export default function DevelopersPage() {
                 Developer Engine
               </Text>
             </Group>
-            <Title order={1} fw={800} size="h1" c="white" style={{ letterSpacing: "-0.02em" }}>
+            <Title order={1} fw={800} size="h1" c="var(--orcha-text-title)" style={{ letterSpacing: "-0.02em" }}>
               API & Integration
             </Title>
             <Text c="dimmed" size="sm" mt={4}>
@@ -208,7 +208,7 @@ export default function DevelopersPage() {
                 <Stack gap="xl">
                   <Group justify="space-between" align="flex-end">
                     <Box>
-                      <Title order={3} c="white" fw={700}>Active API Keys</Title>
+                      <Title order={3} c="var(--orcha-text-title)" fw={700}>Active API Keys</Title>
                       <Text size="sm" c="dimmed">Manage credentials for secure API access.</Text>
                     </Box>
                     <Button
@@ -238,7 +238,7 @@ export default function DevelopersPage() {
 
                         {apiKeys?.map((key) => (
                           <Table.Tr key={key._id} style={{ borderColor: "rgba(255,255,255,0.03)" }}>
-                            <Table.Td fw={600} c="white">{key.name}</Table.Td>
+                            <Table.Td fw={600} c="var(--orcha-text-title)">{key.name}</Table.Td>
                             <Table.Td>
                               <Group gap="xs">
                                 <Code color="violet.9" c="violet.1" px="md" py={4}>
@@ -386,7 +386,7 @@ export default function DevelopersPage() {
                 <IconActivity size={32} color="rgba(147,51,234,0.4)" />
               </Box>
               <Box style={{ textAlign: "center" }}>
-                <Text fw={600} c="white">Usage Metrics Coming Soon</Text>
+                <Text fw={600} c="var(--orcha-text-title)">Usage Metrics Coming Soon</Text>
                 <Text size="sm" c="dimmed" maw={400}>We are building a comprehensive dashboard to track your API consumption and performance in real-time.</Text>
               </Box>
             </Stack>

@@ -260,7 +260,7 @@ export default function DatabookDetailPage() {
                 </Group>
               ) : (
                 <Group gap="xs" align="center">
-                  <Title order={1} c="white" size="2rem" style={{ letterSpacing: "-0.02em" }}>
+                  <Title order={1} c="var(--orcha-text-title)" size="2rem" style={{ letterSpacing: "-0.02em" }}>
                     {entry.name}
                   </Title>
                   <Tooltip label="Click to rename" position="right" withArrow>

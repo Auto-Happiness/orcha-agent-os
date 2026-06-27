@@ -96,16 +96,16 @@ export function DatabaseProviderSelector({ selected, onSelect }: ProviderSelecto
                   size="md" 
                   radius="md"
                   style={{ 
-                    background: selected === p.id ? `rgba(${getColorRGB(p.color)}, 0.15)` : "rgba(255,255,255,0.04)" 
+                    background: selected === p.id ? `rgba(${getColorRGB(p.color)}, 0.15)` : "var(--orcha-surface)" 
                   }}
                 >
                   {typeof p.icon === "string" ? (
                     <img src={p.icon} alt={p.label} style={{ width: 18, height: 18, objectFit: "contain" }} />
                   ) : (
-                    <p.icon size={18} style={{ color: selected === p.id ? `var(--mantine-color-${p.color}-filled)` : "rgba(255,255,255,0.3)" }} />
+                    <p.icon size={18} style={{ color: selected === p.id ? `var(--mantine-color-${p.color}-filled)` : "var(--orcha-text-muted)" }} />
                   )}
                 </ThemeIcon>
-                <Text size="sm" fw={selected === p.id ? 700 : 500} c={selected === p.id ? "white" : "dimmed"} style={{ whiteSpace: "nowrap" }}>
+                <Text size="sm" fw={selected === p.id ? 700 : 500} c={selected === p.id ? "var(--orcha-text-title)" : "dimmed"} style={{ whiteSpace: "nowrap" }}>
                   {p.label}
                 </Text>
               </Group>

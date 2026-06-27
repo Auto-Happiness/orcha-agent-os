@@ -39,7 +39,7 @@ export function SQLiteForm() {
         <Group gap="xs" align="flex-start">
           <IconInfoCircle size={16} color="#c084fc" style={{ flexShrink: 0, marginTop: 2 }} />
           <Stack gap={4}>
-            <Text size="xs" fw={600} c="white">SQLite Connection Notes</Text>
+            <Text size="xs" fw={600} c="var(--orcha-text-title)">SQLite Connection Notes</Text>
             <Text size="xs" c="dimmed">
               SQLite is a local, file-based database. No host, port, or credentials are required.
               Provide the <strong>absolute path</strong> to the <code>.db</code> or <code>.sqlite</code> file on

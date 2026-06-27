@@ -43,7 +43,7 @@ const theme = createTheme({
     },
     Select: {
       styles: {
-        dropdown: { background: "#130f22", borderColor: "rgba(147,51,234,0.18)", color: "white" },
+        dropdown: { background: "var(--orcha-panel)", borderColor: "var(--orcha-border)", color: "var(--foreground)" },
         option: {
           backgroundColor: "transparent",
         }
@@ -52,7 +52,18 @@ const theme = createTheme({
     TextInput: {
       styles: {
         input: {
-          borderColor: "rgba(147,51,234,0.18)",
+          borderColor: "var(--orcha-border)",
+          background: "var(--orcha-surface)",
+          color: "var(--foreground)",
+        }
+      }
+    },
+    PasswordInput: {
+      styles: {
+        input: {
+          borderColor: "var(--orcha-border)",
+          background: "var(--orcha-surface)",
+          color: "var(--foreground)",
         }
       }
     }
