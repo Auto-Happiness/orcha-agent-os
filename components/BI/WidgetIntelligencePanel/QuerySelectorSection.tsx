@@ -118,15 +118,15 @@ export function QuerySelectorSection({
         size="lg"
         withinPortal
         styles={{
-          content: { background: "#1a1635", border: "1px solid rgba(147, 51, 234, 0.2)" },
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
           header: { background: "transparent" },
         }}
       >
-        <Paper p="md" bg="rgba(0,0,0,0.3)" style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
+        <Paper p="md" bg="var(--orcha-surface)" style={{ border: "1px solid var(--orcha-border)" }}>
           <pre
             style={{
               margin: 0,
-              color: "var(--mantine-color-cyan-4)",
+              color: "var(--orcha-text-body)",
               fontSize: "14px",
               fontFamily: "monospace",
               whiteSpace: "pre-wrap",

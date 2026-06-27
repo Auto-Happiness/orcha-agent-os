@@ -236,7 +236,7 @@ export default function NewConfigurationPage() {
         </Group>
 
         <Box>
-          <Title order={1} c="white" size={rem(32)} mb="xs" style={{ letterSpacing: "-0.02em" }}>
+          <Title order={1} c="var(--orcha-text-title)" size={rem(32)} mb="xs" style={{ letterSpacing: "-0.02em" }}>
             Initialize Environment
           </Title>
           <Text c="dimmed" size="md">Connect your database, define your semantic bridge, and deploy it to your workspace.</Text>
@@ -264,7 +264,7 @@ export default function NewConfigurationPage() {
           >
             <Stack gap="xl" py="2rem">
               <Box>
-                <Title order={3} size="h3" c="white" mb={4}>Primary Data Storage</Title>
+                <Title order={3} size="h3" c="var(--orcha-text-title)" mb={4}>Primary Data Storage</Title>
                 <Text size="xs" c="dimmed">Set up the secure tunnel to your data lake or operational database.</Text>
               </Box>
 
@@ -288,7 +288,7 @@ export default function NewConfigurationPage() {
           >
             <Stack gap="xl" py="2rem">
               <Box>
-                <Title order={3} size="h3" c="white" mb={4}>Metadata Extraction</Title>
+                <Title order={3} size="h3" c="var(--orcha-text-title)" mb={4}>Metadata Extraction</Title>
                 <Text size="xs" c="dimmed">Discover tables and columns available in your data source. Selective scanning ensures focus and precision.</Text>
               </Box>
 
@@ -328,7 +328,7 @@ export default function NewConfigurationPage() {
           >
             <Stack gap="xl" py="2rem">
               <Box>
-                <Title order={3} size="h3" c="white" mb={4}>Semantic Layer (MDL)</Title>
+                <Title order={3} size="h3" c="var(--orcha-text-title)" mb={4}>Semantic Layer (MDL)</Title>
                 <Text size="xs" c="dimmed">Map raw database columns to business concepts (Dimensions and Measures). Define the relationships that drive intelligent SQL generation.</Text>
               </Box>
 
@@ -362,7 +362,7 @@ export default function NewConfigurationPage() {
           >
             <Stack gap="xl" py="2rem">
               <Box>
-                <Title order={3} size="h3" c="white" mb={4}>Deployment Profile</Title>
+                <Title order={3} size="h3" c="var(--orcha-text-title)" mb={4}>Deployment Profile</Title>
                 <Text size="xs" c="dimmed">Assign a unique name, avatar, and searchable tags to this environment.</Text>
               </Box>
 

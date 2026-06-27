@@ -120,8 +120,8 @@ export function ChatPromptBox({
           radius="lg"
           p="sm"
           style={{
-            background: "#161616",
-            border: "1px solid rgba(255,255,255,0.1)",
+            background: "var(--orcha-panel)",
+            border: "1px solid var(--orcha-border)",
             transition: "all 0.2s ease",
           }}
         >
@@ -139,7 +139,7 @@ export function ChatPromptBox({
               onKeyDown={onKeyDown}
               styles={{
                 input: {
-                  color: "white",
+                  color: "var(--orcha-text-title)",
                   fontSize: "14px",
                   background: "transparent",
                   padding: "8px 4px",
@@ -158,17 +158,17 @@ export function ChatPromptBox({
                   shadow="xl"
                   styles={{
                     dropdown: {
-                      background: "#161616",
-                      borderColor: "rgba(255,255,255,0.1)",
+                      background: "var(--orcha-panel)",
+                      borderColor: "var(--orcha-border)",
                       borderRadius: "8px",
                       padding: "4px"
                     },
                     item: {
                       padding: "8px 12px",
                       borderRadius: "6px",
-                      color: "white",
+                      color: "var(--orcha-text-title)",
                       "&:hover": {
-                        background: "rgba(255,255,255,0.05)"
+                        background: "var(--orcha-sidebar-hover-bg)"
                       }
                     }
                   }}
@@ -181,8 +181,8 @@ export function ChatPromptBox({
                       style={{ 
                         cursor: "pointer", 
                         borderRadius: "8px", 
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        background: "rgba(255,255,255,0.02)",
+                        border: "1px solid var(--orcha-border)",
+                        background: "var(--orcha-surface)",
                         height: "32px",
                         minWidth: "150px",
                         transition: "all 0.15s ease"
@@ -191,17 +191,17 @@ export function ChatPromptBox({
                     >
                       <style jsx>{`
                         .db-select-pill-hover:hover {
-                          background: rgba(255,255,255,0.06) !important;
-                          border-color: rgba(255,255,255,0.2) !important;
+                          background: var(--orcha-sidebar-hover-bg) !important;
+                          border-color: var(--orcha-purple) !important;
                         }
                       `}</style>
-                      <IconTable size={14} color="rgba(255,255,255,0.4)" />
-                      <Text size="xs" fw={600} c="rgba(255,255,255,0.8)" style={{ flex: 1 }}>
+                      <IconTable size={14} color="var(--orcha-text-muted)" />
+                      <Text size="xs" fw={600} c="var(--orcha-text-body)" style={{ flex: 1 }}>
                         {uniqueConfigIds.length === 0 
                           ? "Select Databases" 
                           : `${uniqueConfigIds.length} DB${uniqueConfigIds.length > 1 ? "s" : ""} Selected`}
                       </Text>
-                      <IconChevronDown size={10} color="rgba(255,255,255,0.4)" />
+                      <IconChevronDown size={10} color="var(--orcha-text-muted)" />
                     </Group>
                   </Menu.Target>
                   <Menu.Dropdown>
@@ -236,7 +236,7 @@ export function ChatPromptBox({
                               style={{ background: "transparent", opacity: 0.8 }}
                             />
                             <Stack gap={2} style={{ flex: 1 }}>
-                              <Text size="xs" fw={700} c="white">{config.name}</Text>
+                              <Text size="xs" fw={700} c="var(--orcha-text-title)">{config.name}</Text>
                               {config.description && (
                                 <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
                                   {config.description}
@@ -258,24 +258,24 @@ export function ChatPromptBox({
                   size="xs"
                   w={180}
                   comboboxProps={{ position: 'top', width: 220, shadow: 'xl' }}
-                  leftSection={<IconSparkles size={14} color="rgba(255,255,255,0.4)" />}
-                  rightSection={<IconChevronDown size={10} color="rgba(255,255,255,0.4)" />}
+                  leftSection={<IconSparkles size={14} color="var(--orcha-text-muted)" />}
+                  rightSection={<IconChevronDown size={10} color="var(--orcha-text-muted)" />}
                   styles={{
                     root: { width: "180px" },
                     input: {
-                      color: "rgba(255,255,255,0.8)",
+                      color: "var(--orcha-text-body)",
                       fontWeight: 500,
                       fontSize: "12px",
                       background: "transparent",
                       padding: "0 8px"
                     },
                     dropdown: {
-                      background: "#161616",
-                      borderColor: "rgba(255,255,255,0.1)",
+                      background: "var(--orcha-panel)",
+                      borderColor: "var(--orcha-border)",
                       borderRadius: "8px",
                     },
                     groupLabel: {
-                      color: "rgba(147,51,234,0.8)",
+                      color: "var(--orcha-purple)",
                       fontWeight: 700,
                       fontSize: "10px",
                       letterSpacing: "1px",
@@ -283,7 +283,7 @@ export function ChatPromptBox({
                     },
                     option: {
                       fontSize: "12px",
-                      color: "rgba(255,255,255,0.7)",
+                      color: "var(--orcha-text-body)",
                       padding: "6px 12px",
                     }
                   }}
@@ -291,7 +291,7 @@ export function ChatPromptBox({
 
                 <Tooltip label={showResults ? "Hide result table" : "Show result table"} withArrow position="top">
                   <Group gap={5} align="center">
-                    <IconTable size={14} color={showResults ? "#a855f7" : "rgba(255,255,255,0.25)"} />
+                    <IconTable size={14} color={showResults ? "#a855f7" : "var(--orcha-text-muted)"} />
                     <Switch
                       size="xs"
                       checked={showResults}
@@ -332,8 +332,8 @@ export function ChatPromptBox({
                     variant="filled"
                     disabled={!hasText}
                     style={{
-                      backgroundColor: hasText ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-                      color: hasText ? 'white' : 'rgba(255,255,255,0.3)',
+                      backgroundColor: hasText ? '#3b82f6' : 'var(--orcha-surface)',
+                      color: hasText ? 'white' : 'var(--orcha-text-muted)',
                       transition: 'all 0.15s ease-in-out',
                       transform: hasText ? 'scale(1.08)' : 'scale(1)',
                       boxShadow: hasText ? '0 4px 12px rgba(59, 130, 246, 0.4)' : 'none',

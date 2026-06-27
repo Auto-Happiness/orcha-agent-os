@@ -47,7 +47,7 @@ export default function ConfigurePage() {
   // Handle Not Found State
   if (organization === null) {
     return (
-      <Center h="400px" style={{ color: "white" }}>
+      <Center h="400px">
         <Stack align="center" gap="xs">
           <Title order={3}>Workspace Not Found</Title>
           <Text c="dimmed">The workspace "{saas}" could not be located in the database.</Text>
@@ -64,7 +64,7 @@ export default function ConfigurePage() {
       <title>{saas ? `Configurations - ${saas}` : "Configurations"}</title>
       <Stack gap="4rem">
         <Box mb="xl">
-          <Title order={1} c="white" size="2rem" mb="xs" style={{ letterSpacing: "-0.02em" }}>
+          <Title order={1} c="var(--orcha-text-title)" size="2rem" mb="xs" style={{ letterSpacing: "-0.02em" }}>
             Workspace Configurations
           </Title>
           <Text c="dimmed" size="md">Manage your secure database connections and model intelligence.</Text>

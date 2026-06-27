@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo, useState, useEffect, useRef } from "react";
-import { Box, Group, Text, Button, ActionIcon, Popover, Stack, Divider, Tooltip as MantineTooltip, ColorInput, ScrollArea } from "@mantine/core";
+import { Box, Group, Text, Button, ActionIcon, Popover, Stack, Divider, Tooltip as MantineTooltip, ColorInput, ScrollArea, useMantineColorScheme } from "@mantine/core";
 import { IconChartBar, IconPalette, IconCheck, IconDownload } from "@tabler/icons-react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -23,20 +23,20 @@ const PALETTES = {
 
 const chartTooltipStyle = {
   contentStyle: {
-    background: "rgba(13,10,26,0.97)",
-    border: "1px solid rgba(147,51,234,0.25)",
+    background: "var(--orcha-panel)",
+    border: "1px solid var(--orcha-border)",
     borderRadius: 8,
     fontSize: 12,
-    color: "rgba(255,255,255,0.85)",
+    color: "var(--orcha-text-body)",
   },
-  labelStyle: { color: "rgba(192,132,252,0.9)", fontWeight: 600 },
-  cursor: { fill: "rgba(147,51,234,0.07)" },
+  labelStyle: { color: "var(--orcha-purple)", fontWeight: 600 },
+  cursor: { fill: "var(--orcha-sidebar-hover-bg)" },
 };
 
 const axisStyle = {
-  tick: { fill: "rgba(255,255,255,0.35)", fontSize: 11 },
+  tick: { fill: "var(--orcha-text-muted)", fontSize: 11 },
   tickLine: false as const,
-  axisLine: { stroke: "rgba(255,255,255,0.08)" },
+  axisLine: { stroke: "var(--orcha-border)" },
 };
 
 export const ChartBlock = memo(function ChartBlock({
@@ -52,6 +52,9 @@ export const ChartBlock = memo(function ChartBlock({
   parts?: any[];
   partIndex?: number;
 }) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === "dark";
+  
   const chartRef = useRef<HTMLDivElement>(null);
   const [seriesColors, setSeriesColors] = useState<Record<string, string>>(initialColors || {});
   const [popoverOpened, setPopoverOpened] = useState(false);
@@ -147,7 +150,7 @@ export const ChartBlock = memo(function ChartBlock({
 
       const img = new Image();
       img.onload = () => {
-        ctx.fillStyle = "#0a0814";
+        ctx.fillStyle = isDark ? "#0a0814" : "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
@@ -180,18 +183,18 @@ export const ChartBlock = memo(function ChartBlock({
             {pieData.map((entry, i) => <Cell key={i} fill={seriesColors[entry.name] || CHART_COLORS[i % CHART_COLORS.length]} />)}
           </Pie>
           <Tooltip {...chartTooltipStyle} />
-          <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />
+          <Legend wrapperStyle={{ fontSize: 11, color: "var(--orcha-text-muted)" }} />
         </PieChart>
       );
     }
     if (chartType === "line") {
       return (
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--orcha-border)" />
           <XAxis dataKey={xKey} {...axisStyle} />
           <YAxis {...axisStyle} />
           <Tooltip {...chartTooltipStyle} />
-          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "var(--orcha-text-muted)" }} />}
           {yKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={false} />)}
         </LineChart>
       );
@@ -210,11 +213,11 @@ export const ChartBlock = memo(function ChartBlock({
               );
             })}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--orcha-border)" />
           <XAxis dataKey={xKey} {...axisStyle} />
           <YAxis {...axisStyle} />
           <Tooltip {...chartTooltipStyle} />
-          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "var(--orcha-text-muted)" }} />}
           {yKeys.map((k, i) => (
             <Area key={k} type="monotone" dataKey={k} stroke={seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length]} fill={`url(#grad-${k})`} strokeWidth={2} />
           ))}
@@ -224,15 +227,15 @@ export const ChartBlock = memo(function ChartBlock({
     if (chartType === "radar") {
       return (
         <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
-          <PolarGrid stroke="rgba(255,255,255,0.06)" />
+          <PolarGrid stroke="var(--orcha-border)" />
           <PolarAngleAxis
             dataKey={xKey}
-            tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+            tick={{ fill: "var(--orcha-text-muted)", fontSize: 10 }}
           />
           <PolarRadiusAxis
             angle={90}
             domain={[0, "auto"]}
-            tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 8 }}
+            tick={{ fill: "var(--orcha-text-muted)", fontSize: 8 }}
             axisLine={false}
           />
           <Tooltip {...chartTooltipStyle} />
@@ -250,18 +253,18 @@ export const ChartBlock = memo(function ChartBlock({
               />
             );
           })}
-          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+          {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "var(--orcha-text-muted)" }} />}
         </RadarChart>
       );
     }
     // default: bar
     return (
       <BarChart data={data} barCategoryGap="30%">
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--orcha-border)" />
         <XAxis dataKey={xKey} {...axisStyle} />
         <YAxis {...axisStyle} />
         <Tooltip {...chartTooltipStyle} />
-        {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }} />}
+        {yKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: "var(--orcha-text-muted)" }} />}
         {yKeys.map((k, i) => (
           <Bar key={k} dataKey={k} fill={seriesColors[k] || CHART_COLORS[i % CHART_COLORS.length]} radius={[4, 4, 0, 0]}>
             {(yKeys.length === 1) && data.map((entry, index) => (
@@ -274,21 +277,21 @@ export const ChartBlock = memo(function ChartBlock({
   };
 
   return (
-    <Box style={{ borderRadius: 14, overflow: "hidden", border: "1px solid rgba(147,51,234,0.18)", boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.5), 0 0 60px rgba(147,51,234,0.06)" }}>
+    <Box style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--orcha-border)", boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.5)" : "0 4px 20px rgba(0,0,0,0.05)" }}>
       {/* Header */}
-      <Box style={{ background: "rgba(19,16,42,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(147,51,234,0.12)", padding: "10px 16px" }}>
+      <Box style={{ background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)", padding: "10px 16px" }}>
         <Group justify="space-between">
           <Group gap={10}>
             <Group gap={5}>
-              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--orcha-border)" }} />
+              <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--orcha-border)" }} />
               <Box style={{ width: 10, height: 10, borderRadius: "50%", background: "rgba(147,51,234,0.6)", boxShadow: "0 0 8px rgba(147,51,234,0.8)" }} />
             </Group>
-            <Box style={{ width: 1, height: 14, background: "rgba(255,255,255,0.06)" }} />
-            <IconChartBar size={13} color="rgba(192,132,252,0.8)" />
-            <Text size="11px" fw={600} c="rgba(192,132,252,0.8)" style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}>{title}</Text>
-            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "rgba(147,51,234,0.12)", border: "1px solid rgba(147,51,234,0.2)" }}>
-              <Text size="10px" fw={700} c="violet.4">{chartType.toUpperCase()} · {data.length} rows</Text>
+            <Box style={{ width: 1, height: 14, background: "var(--orcha-border)" }} />
+            <IconChartBar size={13} color="var(--orcha-purple)" />
+            <Text size="11px" fw={600} c="var(--orcha-text-title)" style={{ letterSpacing: "0.12em", textTransform: "uppercase" }}>{title}</Text>
+            <Box style={{ padding: "2px 8px", borderRadius: 20, background: "var(--orcha-sidebar-hover-bg)", border: "1px solid var(--orcha-border)" }}>
+              <Text size="10px" fw={700} c="var(--orcha-purple)">{chartType.toUpperCase()} · {data.length} rows</Text>
             </Box>
           </Group>
           <Group gap={5}>
@@ -298,10 +301,10 @@ export const ChartBlock = memo(function ChartBlock({
                   <IconPalette size={14} />
                 </ActionIcon>
               </Popover.Target>
-              <Popover.Dropdown style={{ background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)", minWidth: 260 }}>
+              <Popover.Dropdown style={{ background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", minWidth: 260 }}>
                 <Stack gap="md">
                   <Box>
-                     <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Quick Palettes</Text>
+                     <Text size="xs" fw={700} c="var(--orcha-text-title)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Quick Palettes</Text>
                     <Group gap={8}>
                       {Object.entries(PALETTES).map(([name, colors]) => (
                         <MantineTooltip key={name} label={name} position="top">
@@ -327,10 +330,10 @@ export const ChartBlock = memo(function ChartBlock({
                     </Group>
                   </Box>
 
-                  <Divider color="rgba(147,51,234,0.1)" />
+                  <Divider color="var(--orcha-border)" />
 
                   <Box>
-                    <Text size="xs" fw={700} c="rgba(192,132,252,0.8)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Custom Elements</Text>
+                    <Text size="xs" fw={700} c="var(--orcha-text-title)" mb="xs" style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}>Custom Elements</Text>
                     <ScrollArea.Autosize mah={300} type="auto">
                       <Stack gap={8}>
                         {elements.map((el) => (
@@ -375,7 +378,7 @@ export const ChartBlock = memo(function ChartBlock({
         </Group>
       </Box>
       {/* Chart */}
-      <Box ref={chartRef} style={{ background: "rgba(10,8,20,0.85)", padding: "24px 12px 12px 4px" }}>
+      <Box ref={chartRef} style={{ background: "var(--orcha-surface)", padding: "24px 12px 12px 4px" }}>
         <ResponsiveContainer width="100%" height={380}>
           {renderChart()}
         </ResponsiveContainer>

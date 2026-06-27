@@ -32,7 +32,7 @@ export function LookAndFeelSection({
           5. LOOK & FEEL
         </Text>
       </Group>
-      <Paper p="md" radius="md" style={{ background: "rgba(0,0,0,0.15)", border: "1px solid rgba(255,255,255,0.05)" }}>
+      <Paper p="md" radius="md" style={{ background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)" }}>
         {colorKeys.length > 0 ? (
           <Stack gap={8}>
             {colorKeys.map((key) => (

@@ -77,9 +77,9 @@ export function MemoryHistoryTable({ configId, organizationId }: MemoryHistoryTa
   };
 
   const rows = memories?.map((m) => (
-    <Table.Tr key={m._id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}>
+    <Table.Tr key={m._id} style={{ borderBottom: "1px solid var(--orcha-border)" }}>
       <Table.Td style={{ verticalAlign: "top", py: "md" }}>
-        <Text size="xs" fw={600} c="white" style={{ maxWidth: 300, whiteSpace: "normal" }}>
+        <Text size="xs" fw={600} c="var(--orcha-text-title)" style={{ maxWidth: 300, whiteSpace: "normal" }}>
           {m.question}
         </Text>
       </Table.Td>
@@ -87,12 +87,12 @@ export function MemoryHistoryTable({ configId, organizationId }: MemoryHistoryTa
         <Box
           p="xs"
           style={{
-            background: "rgba(0, 0, 0, 0.25)",
+            background: "var(--orcha-panel)",
             borderRadius: "6px",
-            border: "1px solid rgba(255, 255, 255, 0.05)",
+            border: "1px solid var(--orcha-border)",
           }}
         >
-          <Text size="xs" ff="monospace" c="violet.2" style={{ whiteSpace: "pre-wrap", maxWidth: 500, overflowX: "auto" }}>
+          <Text size="xs" ff="monospace" c="var(--orcha-purple)" style={{ whiteSpace: "pre-wrap", maxWidth: 500, overflowX: "auto" }}>
             {m.sql}
           </Text>
         </Box>
@@ -118,7 +118,7 @@ export function MemoryHistoryTable({ configId, organizationId }: MemoryHistoryTa
         <Box>
           <Group gap={8}>
             <IconBrain size={18} color="#a855f7" />
-            <Text size="sm" fw={700} c="white">Few-Shot Query Seeds (Recall Memory)</Text>
+            <Text size="sm" fw={700} c="var(--orcha-text-title)">Few-Shot Query Seeds (Recall Memory)</Text>
           </Group>
           <Text size="11px" c="dimmed" mt={2}>
             Past NL-to-SQL query pairs recalled to guide prompt intelligence and prevent database structural hallucinations.
@@ -135,13 +135,13 @@ export function MemoryHistoryTable({ configId, organizationId }: MemoryHistoryTa
         </Button>
       </Group>
 
-      <Paper withBorder p="md" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
+      <Paper withBorder p="md" radius="md" style={{ background: "var(--orcha-panel)" }}>
         {memories === undefined ? (
           <Group justify="center" py="xl"><Text size="xs" c="dimmed">Syncing query history index...</Text></Group>
         ) : memories.length === 0 ? (
           <Group justify="center" py="3rem">
             <Stack align="center" gap="xs">
-              <IconAlertCircle size={28} color="rgba(255, 255, 255, 0.2)" />
+              <IconAlertCircle size={28} color="var(--orcha-text-muted)" />
               <Text size="xs" c="dimmed">No query seeds recorded yet. Use the agent or create a manual seed.</Text>
             </Stack>
           </Group>
@@ -149,7 +149,7 @@ export function MemoryHistoryTable({ configId, organizationId }: MemoryHistoryTa
           <ScrollArea h={320} offsetScrollbars>
             <Table variant="unstyled" style={{ width: "100%" }}>
               <Table.Thead>
-                <Table.Tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                <Table.Tr style={{ borderBottom: "1px solid var(--orcha-border)" }}>
                   <Table.Th style={{ width: "35%" }}><Text size="10px" fw={700} c="dimmed">NATURAL LANGUAGE QUESTION</Text></Table.Th>
                   <Table.Th style={{ width: "55%" }}><Text size="10px" fw={700} c="dimmed">APPROVED DIALECT SQL</Text></Table.Th>
                   <Table.Th style={{ width: "10%", textAlign: "right" }}><Text size="10px" fw={700} c="dimmed">ACTIONS</Text></Table.Th>
@@ -170,9 +170,9 @@ export function MemoryHistoryTable({ configId, organizationId }: MemoryHistoryTa
         radius="md"
         size="lg"
         styles={{
-          content: { background: "#0c0814", border: "1px solid rgba(147, 51, 234, 0.2)" },
-          header: { background: "#0c0814", borderBottom: "1px solid rgba(255, 255, 255, 0.05)" },
-          title: { color: "white", fontWeight: 700 }
+          content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+          header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)" },
+          title: { color: "var(--orcha-text-title)", fontWeight: 700 }
         }}
       >
         <Stack gap="md" pt="xs">

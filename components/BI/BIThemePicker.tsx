@@ -42,8 +42,8 @@ export function BIThemePicker({
                 style={{
                   padding: "4px",
                   borderRadius: "8px",
-                  background: selectedPaletteName === p.name ? "rgba(147, 51, 234, 0.1)" : "transparent",
-                  border: `1px solid ${selectedPaletteName === p.name ? "rgba(147, 51, 234, 0.3)" : "transparent"}`,
+                  background: selectedPaletteName === p.name ? "var(--orcha-sidebar-hover-bg)" : "transparent",
+                  border: `1px solid ${selectedPaletteName === p.name ? "var(--orcha-border)" : "transparent"}`,
                   transition: "all 0.2s ease"
                 }}
               >
@@ -63,7 +63,7 @@ export function BIThemePicker({
         </Group>
       </Box>
 
-      <Divider variant="dashed" color="rgba(255,255,255,0.05)" />
+      <Divider variant="dashed" color="var(--orcha-border)" />
 
       <Box>
         <Group gap="xs" mb="xs">
@@ -78,12 +78,12 @@ export function BIThemePicker({
           withEyeDropper
           styles={{
             input: {
-              background: "rgba(0,0,0,0.2)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              color: "white",
+              background: "var(--orcha-surface)",
+              border: "1px solid var(--orcha-border)",
+              color: "var(--orcha-text-title)",
             },
             eyeDropperButton: {
-               color: "white"
+               color: "var(--orcha-text-title)"
             }
           }}
         />

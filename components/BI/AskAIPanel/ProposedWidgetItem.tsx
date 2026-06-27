@@ -124,8 +124,8 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
       p="md"
       radius="md"
       style={{
-        background: "rgba(255, 255, 255, 0.02)",
-        border: "1px solid rgba(255, 255, 255, 0.05)",
+        background: "var(--orcha-surface)",
+        border: "1px solid var(--orcha-border)",
         position: "relative",
         overflow: "hidden",
       }}
@@ -143,7 +143,7 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
       <Group justify="space-between" mb="xs" wrap="nowrap">
         <Group gap="xs">
           {getIconForType(widget.type)}
-          <Text fw={700} size="sm" c="white">
+          <Text fw={700} size="sm" c="var(--orcha-text-title)">
             {widget.title}
           </Text>
         </Group>
@@ -162,9 +162,9 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
                 </Badge>
               </Tooltip>
             </Popover.Target>
-            <Popover.Dropdown bg="#0c0a1a" style={{ border: "1px solid rgba(147, 51, 234, 0.2)", padding: 12 }}>
+            <Popover.Dropdown bg="var(--orcha-panel)" style={{ border: "1px solid var(--orcha-border)", padding: 12 }}>
               <Stack gap="xs">
-                <Text size="xs" fw={700} c="violet.3" mb={4}>
+                <Text size="xs" fw={700} c="var(--orcha-purple)" mb={4}>
                   Smart Counter Design
                 </Text>
 
@@ -180,14 +180,14 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
                   value={widget.mapping?.formatType || "raw"}
                   onChange={(v) => handleFormatTypeChange(v || "raw")}
                   styles={{
-                    label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                    label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                     input: {
-                      background: "rgba(0,0,0,0.2)",
-                      color: "white",
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "var(--orcha-surface)",
+                      color: "var(--orcha-text-title)",
+                      border: "1px solid var(--orcha-border)",
                     },
-                    dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                    option: { color: "white" },
+                    dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                    option: { color: "var(--orcha-text-title)" },
                   }}
                 />
 
@@ -206,14 +206,14 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
                     value={widget.mapping?.formatValue || "USD"}
                     onChange={(v) => handleMappingFieldChange("formatValue", v || "USD")}
                     styles={{
-                      label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                      label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                       input: {
-                        background: "rgba(0,0,0,0.2)",
-                        color: "white",
-                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "var(--orcha-surface)",
+                        color: "var(--orcha-text-title)",
+                        border: "1px solid var(--orcha-border)",
                       },
-                      dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                      option: { color: "white" },
+                      dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                      option: { color: "var(--orcha-text-title)" },
                     }}
                   />
                 )}
@@ -236,14 +236,14 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
                       value={selectedUnit}
                       onChange={(v) => handleUnitChange(v || "kg")}
                       styles={{
-                        label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                        label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                         input: {
-                          background: "rgba(0,0,0,0.2)",
-                          color: "white",
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "var(--orcha-surface)",
+                          color: "var(--orcha-text-title)",
+                          border: "1px solid var(--orcha-border)",
                         },
-                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                        option: { color: "white" },
+                        dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                        option: { color: "var(--orcha-text-title)" },
                       }}
                     />
                     {selectedUnit === "custom" && (
@@ -254,11 +254,11 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
                         value={widget.mapping?.formatValue || ""}
                         onChange={(e) => handleCustomUnitChange(e.currentTarget.value)}
                         styles={{
-                          label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                          label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                           input: {
-                            background: "rgba(0,0,0,0.2)",
-                            color: "white",
-                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "var(--orcha-surface)",
+                            color: "var(--orcha-text-title)",
+                            border: "1px solid var(--orcha-border)",
                           },
                         }}
                       />
@@ -278,14 +278,14 @@ export function ProposedWidgetItem({ index, widget, onChange }: ProposedWidgetIt
                   value={widget.mapping?.numberFormat || "compact"}
                   onChange={(v) => handleMappingFieldChange("numberFormat", v || "compact")}
                   styles={{
-                    label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                    label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                     input: {
-                      background: "rgba(0,0,0,0.2)",
-                      color: "white",
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      background: "var(--orcha-surface)",
+                      color: "var(--orcha-text-title)",
+                      border: "1px solid var(--orcha-border)",
                     },
-                    dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                    option: { color: "white" },
+                    dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                    option: { color: "var(--orcha-text-title)" },
                   }}
                 />
               </Stack>

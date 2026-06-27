@@ -327,7 +327,7 @@ export default function ChatPage() {
           <Avatar size={80} radius="xl" color="red" mx="auto" mb="xl">
             <IconDatabaseOff size={40} />
           </Avatar>
-          <Title order={2} c="white" mb="sm">No Database Connected</Title>
+          <Title order={2} c="var(--orcha-text-title)" mb="sm">No Database Connected</Title>
           <Text c="dimmed" mb="xl">The Agent needs a data source to answer queries. Connect your database to begin.</Text>
           <Button component="a" href={`/${saas}/configure`} color="violet" size="md" radius="md">
             Go to Settings

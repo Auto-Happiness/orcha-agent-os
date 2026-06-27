@@ -20,13 +20,13 @@ export function DeleteConfirmModal({ opened, onClose, onConfirm, loading }: Dele
       size="sm"
       overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
       styles={{
-        content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 12 },
-        header: { background: "#130f22", color: "white" },
+        content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", borderRadius: 12 },
+        header: { background: "var(--orcha-panel)", color: "var(--orcha-text-title)" },
         title: { fontWeight: 600 }
       }}
     >
       <Stack gap="md">
-        <Text size="sm" c="rgba(255,255,255,0.7)">
+        <Text size="sm" c="var(--orcha-text-body)">
           Are you sure you want to delete this saved result from your Databook? This action cannot be undone.
         </Text>
         <Group justify="flex-end" gap="sm">

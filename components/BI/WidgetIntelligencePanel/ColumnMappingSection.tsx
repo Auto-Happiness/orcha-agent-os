@@ -82,8 +82,8 @@ export function ColumnMappingSection({
             variant="light"
             radius="md"
             styles={{
-              root: { background: "rgba(147, 51, 234, 0.05)", border: "1px solid rgba(147, 51, 234, 0.2)" },
-              title: { color: "#c084fc", fontWeight: 700 },
+              root: { background: "var(--orcha-sidebar-hover-bg)", border: "1px solid var(--orcha-border)" },
+              title: { color: "var(--orcha-purple)", fontWeight: 700 },
             }}
           >
             Data Tables display all query result columns automatically. No manual X/Y axis mapping is required.
@@ -98,10 +98,10 @@ export function ColumnMappingSection({
               onChange={(v) => onChangeValueKeys(v ? [v] : [])}
               disabled={discoveredColumns.length === 0}
               styles={{
-                label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                option: { color: "white" },
+                label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                option: { color: "var(--orcha-text-title)" },
               }}
             />
             <Group grow>
@@ -115,10 +115,10 @@ export function ColumnMappingSection({
                 value={formatType}
                 onChange={handleFormatTypeChange}
                 styles={{
-                  label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                  input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                  dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                  option: { color: "white" },
+                  label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                  input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                  dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                  option: { color: "var(--orcha-text-title)" },
                 }}
               />
               {formatType === "currency" && (
@@ -134,10 +134,10 @@ export function ColumnMappingSection({
                   value={formatValue}
                   onChange={(v) => onChangeFormatValue(v || "USD")}
                   styles={{
-                    label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                    input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                    dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                    option: { color: "white" },
+                    label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                    input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                    dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                    option: { color: "var(--orcha-text-title)" },
                   }}
                 />
               )}
@@ -157,10 +157,10 @@ export function ColumnMappingSection({
                     value={selectedUnit}
                     onChange={handleUnitChange}
                     styles={{
-                      label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                      input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                      dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                      option: { color: "white" },
+                      label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                      input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                      dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                      option: { color: "var(--orcha-text-title)" },
                     }}
                   />
                   {selectedUnit === "custom" && (
@@ -170,8 +170,8 @@ export function ColumnMappingSection({
                       value={formatValue}
                       onChange={(e) => onChangeFormatValue(e.currentTarget.value)}
                       styles={{
-                        label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                        input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
+                        label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                        input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
                       }}
                     />
                   )}
@@ -188,10 +188,10 @@ export function ColumnMappingSection({
               value={numberFormat}
               onChange={(v) => onChangeNumberFormat(v || "compact")}
               styles={{
-                label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                option: { color: "white" },
+                label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                option: { color: "var(--orcha-text-title)" },
               }}
             />
           </Stack>
@@ -206,10 +206,10 @@ export function ColumnMappingSection({
                 onChange={handleLabelKeyMultiChange}
                 disabled={discoveredColumns.length === 0}
                 styles={{
-                  label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                  input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                  dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                  option: { color: "white" },
+                  label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                  input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                  dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                  option: { color: "var(--orcha-text-title)" },
                 }}
               />
             ) : (
@@ -221,10 +221,10 @@ export function ColumnMappingSection({
                 onChange={handleLabelKeySingleChange}
                 disabled={discoveredColumns.length === 0}
                 styles={{
-                  label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                  input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                  dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                  option: { color: "white" },
+                  label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                  input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                  dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                  option: { color: "var(--orcha-text-title)" },
                 }}
               />
             )}
@@ -236,10 +236,10 @@ export function ColumnMappingSection({
               onChange={onChangeValueKeys}
               disabled={discoveredColumns.length === 0}
               styles={{
-                label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 },
-                input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-                dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                option: { color: "white" },
+                label: { color: "var(--orcha-text-body)", fontSize: 12, marginBottom: 4 },
+                input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+                dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                option: { color: "var(--orcha-text-title)" },
               }}
             />
           </Group>

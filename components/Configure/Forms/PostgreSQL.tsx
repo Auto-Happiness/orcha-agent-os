@@ -72,14 +72,14 @@ export function PostgreSQLForm() {
       </Grid.Col>
       <Grid.Col span={12}>
         <Group justify="space-between" mt="xs" p="xs" style={{ 
-          background: "rgba(255,255,255,0.02)", 
+          background: "var(--orcha-surface)", 
           borderRadius: "8px",
-          border: "1px solid rgba(255,255,255,0.05)" 
+          border: "1px solid var(--orcha-border)" 
         }}>
           <Group gap="xs">
             <IconShieldLock size={16} color="#c084fc" />
             <Stack gap={0}>
-              <Text size="sm" fw={500} c="white">Secure Connection (SSL)</Text>
+              <Text size="sm" fw={500} c="var(--orcha-text-title)">Secure Connection (SSL)</Text>
               <Text size="xs" c="dimmed">Enables SSL/TLS encryption for the connection.</Text>
             </Stack>
           </Group>

@@ -98,9 +98,9 @@ export function FilterDrawer({
         blur: 10,
       }}
       styles={{
-        content: { background: "#0c0814", borderLeft: "1px solid rgba(147,51,234,0.2)", padding: "1.5rem" },
-        header: { background: "#0c0814", borderBottom: "1px solid rgba(147,51,234,0.1)", paddingBottom: "1rem" },
-        title: { color: "white", fontWeight: 600 }
+        content: { background: "var(--orcha-panel)", borderLeft: "1px solid var(--orcha-border)", padding: "1.5rem" },
+        header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)", paddingBottom: "1rem" },
+        title: { color: "var(--orcha-text-title)", fontWeight: 600 }
       }}
     >
       <Stack gap="md">
@@ -111,7 +111,7 @@ export function FilterDrawer({
         ) : (
           <>
             {tempFilterRules.length > 0 && (
-              <Grid styles={{ inner: { gap: "var(--mantine-spacing-md)" } }} mb="xs" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "8px" }}>
+              <Grid styles={{ inner: { gap: "var(--mantine-spacing-md)" } }} mb="xs" style={{ borderBottom: "1px solid var(--orcha-border)", paddingBottom: "8px" }}>
                 <Grid.Col span={4}><Text size="xs" fw={600} c="dimmed">Column</Text></Grid.Col>
                 <Grid.Col span={3}><Text size="xs" fw={600} c="dimmed">Filter Type</Text></Grid.Col>
                 <Grid.Col span={4}><Text size="xs" fw={600} c="dimmed">Value / Range</Text></Grid.Col>
@@ -129,7 +129,7 @@ export function FilterDrawer({
                       value={rule.column}
                       onChange={(val) => handleUpdateRule(idx, { column: val || "" })}
                       styles={{
-                        input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                        input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                       }}
                     />
                   </Grid.Col>
@@ -145,7 +145,7 @@ export function FilterDrawer({
                       value={rule.type}
                       onChange={(val) => handleUpdateRule(idx, { type: val || "between" })}
                       styles={{
-                        input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                        input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                       }}
                     />
                   </Grid.Col>
@@ -158,7 +158,7 @@ export function FilterDrawer({
                           value={rule.dateFrom || ""}
                           onChange={(e) => handleUpdateRule(idx, { dateFrom: e.target.value })}
                           styles={{
-                            input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                            input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                           }}
                         />
                         <TextInput
@@ -167,7 +167,7 @@ export function FilterDrawer({
                           value={rule.dateTo || ""}
                           onChange={(e) => handleUpdateRule(idx, { dateTo: e.target.value })}
                           styles={{
-                            input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                            input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                           }}
                         />
                       </Group>
@@ -180,7 +180,7 @@ export function FilterDrawer({
                           value={rule.month}
                           onChange={(val) => handleUpdateRule(idx, { month: val || "1" })}
                           styles={{
-                            input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                            input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                           }}
                         />
                         <TextInput
@@ -188,7 +188,7 @@ export function FilterDrawer({
                           value={rule.year || ""}
                           onChange={(e) => handleUpdateRule(idx, { year: e.target.value })}
                           styles={{
-                            input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                            input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                           }}
                         />
                       </Group>
@@ -199,7 +199,7 @@ export function FilterDrawer({
                         value={rule.year || ""}
                         onChange={(e) => handleUpdateRule(idx, { year: e.target.value })}
                         styles={{
-                          input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                          input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                         }}
                       />
                     )}
@@ -210,7 +210,7 @@ export function FilterDrawer({
                         value={rule.month}
                         onChange={(val) => handleUpdateRule(idx, { month: val || "1" })}
                         styles={{
-                          input: { background: "rgba(0,0,0,0.3)", borderColor: "rgba(147,51,234,0.2)", color: "white" }
+                          input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" }
                         }}
                       />
                     )}
@@ -242,7 +242,7 @@ export function FilterDrawer({
               </Button>
             </Group>
 
-            <Group justify="flex-end" gap="sm" mt="lg" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "1rem" }}>
+            <Group justify="flex-end" gap="sm" mt="lg" style={{ borderTop: "1px solid var(--orcha-border)", paddingTop: "1rem" }}>
               {activeFilterRules.length > 0 && (
                 <Button variant="subtle" color="red" size="sm" onClick={onClear} loading={refreshing}>
                   Clear Filters

@@ -69,12 +69,12 @@ export function AddWidgetWizard({ opened, onClose, onAdd }: AddWidgetWizardProps
     <Modal
       opened={opened}
       onClose={onClose}
-      title={<Text fw={700}>Add New Insight</Text>}
+      title={<Text fw={700} c="var(--orcha-text-title)">Add New Insight</Text>}
       size="lg"
       radius="lg"
       styles={{
-        content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)" },
-        header: { background: "#130f22", color: "white" },
+        content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+        header: { background: "var(--orcha-panel)", color: "var(--orcha-text-title)" },
       }}
     >
       {step === 1 && (
@@ -90,22 +90,22 @@ export function AddWidgetWizard({ opened, onClose, onAdd }: AddWidgetWizardProps
                 }}
                 p="md"
                 style={{
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "var(--orcha-surface)",
+                  border: "1px solid var(--orcha-border)",
                   borderRadius: rem(12),
                   transition: "all 0.2s ease",
                 }}
-                className="hover:bg-white/5 hover:border-violet-500/50"
+                className="hover:bg-[var(--orcha-sidebar-hover-bg)] hover:border-[var(--orcha-purple)]"
               >
                 <Group wrap="nowrap">
                   <ThemeIcon size={40} radius="md" color={item.color} variant="light">
                     <item.icon size={24} />
                   </ThemeIcon>
                   <Box style={{ flex: 1 }}>
-                    <Text size="sm" fw={600} c="white">{item.title}</Text>
+                    <Text size="sm" fw={600} c="var(--orcha-text-title)">{item.title}</Text>
                     <Text size="xs" c="dimmed">{item.description}</Text>
                   </Box>
-                  <IconChevronRight size={16} color="rgba(255,255,255,0.2)" />
+                  <IconChevronRight size={16} color="var(--orcha-text-muted)" />
                 </Group>
               </UnstyledButton>
             ))}
@@ -123,12 +123,12 @@ export function AddWidgetWizard({ opened, onClose, onAdd }: AddWidgetWizardProps
             value={title}
             onChange={(e) => setTitle(e.currentTarget.value)}
             styles={{
-              input: { background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.1)" },
-              label: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 }
+              input: { background: "var(--orcha-surface)", color: "var(--orcha-text-title)", border: "1px solid var(--orcha-border)" },
+              label: { color: "var(--orcha-text-title)", fontSize: 12, marginBottom: 4 }
             }}
           />
 
-          <Paper p="md" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)" }}>
+          <Paper p="md" style={{ background: "var(--orcha-surface)", border: "1px dashed var(--orcha-border)" }}>
             <Text size="xs" c="dimmed" ta="center">Data Source Configuration will follow after UI approval.</Text>
           </Paper>
 

@@ -74,12 +74,12 @@ export function ModelProviderSelector({ selected, onSelect }: ProviderSelectorPr
                   size="md" 
                   radius="md"
                   style={{ 
-                    background: selected === p.id ? "rgba(147,51,234,0.2)" : "rgba(255,255,255,0.04)" 
+                    background: selected === p.id ? "rgba(147,51,234,0.2)" : "var(--orcha-surface)" 
                   }}
                 >
-                  <p.icon size={18} style={{ color: selected === p.id ? "#c084fc" : "rgba(255,255,255,0.3)" }} />
+                  <p.icon size={18} style={{ color: selected === p.id ? "#c084fc" : "var(--orcha-text-muted)" }} />
                 </ThemeIcon>
-                <Text size="sm" fw={selected === p.id ? 700 : 500} c={selected === p.id ? "white" : "dimmed"} style={{ whiteSpace: "nowrap" }}>
+                <Text size="sm" fw={selected === p.id ? 700 : 500} c={selected === p.id ? "var(--orcha-text-title)" : "dimmed"} style={{ whiteSpace: "nowrap" }}>
                   {p.label}
                 </Text>
               </Group>

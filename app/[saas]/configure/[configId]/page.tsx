@@ -249,10 +249,7 @@ export default function EditConfigurationPage() {
             Back to Configurations
           </Button>
 
-          <Menu shadow="md" width={240} position="bottom-end" styles={{
-            dropdown: { background: "#13102a", borderColor: "rgba(147,51,234,0.2)" },
-            item: { color: "white", transition: "all 0.2s ease" }
-          }}>
+          <Menu shadow="md" width={240} position="bottom-end">
             <Menu.Target>
               <ActionIcon variant="light" color="violet" size="lg" radius="md">
                 <IconDotsVertical size={20} />
@@ -276,8 +273,7 @@ export default function EditConfigurationPage() {
         {/* ── Dashboard Header ─────────────────────────────────────── */}
         <DashboardHeader currentConfig={currentConfig} identiconUrl={identiconUrl} />
 
-        <Tabs value={activeTab} onChange={handleTabChange} color="violet" variant="pills" styles={{
-          tab: { color: "rgba(255,255,255,0.4)" },
+        <Tabs className="config-tabs" value={activeTab} onChange={handleTabChange} color="violet" variant="pills" styles={{
           panel: { paddingTop: "2rem" }
         }}>
           <Tabs.List>
@@ -304,7 +300,7 @@ export default function EditConfigurationPage() {
 
           {/* ── Tab: Modeler ────────────────────────────────────────────── */}
           <Tabs.Panel value="modeler">
-            <Box style={{ background: "rgba(255,255,255,0.01)", borderRadius: "12px" }}>
+            <Box style={{ background: "var(--orcha-surface)", borderRadius: "12px" }}>
               {currentConfig && <SemanticBridge configId={currentConfig._id} />}
             </Box>
           </Tabs.Panel>
@@ -332,14 +328,14 @@ export default function EditConfigurationPage() {
           <Tabs.Panel value="health">
             <Grid styles={{ inner: { gap: "var(--mantine-spacing-xl)" } }}>
               <Grid.Col span={8}>
-                <Paper withBorder p="2.5rem" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
+                <Paper withBorder p="2.5rem" radius="md" style={{ background: "var(--orcha-panel)" }}>
                   {currentConfig && <DatabaseConnectionForm provider={currentConfig.type} />}
                 </Paper>
               </Grid.Col>
 
               <Grid.Col span={4}>
                 <Stack gap="md">
-                  <Paper withBorder p="xl" radius="md" style={{ background: "rgba(255,255,255,0.01)" }}>
+                  <Paper withBorder p="xl" radius="md" style={{ background: "var(--orcha-panel)" }}>
                     <Stack gap="md">
                        <Text size="xs" fw={700} c="dimmed" style={{ letterSpacing: "1px" }}>CONNECTION PULSE</Text>
                        <Stack gap="xs">
@@ -373,16 +369,16 @@ export default function EditConfigurationPage() {
                           </Group>
                           <Group justify="space-between">
                              <Text size="xs" c="dimmed">Latency</Text>
-                             <Text size="xs" c="white" fw={600}>{pulseStatus === 'online' ? `${latency}ms` : '—'}</Text>
+                             <Text size="xs" c="var(--orcha-text-title)" fw={600}>{pulseStatus === 'online' ? `${latency}ms` : '—'}</Text>
                           </Group>
-                          <Group justify="space-between"><Text size="xs" c="dimmed">Protocol</Text><Text size="xs" c="white" fw={600}>Encrypted TLS</Text></Group>
+                          <Group justify="space-between"><Text size="xs" c="dimmed">Protocol</Text><Text size="xs" c="var(--orcha-text-title)" fw={600}>Encrypted TLS</Text></Group>
                        </Stack>
                     </Stack>
                   </Paper>
 
-                  <Paper p="xl" radius="md" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.05), rgba(168,85,247,0.05))", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <Paper p="xl" radius="md" style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.05), rgba(168,85,247,0.05))", border: "1px solid var(--orcha-border)" }}>
                      <Stack gap="xs">
-                        <Text size="xs" fw={700} c="white">Uptime SLA</Text>
+                        <Text size="xs" fw={700} c="var(--orcha-text-title)">Uptime SLA</Text>
                         <Text size="10px" c="dimmed">Persistent heartbeats are monitoring your environment connectivity at 1-minute intervals.</Text>
                      </Stack>
                   </Paper>
@@ -406,9 +402,9 @@ export default function EditConfigurationPage() {
           blur: 10,
         }}
         styles={{
-          content: { background: "#0c0814", border: "1px solid rgba(255,0,0,0.2)", padding: "1rem" },
-          header: { background: "#0c0814", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "1rem" },
-          title: { color: "white" }
+          content: { background: "var(--orcha-panel)", border: "1px solid rgba(255,0,0,0.2)", padding: "1rem" },
+          header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)", paddingBottom: "1rem" },
+          title: { color: "var(--orcha-text-title)" }
         }}
       >
         <Stack gap="xl">

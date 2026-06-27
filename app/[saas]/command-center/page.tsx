@@ -265,7 +265,7 @@ export default function CommandCenterPage() {
   };
 
   return (
-    <Box p="xl" bg="#07050f" style={{ minHeight: "100vh" }}>
+    <Box p="xl" bg="var(--orcha-surface)" style={{ minHeight: "100vh" }}>
       <Container size="xl">
         {/* Header Section */}
         <Group justify="space-between" align="flex-start" mb={40}>
@@ -273,7 +273,7 @@ export default function CommandCenterPage() {
           <Box>
             <Group gap="sm" mb={4}>
               <IconDeviceDesktopAnalytics size={24} color="#a855f7" />
-              <Title order={2} c="white" fw={800}>Command Center</Title>
+              <Title order={2} c="var(--orcha-text-title)" fw={800}>Command Center</Title>
               <Badge variant="dot" color="violet" size="sm" tt="none">v1.0-alpha</Badge>
             </Group>
             <Text c="dimmed" size="sm" mb="md">Customize your organization&apos;s real-time intelligence dashboard.</Text>
@@ -291,14 +291,14 @@ export default function CommandCenterPage() {
               leftSection={<IconLayout2 size={16} color="#a855f7" />}
               styles={{
                 input: {
-                  background: "rgba(147, 51, 234, 0.1)",
-                  border: "1px solid rgba(147, 51, 234, 0.3)",
-                  color: "white",
+                  background: "var(--orcha-sidebar-hover-bg)",
+                  border: "1px solid var(--orcha-border)",
+                  color: "var(--orcha-text-title)",
                   borderRadius: "8px",
                   fontWeight: 600,
                   width: 220
                 },
-                dropdown: { background: "#130f22", border: "1px solid rgba(147, 51, 234, 0.2)" },
+                dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
               }}
             />
 
@@ -315,7 +315,7 @@ export default function CommandCenterPage() {
                 </ActionIcon>
               </Menu.Target>
 
-              <Menu.Dropdown bg="#130f22" style={{ border: "1px solid rgba(147,51,234,0.3)", borderRadius: 12 }}>
+              <Menu.Dropdown bg="var(--orcha-panel)" style={{ border: "1px solid var(--orcha-border)", borderRadius: 12 }}>
                 <Menu.Label>Dashboard Actions</Menu.Label>
                 
                 <Menu.Item 
@@ -336,7 +336,7 @@ export default function CommandCenterPage() {
                   Ask Orcha AI
                 </Menu.Item>
 
-                <Menu.Divider color="rgba(255,255,255,0.05)" />
+                <Menu.Divider color="var(--orcha-border)" />
 
                 <Menu.Label>
                   Add Insights 
@@ -406,14 +406,14 @@ export default function CommandCenterPage() {
                   Text Box
                 </Menu.Item>
 
-                <Menu.Divider color="rgba(255,255,255,0.05)" />
+                <Menu.Divider color="var(--orcha-border)" />
 
                 <Menu.Label>Export</Menu.Label>
                 <Menu.Item leftSection={<IconFileTypePdf size={16} />} onClick={handleGeneratePdf}>
                   Export PDF
                 </Menu.Item>
 
-                <Menu.Divider color="rgba(255,255,255,0.05)" />
+                <Menu.Divider color="var(--orcha-border)" />
                 <Menu.Item 
                   color="red" 
                   leftSection={<IconTrash size={16} />} 
@@ -502,17 +502,17 @@ export default function CommandCenterPage() {
           overlayProps={{ backgroundOpacity: 0.5, blur: 4 }}
           styles={{
             content: { 
-              background: "#0c0a1a", 
-              borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
-              color: "white"
+              background: "var(--orcha-panel)", 
+              borderLeft: "1px solid var(--orcha-border)",
+              color: "var(--orcha-text-title)"
             },
             header: { 
-              background: "#0c0a1a", 
-              color: "white",
-              borderBottom: "1px solid rgba(255,255,255,0.05)",
+              background: "var(--orcha-panel)", 
+              color: "var(--orcha-text-title)",
+              borderBottom: "1px solid var(--orcha-border)",
               paddingBottom: 20
             },
-            title: { fontWeight: 800, fontSize: 22, color: "#a855f7" }
+            title: { fontWeight: 800, fontSize: 22, color: "var(--orcha-purple)" }
           }}
         >
           <Stack gap="xl" mt="md">
@@ -529,11 +529,11 @@ export default function CommandCenterPage() {
                 autoFocus
                 size="md"
                 styles={{
-                  label: { color: "white", marginBottom: 8 },
+                  label: { color: "var(--orcha-text-title)", marginBottom: 8 },
                   input: { 
-                    background: "rgba(255,255,255,0.03)", 
-                    border: "1px solid rgba(147, 51, 234, 0.3)",
-                    color: "white",
+                    background: "var(--orcha-surface)", 
+                    border: "1px solid var(--orcha-border)",
+                    color: "var(--orcha-text-title)",
                     height: 50
                   }
                 }}
@@ -570,13 +570,13 @@ export default function CommandCenterPage() {
           size="sm"
           overlayProps={{ backgroundOpacity: 0.55, blur: 3 }}
           styles={{
-            content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 12 },
-            header: { background: "#130f22", color: "white" },
+            content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)", borderRadius: 12 },
+            header: { background: "var(--orcha-panel)", color: "var(--orcha-text-title)" },
             title: { fontWeight: 600 }
           }}
         >
           <Stack gap="md">
-            <Text size="sm" c="rgba(255,255,255,0.7)">
+            <Text size="sm" c="var(--orcha-text-body)">
               Are you sure you want to delete this dashboard? This action cannot be undone and will remove all associated widgets and data.
             </Text>
             <Group justify="flex-end" gap="sm">

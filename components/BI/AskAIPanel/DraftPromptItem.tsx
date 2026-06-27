@@ -97,14 +97,14 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
     <Paper
       p="xs"
       radius="md"
-      style={{ background: "rgba(147, 51, 234, 0.05)", border: "1px solid rgba(147, 51, 234, 0.2)" }}
+      style={{ background: "var(--orcha-sidebar-hover-bg)", border: "1px solid var(--orcha-border)" }}
     >
       <Group justify="space-between" wrap="nowrap">
         <Group gap="xs" style={{ flex: 1, minWidth: 0 }}>
           <Badge color="violet" variant="filled" size="xs">
             {index + 1}
           </Badge>
-          <Text size="xs" c="white" lineClamp={1} style={{ flex: 1 }}>
+          <Text size="xs" c="var(--orcha-text-title)" lineClamp={1} style={{ flex: 1 }}>
             {draft.text}
           </Text>
         </Group>
@@ -121,61 +121,61 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                 {(draft.type || "bar").charAt(0).toUpperCase() + (draft.type || "bar").slice(1)}
               </Button>
             </Menu.Target>
-            <Menu.Dropdown bg="#0c0a1a" style={{ border: "1px solid rgba(147, 51, 234, 0.2)" }}>
+            <Menu.Dropdown bg="var(--orcha-panel)" style={{ border: "1px solid var(--orcha-border)" }}>
               <Menu.Label>Insight Type</Menu.Label>
               <Menu.Item
                 leftSection={<IconChartBar size={14} color="#a855f7" />}
                 onClick={() => handleTypeChange("bar")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 Bar Chart
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconChartLine size={14} color="#0ea5e9" />}
                 onClick={() => handleTypeChange("line")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 Line Chart
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconChartArea size={14} color="#6366f1" />}
                 onClick={() => handleTypeChange("area")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 Area Chart
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconChartPie size={14} color="#ec4899" />}
                 onClick={() => handleTypeChange("pie")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 Pie Chart
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconChartRadar size={14} color="#d946ef" />}
                 onClick={() => handleTypeChange("radar")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 Radar Chart
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconNumbers size={14} color="#f59e0b" />}
                 onClick={() => handleTypeChange("kpi")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 KPI Metric
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconTable size={14} color="#10b981" />}
                 onClick={() => handleTypeChange("table")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 Data Table
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconHash size={14} color="#6366f1" />}
                 onClick={() => handleTypeChange("counter")}
-                c="white"
+                c="var(--orcha-text-title)"
               >
                 Smart Counter
               </Menu.Item>
@@ -191,9 +191,9 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                   </ActionIcon>
                 </Tooltip>
               </Popover.Target>
-              <Popover.Dropdown bg="#0c0a1a" style={{ border: "1px solid rgba(147, 51, 234, 0.2)", padding: 12 }}>
+              <Popover.Dropdown bg="var(--orcha-panel)" style={{ border: "1px solid var(--orcha-border)", padding: 12 }}>
                 <Stack gap="xs">
-                  <Text size="xs" fw={700} c="violet.3" mb={4}>
+                  <Text size="xs" fw={700} c="var(--orcha-purple)" mb={4}>
                     Smart Counter Design
                   </Text>
 
@@ -209,14 +209,14 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                     value={draft.formatType || "raw"}
                     onChange={(v) => handleFormatTypeChange(v || "raw")}
                     styles={{
-                      label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                      label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                       input: {
-                        background: "rgba(0,0,0,0.2)",
-                        color: "white",
-                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "var(--orcha-surface)",
+                        color: "var(--orcha-text-title)",
+                        border: "1px solid var(--orcha-border)",
                       },
-                      dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                      option: { color: "white" },
+                      dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                      option: { color: "var(--orcha-text-title)" },
                     }}
                   />
 
@@ -235,14 +235,14 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                       value={draft.formatValue || "USD"}
                       onChange={(v) => onChange(index, { ...draft, formatValue: v || "USD" })}
                       styles={{
-                        label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                        label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                         input: {
-                          background: "rgba(0,0,0,0.2)",
-                          color: "white",
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "var(--orcha-surface)",
+                          color: "var(--orcha-text-title)",
+                          border: "1px solid var(--orcha-border)",
                         },
-                        dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                        option: { color: "white" },
+                        dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                        option: { color: "var(--orcha-text-title)" },
                       }}
                     />
                   )}
@@ -265,14 +265,14 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                         value={selectedUnit}
                         onChange={(v) => handleUnitChange(v || "kg")}
                         styles={{
-                          label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                          label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                           input: {
-                            background: "rgba(0,0,0,0.2)",
-                            color: "white",
-                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "var(--orcha-surface)",
+                            color: "var(--orcha-text-title)",
+                            border: "1px solid var(--orcha-border)",
                           },
-                          dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                          option: { color: "white" },
+                          dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                          option: { color: "var(--orcha-text-title)" },
                         }}
                       />
                       {selectedUnit === "custom" && (
@@ -283,11 +283,11 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                           value={draft.formatValue || ""}
                           onChange={(e) => handleCustomUnitChange(e.currentTarget.value)}
                           styles={{
-                            label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                            label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                             input: {
-                              background: "rgba(0,0,0,0.2)",
-                              color: "white",
-                              border: "1px solid rgba(255,255,255,0.1)",
+                              background: "var(--orcha-surface)",
+                              color: "var(--orcha-text-title)",
+                              border: "1px solid var(--orcha-border)",
                             },
                           }}
                         />
@@ -307,14 +307,14 @@ export function DraftPromptItem({ index, draft, onRemove, onChange }: DraftPromp
                     value={draft.numberFormat || "compact"}
                     onChange={(v) => handleNumberFormatChange(v || "compact")}
                     styles={{
-                      label: { color: "rgba(255,255,255,0.6)", fontSize: 10, marginBottom: 2 },
+                      label: { color: "var(--orcha-text-body)", fontSize: 10, marginBottom: 2 },
                       input: {
-                        background: "rgba(0,0,0,0.2)",
-                        color: "white",
-                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "var(--orcha-surface)",
+                        color: "var(--orcha-text-title)",
+                        border: "1px solid var(--orcha-border)",
                       },
-                      dropdown: { background: "#0c0a1a", border: "1px solid rgba(147, 51, 234, 0.2)" },
-                      option: { color: "white" },
+                      dropdown: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" },
+                      option: { color: "var(--orcha-text-title)" },
                     }}
                   />
                 </Stack>

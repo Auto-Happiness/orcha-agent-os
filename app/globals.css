@@ -28,7 +28,7 @@
   background-color: rgba(147, 51, 234, 0.08) !important;
 }
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is([data-mantine-color-scheme="dark"] *));
 
 @theme inline {
   --color-background: var(--background);
@@ -70,34 +70,87 @@
   --radius-xl: calc(var(--radius) + 4px);
 
   /* ── Orcha brand tokens (purple-forward) ── */
-  --orcha-purple: #9333ea;
-  /* primary */
-  --orcha-purple-light: #a855f7;
-  /* hover */
-  --orcha-purple-dim: #7c3aed;
-  /* deep */
-  --orcha-violet: #c084fc;
-  /* highlight / gradient end */
-  --orcha-bg: #07050f;
-  /* page bg */
-  --orcha-panel: #0d0a1a;
-  /* auth pane */
-  --orcha-surface: #13102a;
-  /* card surface */
-  --orcha-border: rgba(147, 51, 234, 0.25);
-  --orcha-glow: rgba(147, 51, 234, 0.45);
+  --orcha-purple: var(--orcha-purple);
+  --orcha-purple-light: var(--orcha-purple-light);
+  --orcha-purple-dim: var(--orcha-purple-dim);
+  --orcha-violet: var(--orcha-violet);
+  --orcha-bg: var(--orcha-bg);
+  --orcha-panel: var(--orcha-panel);
+  --orcha-surface: var(--orcha-surface);
+  --orcha-border: var(--orcha-border);
+  --orcha-glow: var(--orcha-glow);
 }
 
-/* ── Forced dark design tokens ── */
+/* ── Light Mode / Default variables ── */
 :root {
   --radius: 0.625rem;
+  --background: #f8fafc; /* slate 50 */
+  --foreground: #0f172a; /* slate 900 */
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #7c3aed; /* violet 600 */
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9; /* slate 100 */
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569; /* slate 600 */
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --destructive: #ef4444;
+  --border: #e2e8f0; /* slate 200 */
+  --input: #cbd5e1; /* slate 300 */
+  --ring: #7c3aed;
+  
+  --chart-1: #7c3aed;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ec4899;
+  --chart-5: #3b82f6;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #334155; /* slate 700 */
+  --sidebar-primary: #7c3aed;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #7c3aed;
+
+  /* Orcha brand tokens (light mode) */
+  --orcha-purple: #7c3aed;
+  --orcha-purple-light: #9333ea;
+  --orcha-purple-dim: #5b21b6;
+  --orcha-violet: #a855f7;
+  
+  --orcha-bg: #f8fafc;
+  --orcha-panel: #ffffff;
+  --orcha-surface: #f1f5f9;
+  --orcha-header-bg: rgba(255, 255, 255, 0.85);
+  --orcha-border: rgba(147, 51, 234, 0.12);
+  --orcha-glow: rgba(147, 51, 234, 0.15);
+  
+  --orcha-text-title: #0f172a;
+  --orcha-text-body: #334155;
+  --orcha-text-muted: #64748b;
+  --orcha-sidebar-text: #475569;
+  --orcha-sidebar-hover-bg: rgba(147, 51, 234, 0.06);
+  --orcha-sidebar-hover-text: #7c3aed;
+
+  --orcha-number-color: #0284c7; /* sky-600 */
+  --orcha-null-color: rgba(0, 0, 0, 0.35);
+  --orcha-table-border: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Dark Mode overrides ── */
+html[data-mantine-color-scheme="dark"] {
   --background: oklch(0.06 0.02 290);
   --foreground: oklch(0.97 0 0);
   --card: oklch(0.10 0.025 290);
   --card-foreground: oklch(0.97 0 0);
   --popover: oklch(0.10 0.025 290);
   --popover-foreground: oklch(0.97 0 0);
-  /* Primary = Orcha purple */
   --primary: oklch(0.55 0.25 299);
   --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(0.15 0.025 290);
@@ -110,11 +163,13 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 7%);
   --ring: oklch(0.55 0.25 299);
+
   --chart-1: oklch(0.55 0.25 299);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+
   --sidebar: oklch(0.10 0.025 290);
   --sidebar-foreground: oklch(0.97 0 0);
   --sidebar-primary: oklch(0.55 0.25 299);
@@ -123,6 +178,30 @@
   --sidebar-accent-foreground: oklch(0.97 0 0);
   --sidebar-border: oklch(1 0 0 / 9%);
   --sidebar-ring: oklch(0.55 0.25 299);
+
+  /* Orcha brand tokens (dark mode) */
+  --orcha-purple: #9333ea;
+  --orcha-purple-light: #a855f7;
+  --orcha-purple-dim: #7c3aed;
+  --orcha-violet: #c084fc;
+  
+  --orcha-bg: #07050f;
+  --orcha-panel: #0d0a1a;
+  --orcha-surface: #13102a;
+  --orcha-header-bg: rgba(7, 5, 16, 0.85);
+  --orcha-border: rgba(147, 51, 234, 0.25);
+  --orcha-glow: rgba(147, 51, 234, 0.45);
+  
+  --orcha-text-title: #ffffff;
+  --orcha-text-body: rgba(255, 255, 255, 0.88);
+  --orcha-text-muted: rgba(255, 255, 255, 0.5);
+  --orcha-sidebar-text: rgba(255, 255, 255, 0.5);
+  --orcha-sidebar-hover-bg: rgba(147, 51, 234, 0.08);
+  --orcha-sidebar-hover-text: rgba(255, 255, 255, 0.85);
+
+  --orcha-number-color: #a5f3fc; /* cyan-200 */
+  --orcha-null-color: rgba(255, 255, 255, 0.2);
+  --orcha-table-border: rgba(255, 255, 255, 0.03);
 }
 
 @layer base {
@@ -322,3 +401,77 @@
   width: 11px;
   height: 11px;
 }
+
+/* ── Mantine global overrides for Light/Dark theme consistency ── */
+.mantine-Modal-content {
+  background-color: var(--orcha-panel) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--orcha-border) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15) !important;
+}
+.mantine-Modal-header {
+  background-color: var(--orcha-panel) !important;
+  color: var(--foreground) !important;
+  border-bottom: 1px solid var(--orcha-border) !important;
+}
+.mantine-Modal-title {
+  color: var(--orcha-text-title) !important;
+  font-weight: 700 !important;
+}
+.mantine-Menu-dropdown {
+  background-color: var(--orcha-panel) !important;
+  border: 1px solid var(--orcha-border) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+}
+.mantine-Menu-item {
+  color: var(--foreground) !important;
+}
+.mantine-Menu-item[data-hovered] {
+  background-color: var(--orcha-sidebar-hover-bg) !important;
+  color: var(--orcha-sidebar-hover-text) !important;
+}
+.mantine-Popover-dropdown {
+  background-color: var(--orcha-panel) !important;
+  border: 1px solid var(--orcha-border) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+}
+.mantine-Select-dropdown {
+  background-color: var(--orcha-panel) !important;
+  border: 1px solid var(--orcha-border) !important;
+  color: var(--foreground) !important;
+}
+.mantine-Tooltip-tooltip {
+  background-color: var(--orcha-panel) !important;
+  border: 1px solid var(--orcha-border) !important;
+  color: var(--foreground) !important;
+}
+.mantine-Input-input {
+  background-color: var(--orcha-surface) !important;
+  border: 1px solid var(--orcha-border) !important;
+  color: var(--foreground) !important;
+}
+.mantine-Input-input:focus {
+  border-color: var(--orcha-purple) !important;
+}
+
+/* ── Custom override for configuration page tabs ── */
+.config-tabs .mantine-Tabs-tab {
+  color: var(--orcha-text-muted) !important;
+  transition: all 150ms ease;
+  font-weight: 500;
+}
+
+.config-tabs .mantine-Tabs-tab:hover {
+  background-color: var(--orcha-sidebar-hover-bg) !important;
+  color: var(--orcha-purple) !important;
+}
+
+.config-tabs .mantine-Tabs-tab[data-active] {
+  background-color: var(--orcha-sidebar-hover-bg) !important;
+  color: var(--orcha-purple) !important;
+  font-weight: 600;
+}
+
+

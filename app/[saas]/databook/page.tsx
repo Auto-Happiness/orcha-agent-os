@@ -32,7 +32,7 @@ export default function DatabookPage() {
              <Skeleton h={20} w={600} radius="md" />
           </Box>
           <Skeleton h={200} radius="md" mt="xl" />
-          <Divider color="rgba(255,255,255,0.05)" />
+          <Divider color="var(--orcha-border)" />
           <Skeleton h={300} radius="md" />
         </Stack>
       </Box>
@@ -42,7 +42,7 @@ export default function DatabookPage() {
   // Handle Not Found State
   if (organization === null) {
     return (
-      <Center h="400px" style={{ color: "white" }}>
+      <Center h="400px" style={{ color: "var(--orcha-text-title)" }}>
         <Stack align="center" gap="xs">
           <Title order={3}>Workspace Not Found</Title>
           <Text c="dimmed">The workspace "{saas}" could not be located in the database.</Text>
@@ -59,7 +59,7 @@ export default function DatabookPage() {
       <title>{saas ? `Databook - ${saas}` : "Databook"}</title>
       <Stack gap="4rem">
         <Box mb="xl">
-          <Title order={1} c="white" size="2rem" mb="xs" style={{ letterSpacing: "-0.02em" }}>
+          <Title order={1} c="var(--orcha-text-title)" size="2rem" mb="xs" style={{ letterSpacing: "-0.02em" }}>
             Databook
           </Title>
           <Text c="dimmed" size="md">Access and search saved query results and database insights.</Text>

@@ -19,12 +19,12 @@ export function ModelSelector({ selectedModel, onChangeSelectedModel }: ModelSel
       w={160}
       comboboxProps={{ position: "top", width: 200, shadow: "xl" }}
       leftSection={<IconSparkles size={12} color="#a855f7" />}
-      rightSection={<IconChevronDown size={10} color="rgba(255,255,255,0.4)" />}
+      rightSection={<IconChevronDown size={10} color="var(--orcha-text-muted)" />}
       styles={{
-        input: { color: "rgba(255,255,255,0.6)", fontSize: "11px" },
-        dropdown: { background: "#0c0a1a", borderColor: "rgba(147, 51, 234, 0.2)" },
-        groupLabel: { color: "#a855f7", fontWeight: 700, fontSize: "9px" },
-        option: { fontSize: "11px", color: "white" },
+        input: { color: "var(--orcha-text-body)", fontSize: "11px" },
+        dropdown: { background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" },
+        groupLabel: { color: "var(--orcha-purple)", fontWeight: 700, fontSize: "9px" },
+        option: { fontSize: "11px", color: "var(--orcha-text-title)" },
       }}
     />
   );

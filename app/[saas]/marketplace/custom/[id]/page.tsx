@@ -163,11 +163,10 @@ export default function McpInspectorPage() {
 
     if (!keyRecord) {
         return (
-            <Box p="4rem" style={{ minHeight: "calc(100vh - 56px)", background: "#07050f" }}>
-                <Stack align="center" py={100}>
-                    <Loader color="violet" />
-                    <Text c="dimmed">Loading server details...</Text>
-                </Stack>
+            <Box p="4rem" style={{ minHeight: "calc(100vh - 56px)", background: "var(--background)" }}>
+                <Center style={{ height: "40vh" }}>
+                    <Loader color="violet" size="lg" />
+                </Center>
             </Box>
         );
     }
@@ -175,7 +174,7 @@ export default function McpInspectorPage() {
     const displayName = keyRecord.integration.replace("custom_mcp__", "").replace(/_/g, " ");
 
     return (
-        <Box p="4rem" style={{ minHeight: "calc(100vh - 56px)", background: "#07050f", maxWidth: "1600px" }}>
+        <Box p="4rem" style={{ minHeight: "calc(100vh - 56px)", background: "var(--background)", maxWidth: "1600px" }}>
             <title>Inspector: {displayName}</title>
             <Stack gap="xl">
                 {/* Header */}
@@ -186,7 +185,7 @@ export default function McpInspectorPage() {
                         </ActionIcon>
                         <Box>
                             <Group gap="xs">
-                                <Title order={2} fw={800} c="white" style={{ textTransform: "capitalize", letterSpacing: "-0.02em" }}>{displayName}</Title>
+                                <Title order={2} fw={800} c="var(--foreground)" style={{ textTransform: "capitalize", letterSpacing: "-0.02em" }}>{displayName}</Title>
                                 <Badge color="green" variant="light" size="xs" radius="sm">Live</Badge>
                             </Group>
                             <Text size="xs" c="dimmed" style={{ opacity: 0.6 }}>{keyRecord.mcpUrl}</Text>
@@ -213,23 +212,23 @@ export default function McpInspectorPage() {
                 <Grid>
                     {/* Row 1: Tools & Execution */}
                     <Grid.Col span={{ base: 12, md: 4 }}>
-                        <Paper withBorder radius="md" style={{ background: "rgba(19,15,34,0.4)", height: 500, display: "flex", flexDirection: "column", borderColor: "rgba(255,255,255,0.06)" }}>
-                            <Box p="md" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                        <Paper withBorder radius="md" style={{ background: "var(--orcha-panel)", height: 500, display: "flex", flexDirection: "column", borderColor: "var(--orcha-border)" }}>
+                            <Box p="md" style={{ borderBottom: "1px solid var(--orcha-border)" }}>
                                 <Group justify="space-between" mb="xs">
-                                    <Text fw={700} size="sm" c="white">Tools</Text>
-                                    <IconSearch size={14} color="rgba(255,255,255,0.3)" />
+                                    <Text fw={700} size="sm" c="var(--orcha-text-title)">Tools</Text>
+                                    <IconSearch size={14} color="var(--orcha-text-muted)" />
                                 </Group>
                                 <TextInput
                                     placeholder="Search tools..."
                                     size="xs"
                                     value={search}
                                     onChange={(e) => setSearch(e.currentTarget.value)}
-                                    styles={{ input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" } }}
+                                    styles={{ input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--foreground)" } }}
                                 />
                             </Box>
-                            <Box p="xs" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                            <Box p="xs" style={{ borderBottom: "1px solid var(--orcha-border)" }}>
                                 <Stack gap={4}>
-                                    <Button fullWidth size="xs" variant="light" color="gray" styles={{ root: { backgroundColor: "rgba(255,255,255,0.03)" } }} onClick={fetchTools}>List Tools</Button>
+                                    <Button fullWidth size="xs" variant="light" color="gray" styles={{ root: { backgroundColor: "var(--orcha-surface)" } }} onClick={fetchTools}>List Tools</Button>
                                     <Button fullWidth size="xs" variant="subtle" color="gray" onClick={() => { setTools([]); setSelectedTool(null); }}>Clear</Button>
                                 </Stack>
                             </Box>
@@ -242,7 +241,7 @@ export default function McpInspectorPage() {
                                 ) : filteredTools.length === 0 ? (
                                     <Box p="xl" style={{ textAlign: "center" }}>
                                         <Stack gap="xs" align="center">
-                                            <IconTerminal2 size={24} color="rgba(255,255,255,0.1)" />
+                                            <IconTerminal2 size={24} color="var(--orcha-text-muted)" />
                                             <Text size="xs" c="dimmed">No tools found.</Text>
                                             {keyRecord.mcpUrl && !keyRecord.mcpUrl.includes("/sse") && keyRecord.mcpUrl.includes("localhost") && (
                                                 <Alert color="blue" variant="light" p="xs" styles={{ label: { fontSize: 10 }, message: { fontSize: 10 } }}>
@@ -260,8 +259,8 @@ export default function McpInspectorPage() {
                                             p="md"
                                             style={{
                                                 cursor: "pointer",
-                                                borderBottom: "1px solid rgba(255,255,255,0.03)",
-                                                backgroundColor: selectedTool?.name === t.name ? "rgba(147,51,234,0.1)" : "transparent",
+                                                borderBottom: "1px solid var(--orcha-border)",
+                                                backgroundColor: selectedTool?.name === t.name ? "var(--orcha-surface)" : "transparent",
                                                 transition: "background 0.2s ease"
                                             }}
                                             onClick={() => {
@@ -278,10 +277,10 @@ export default function McpInspectorPage() {
                                         >
                                             <Group justify="space-between" wrap="nowrap">
                                                 <Box>
-                                                    <Text size="sm" fw={700} c={selectedTool?.name === t.name ? "violet.4" : "white"}>{t.name}</Text>
+                                                    <Text size="sm" fw={700} c={selectedTool?.name === t.name ? "violet.4" : "var(--foreground)"}>{t.name}</Text>
                                                     <Text size="xs" c="dimmed" lineClamp={1}>{t.description}</Text>
                                                 </Box>
-                                                <IconChevronRight size={14} color="rgba(255,255,255,0.2)" />
+                                                <IconChevronRight size={14} color="var(--orcha-text-muted)" />
                                             </Group>
                                         </Box>
                                     ))
@@ -291,12 +290,12 @@ export default function McpInspectorPage() {
                     </Grid.Col>
 
                     <Grid.Col span={{ base: 12, md: 8 }}>
-                        <Paper withBorder radius="md" style={{ background: "rgba(19,15,34,0.4)", height: 500, overflow: "hidden", display: "flex", flexDirection: "column", borderColor: "rgba(255,255,255,0.06)" }}>
+                        <Paper withBorder radius="md" style={{ background: "var(--orcha-panel)", height: 500, overflow: "hidden", display: "flex", flexDirection: "column", borderColor: "var(--orcha-border)" }}>
                             {!selectedTool ? (
                                 <Center style={{ flex: 1 }}>
                                     <Stack align="center" gap="xs">
-                                        <Box style={{ width: 60, height: 60, borderRadius: "50%", background: "rgba(147,51,234,0.05)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed rgba(147,51,234,0.2)" }}>
-                                            <IconTerminal2 size={30} color="rgba(147,51,234,0.3)" />
+                                        <Box style={{ width: 60, height: 60, borderRadius: "50%", background: "var(--orcha-surface)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed var(--orcha-border)" }}>
+                                            <IconTerminal2 size={30} color="var(--orcha-purple)" />
                                         </Box>
                                         <Text c="dimmed" size="sm" fw={500}>Select a tool to inspect and execute</Text>
                                     </Stack>
@@ -306,7 +305,7 @@ export default function McpInspectorPage() {
                                     <Stack gap="xl">
                                         <Box>
                                             <Group justify="space-between">
-                                                <Title order={3} c="white" fw={800}>{selectedTool.name}</Title>
+                                                <Title order={3} c="var(--foreground)" fw={800}>{selectedTool.name}</Title>
                                                 <Group gap="xs">
                                                     <Badge size="xs" variant="outline" color="gray" leftSection={<IconX size={10} />}>Read-only</Badge>
                                                     <Badge size="xs" variant="outline" color="green" leftSection={<IconCheck size={10} />}>Destructive</Badge>
@@ -319,7 +318,7 @@ export default function McpInspectorPage() {
 
                                         <Box>
                                             <Group justify="space-between" mb="xs">
-                                                <Text fw={700} size="sm" c="white">Tool-specific Metadata:</Text>
+                                                <Text fw={700} size="sm" c="var(--foreground)">Tool-specific Metadata:</Text>
                                                 <Button size="compact-xs" variant="subtle" color="violet" styles={{ root: { fontSize: 10 } }}>Add Pair</Button>
                                             </Group>
                                             <Text size="xs" c="dimmed">No metadata pairs.</Text>
@@ -351,7 +350,7 @@ export default function McpInspectorPage() {
                                             </Group>
 
                                             <Box>
-                                                <Text fw={700} size="sm" c="white" mb="xs">Arguments (JSON):</Text>
+                                                <Text fw={700} size="sm" c="var(--foreground)" mb="xs">Arguments (JSON):</Text>
                                                 <JsonInput
                                                     placeholder="e.g. { 'id': '123' }"
                                                     validationError="Invalid JSON"
@@ -364,7 +363,7 @@ export default function McpInspectorPage() {
                                                             if (val) setToolInputs(JSON.parse(val));
                                                         } catch { }
                                                     }}
-                                                    styles={{ input: { background: "rgba(0,0,0,0.2)", borderColor: "rgba(255,255,255,0.06)", color: "white", fontSize: 12, fontFamily: "monospace" } }}
+                                                    styles={{ input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--foreground)", fontSize: 12, fontFamily: "monospace" } }}
                                                 />
                                             </Box>
                                         </Stack>
@@ -372,11 +371,11 @@ export default function McpInspectorPage() {
                                         {toolResult && (
                                             <Box>
                                                 <Group gap="xs" mb="xs">
-                                                    <Text fw={700} size="sm" c="white">Tool Result:</Text>
+                                                    <Text fw={700} size="sm" c="var(--foreground)">Tool Result:</Text>
                                                     <Text fw={700} size="sm" c={toolResult.error ? "red.5" : "green.5"}>{toolResult.error ? "Error" : "Success"}</Text>
                                                 </Group>
                                                 <Stack gap="md">
-                                                    <Paper withBorder p="md" radius="md" style={{ background: "rgba(0,0,0,0.2)", borderColor: "rgba(255,255,255,0.06)", position: "relative" }}>
+                                                    <Paper withBorder p="md" radius="md" style={{ background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", position: "relative" }}>
                                                         <Group justify="space-between" mb="xs">
                                                             <Text size="xs" fw={700} c="dimmed">Structured Content:</Text>
                                                             <ActionIcon variant="subtle" color="gray" size="sm" onClick={() => {
@@ -386,14 +385,14 @@ export default function McpInspectorPage() {
                                                                 <IconCopy size={14} />
                                                             </ActionIcon>
                                                         </Group>
-                                                        <Code block styles={{ root: { background: "transparent", color: "#a855f7", fontSize: 11 } }}>
+                                                        <Code block styles={{ root: { background: "transparent", color: "var(--orcha-purple)", fontSize: 11 } }}>
                                                             {JSON.stringify(toolResult, null, 2)}
                                                         </Code>
                                                     </Paper>
 
                                                     <Box>
                                                         <Text size="xs" fw={700} c="dimmed" mb={4}>Unstructured Content:</Text>
-                                                        <Paper withBorder p="xs" radius="sm" style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.04)" }}>
+                                                        <Paper withBorder p="xs" radius="sm" style={{ background: "var(--orcha-surface)", borderColor: "var(--orcha-border)" }}>
                                                             <Text size="xs" c="dimmed">No unstructured content returned.</Text>
                                                         </Paper>
                                                     </Box>
@@ -407,13 +406,13 @@ export default function McpInspectorPage() {
                     </Grid.Col>
 
                     {/* Row 2: History & Notifications */}
-                    <Grid.Col span={{ base: 12, md: 4 }}>
-                        <Paper withBorder radius="md" style={{ background: "rgba(19,15,34,0.4)", height: 300, display: "flex", flexDirection: "column", borderColor: "rgba(255,255,255,0.06)" }}>
-                            <Box p="md" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <Grid.Col span={12}>
+                        <Paper withBorder radius="md" style={{ background: "var(--orcha-panel)", height: 300, display: "flex", flexDirection: "column", borderColor: "var(--orcha-border)" }}>
+                            <Box p="md" style={{ borderBottom: "1px solid var(--orcha-border)" }}>
                                 <Group justify="space-between">
                                     <Group gap="xs">
-                                        <IconHistory size={16} color="rgba(255,255,255,0.4)" />
-                                        <Text fw={700} size="sm" c="white">History</Text>
+                                        <IconHistory size={16} color="var(--orcha-text-muted)" />
+                                        <Text fw={700} size="sm" c="var(--foreground)">History</Text>
                                     </Group>
                                     <Button size="compact-xs" variant="subtle" color="gray" styles={{ root: { fontSize: 10 } }} onClick={() => setHistory([])}>Clear</Button>
                                 </Group>
@@ -451,7 +450,7 @@ export default function McpInspectorPage() {
                                 <Group justify="space-between">
                                     <Group gap="xs">
                                         <IconBell size={16} color="rgba(255,255,255,0.4)" />
-                                        <Text fw={700} size="sm" c="white">Server Notifications</Text>
+                                        <Text fw={700} size="sm" c="var(--orcha-text-title)">Server Notifications</Text>
                                     </Group>
                                     <Button size="compact-xs" variant="subtle" color="gray" styles={{ root: { fontSize: 10 } }}>Clear</Button>
                                 </Group>

@@ -59,14 +59,14 @@ export function TextBoxConfigSection({ opened, onClose, widget, mode, onSave }: 
       padding="xl"
       styles={{
         content: {
-          background: "#0c0a1a",
-          borderLeft: "1px solid rgba(147, 51, 234, 0.2)",
-          color: "white"
+          background: "var(--orcha-panel)",
+          borderLeft: "1px solid var(--orcha-border)",
+          color: "var(--orcha-text-title)"
         },
         header: {
-          background: "#0c0a1a",
-          color: "white",
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          background: "var(--orcha-panel)",
+          color: "var(--orcha-text-title)",
+          borderBottom: "1px solid var(--orcha-border)",
           paddingBottom: 20
         },
       }}
@@ -83,8 +83,8 @@ export function TextBoxConfigSection({ opened, onClose, widget, mode, onSave }: 
               value={widgetTitle}
               onChange={(e) => setWidgetTitle(e.currentTarget.value)}
               styles={{
-                label: { color: "white", marginBottom: 8 },
-                input: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(147, 51, 234, 0.3)", color: "white" }
+                label: { color: "var(--orcha-text-title)", marginBottom: 8 },
+                input: { background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)", color: "var(--orcha-text-title)" }
               }}
             />
             <Textarea
@@ -95,8 +95,8 @@ export function TextBoxConfigSection({ opened, onClose, widget, mode, onSave }: 
               value={textContent}
               onChange={(e) => setTextContent(e.currentTarget.value)}
               styles={{
-                label: { color: "white", marginBottom: 8 },
-                input: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(147, 51, 234, 0.3)", color: "white" }
+                label: { color: "var(--orcha-text-title)", marginBottom: 8 },
+                input: { background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)", color: "var(--orcha-text-title)" }
               }}
             />
           </Stack>

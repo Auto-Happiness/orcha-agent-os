@@ -4,12 +4,12 @@ import { Stack, Paper, Title, Text, Divider, Group, Button } from "@mantine/core
 
 export function SecurityTab() {
   return (
-    <Paper withBorder p="2.5rem" radius="lg" style={{ background: "rgba(255,255,255,0.01)" }}>
+    <Paper withBorder p="2.5rem" radius="lg" style={{ background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" }}>
       <Stack gap="xl">
         <Title order={3} size="1.5rem">Security Settings</Title>
         <Text size="sm" c="dimmed">Manage your password, two-factor authentication, and active sessions.</Text>
         
-        <Divider color="rgba(255,255,255,0.05)" />
+        <Divider color="var(--orcha-border)" />
         
         <Group justify="space-between">
           <Stack gap={4}>

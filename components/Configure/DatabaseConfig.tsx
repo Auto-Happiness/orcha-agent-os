@@ -58,15 +58,15 @@ export function DatabaseConfig() {
     <Grid>
       <Grid.Col span={12}>
         <Card withBorder style={{ 
-          background: "rgba(255,255,255,0.01)", 
-          borderColor: "rgba(147,51,234,0.12)",
+          background: "var(--orcha-panel)", 
+          borderColor: "var(--orcha-border)",
           display: "flex",
           flexDirection: "row",
           alignItems: "stretch",
           overflow: "hidden"
         }} radius="md" p={0} h={860}>
           {/* Left Vertical Selector Pane */}
-          <Box p="xl" w={rem(300)} style={{ borderRight: "1px solid rgba(147,51,234,0.12)", flexShrink: 0, background: "rgba(0,0,0,0.15)" }}>
+          <Box p="xl" w={rem(300)} style={{ borderRight: "1px solid var(--orcha-border)", flexShrink: 0, background: "var(--orcha-surface)" }}>
             <DatabaseProviderSelector 
               selected={selectedProvider} 
               onSelect={handleSelectProvider} 
@@ -78,14 +78,14 @@ export function DatabaseConfig() {
             <Box mb="xl">
               <Group justify="space-between" mb="xs">
                 <Stack gap={0}>
-                  <Text fw={700} size="lg" c="white">Source Connectivity</Text>
+                  <Text fw={700} size="lg" c="var(--orcha-text-title)">Source Connectivity</Text>
                   <Text size="xs" c="dimmed">Configure its parameters and authentication.</Text>
                 </Stack>
                 <ThemeIcon variant="light" color="violet" size="lg" radius="md">
                   <IconServer size={20} />
                 </ThemeIcon>
               </Group>
-              <Divider style={{ borderColor: "rgba(255,255,255,0.06)" }} mt="md" />
+              <Divider style={{ borderColor: "var(--orcha-border)" }} mt="md" />
             </Box>
 
             <DatabaseConnectionForm provider={selectedProvider} />

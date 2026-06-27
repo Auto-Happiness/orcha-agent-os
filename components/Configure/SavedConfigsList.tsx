@@ -157,10 +157,10 @@ export function SavedConfigsList() {
 
   if (configs.length === 0) {
     return (
-      <Paper withBorder p="3rem" radius="md" style={{ background: "rgba(255,255,255,0.012)", borderColor: "rgba(147,51,234,0.15)" }}>
+      <Paper withBorder p="3rem" radius="md" style={{ background: "var(--orcha-surface)", borderColor: "var(--orcha-border)" }}>
         <Stack align="center" gap="sm">
           <IconDatabase size={48} color="rgba(147,51,234,0.3)" />
-          <Text fw={600} c="white">No active environments found</Text>
+          <Text fw={600} c="var(--orcha-text-title)">No active environments found</Text>
           <Text size="xs" c="dimmed" mb="md">Connect your first database to start building your semantic bridge.</Text>
           <Tooltip 
             label="Please add an API key in organization settings to create an environment" 
@@ -216,7 +216,7 @@ export function SavedConfigsList() {
                       return <Icon size={14} />;
                     })()
                   )}
-                  <Text size="sm">{item.option.label}</Text>
+                  <Text size="sm" c="inherit">{item.option.label}</Text>
                 </Group>
               );
             }}
@@ -250,8 +250,8 @@ export function SavedConfigsList() {
       </Group>
 
       <Paper withBorder style={{
-        background: "rgba(255,255,255,0.012)",
-        borderColor: "rgba(147,51,234,0.12)",
+        background: "var(--orcha-panel)",
+        borderColor: "var(--orcha-border)",
         overflow: "hidden"
       }} radius="md">
         <Stack gap={0}>
@@ -264,7 +264,7 @@ export function SavedConfigsList() {
               <Box
                 key={config._id}
                 style={{
-                  borderBottom: index !== filteredConfigs.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                  borderBottom: index !== filteredConfigs.length - 1 ? "1px solid var(--orcha-border)" : "none",
                   transition: "all 200ms ease"
                 }}
               >
@@ -296,7 +296,7 @@ export function SavedConfigsList() {
                       {/* ID & Status */}
                       <Stack gap={2} w={140}>
                         <Group gap="xs">
-                          <Text fw={700} size="xs" c="white" ff="monospace">{config._id.slice(-8)}</Text>
+                          <Text fw={700} size="xs" c="var(--orcha-text-title)" ff="monospace">{config._id.slice(-8)}</Text>
                           <Badge variant="dot" color={isOnline ? "green" : "red"} size="xs" tt="none">
                             {isOnline ? "Online" : "Offline"}
                           </Badge>
@@ -312,7 +312,7 @@ export function SavedConfigsList() {
                           style={{ border: "1px solid rgba(147,51,234,0.2)" }}
                         />
                         <Stack gap={0}>
-                          <Text fw={600} size="sm" c="white">{config.name}</Text>
+                          <Text fw={600} size="sm" c="var(--orcha-text-title)">{config.name}</Text>
                           <Text size="xs" c="dimmed" ff="monospace" style={{ opacity: 0.7 }}>
                             {config.type.toUpperCase()}
                           </Text>
@@ -333,7 +333,7 @@ export function SavedConfigsList() {
                                 return <EngineIcon size={14} color="#9333ea" />;
                               })()
                             )}
-                            <Text size="11px" fw={500} c="white" style={{ textTransform: "capitalize" }}>{config.type}</Text>
+                            <Text size="11px" fw={500} c="var(--orcha-text-title)" style={{ textTransform: "capitalize" }}>{config.type}</Text>
                           </Group>
                           {config.indexingStatus === "processing" ? (
                             <Stack gap={2} mt={4}>
@@ -383,10 +383,6 @@ export function SavedConfigsList() {
         onClose={() => setShowKeyWarning(false)}
         title={<Text fw={700}>Intelligence Layer Required</Text>}
         centered
-        styles={{
-          content: { background: "#130f22", border: "1px solid rgba(147,51,234,0.18)" },
-          header: { background: "#130f22" },
-        }}
       >
         <Stack gap="xl">
           <Alert color="violet" variant="light" icon={<IconAlertCircle size={20} />}>

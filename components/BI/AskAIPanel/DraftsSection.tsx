@@ -25,14 +25,14 @@ export function DraftsSection({
           mb="md"
           styles={{
             root: {
-              background: "rgba(147, 51, 234, 0.1)",
-              border: "2px solid rgba(147, 51, 234, 0.2)",
+              background: "var(--orcha-sidebar-hover-bg)",
+              border: "2px solid var(--orcha-border)",
             },
           }}
         >
           <IconRobot size={32} color="#a855f7" />
         </Avatar>
-        <Text fw={700} size="lg" c="white">
+        <Text fw={700} size="lg" c="var(--orcha-text-title)">
           Insight Architect
         </Text>
         <Text size="xs" c="dimmed">

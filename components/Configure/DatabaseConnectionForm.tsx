@@ -137,24 +137,24 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
       <Stack gap={10}>
         <Group gap="xs">
           <IconShieldCheck size={18} color="#22c55e" />
-          <Text fw={600} size="sm" c="white">Connection Parameters</Text>
+          <Text fw={600} size="sm" c="var(--orcha-text-title)">Connection Parameters</Text>
           <Badge variant="dot" color="blue" size="xs">{provider.toUpperCase()}</Badge>
         </Group>
       </Stack>
 
       <Grid>
         <Grid.Col span={12}>
-          <Paper p="md" radius="md" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <Box h={4} bg="rgba(255,255,255,0.05)" style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: "100px" }}></Box>
+          <Paper p="md" radius="md" style={{ background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)" }}>
+            <Box h={4} bg="var(--orcha-border)" style={{ border: "1px solid var(--orcha-border)", borderRadius: "100px" }}></Box>
             <Group justify="space-between">
               <Group gap="xs">
-                <IconInfoCircle size={14} color="rgba(255,255,255,0.3)" />
+                <IconInfoCircle size={14} color="var(--orcha-text-muted)" />
                 <Text size="xs" c="dimmed">Draft Connection URI</Text>
               </Group>
               <Tooltip label="Copy Mapping"><ActionIcon variant="transparent" size="sm" color="dimmed"><IconCopy size={12} /></ActionIcon></Tooltip>
             </Group>
             <Box mt={8}>
-              <Text size="11px" style={{ fontFamily: "monospace", color: "#c084fc", opacity: 0.8 }}>
+              <Text size="11px" style={{ fontFamily: "monospace", color: "var(--orcha-purple)" }}>
                 {getUriPreview()}
               </Text>
             </Box>
@@ -166,7 +166,7 @@ export function DatabaseConnectionForm({ provider }: ConnectionFormProps) {
         </Grid.Col>
       </Grid>
 
-      <Divider style={{ borderColor: "rgba(255,255,255,0.05)" }} />
+      <Divider style={{ borderColor: "var(--orcha-border)" }} />
 
       <Group justify="flex-end" mt="md">
         {provider === "mysql" && (

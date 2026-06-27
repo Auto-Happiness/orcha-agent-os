@@ -23,9 +23,9 @@ export function PaginationControls({
   return (
     <Box
       style={{
-        background: "rgba(19, 16, 42, 0.4)",
+        background: "var(--orcha-panel)",
         backdropFilter: "blur(12px)",
-        border: "1px solid rgba(147, 51, 234, 0.15)",
+        border: "1px solid var(--orcha-border)",
         borderTop: "none",
         borderRadius: "0 0 14px 14px",
         padding: "12px 24px",
@@ -38,15 +38,15 @@ export function PaginationControls({
       <Group gap="xs">
         <Box style={{ width: 6, height: 6, borderRadius: "50%", background: "#a855f7", boxShadow: "0 0 8px #a855f7" }} />
         <Text size="xs" c="dimmed">
-          Showing <Text span fw={600} c="white">{((currentPage - 1) * pageSize) + 1}</Text> to{" "}
-          <Text span fw={600} c="white">{Math.min(currentPage * pageSize, totalCount)}</Text> of{" "}
-          <Text span fw={600} c="white">{totalCount.toLocaleString()}</Text> records
+          Showing <Text span fw={600} c="var(--orcha-text-title)">{((currentPage - 1) * pageSize) + 1}</Text> to{" "}
+          <Text span fw={600} c="var(--orcha-text-title)">{Math.min(currentPage * pageSize, totalCount)}</Text> of{" "}
+          <Text span fw={600} c="var(--orcha-text-title)">{totalCount.toLocaleString()}</Text> records
         </Text>
       </Group>
 
       <Group gap="md">
         <Text size="xs" c="dimmed">
-          Page <Text span fw={600} c="white">{currentPage}</Text> of <Text span fw={600} c="white">{totalPages}</Text>
+          Page <Text span fw={600} c="var(--orcha-text-title)">{currentPage}</Text> of <Text span fw={600} c="var(--orcha-text-title)">{totalPages}</Text>
         </Text>
 
         <Group gap="xs">

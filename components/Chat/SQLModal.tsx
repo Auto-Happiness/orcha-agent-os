@@ -49,19 +49,19 @@ export function SQLModal({ queries, opened, onClose, organizationId, configId }:
 
   return (
     <Modal opened={opened} onClose={onClose}
-      title={<Group gap={8}><IconCode size={16} color="#a855f7" /><Text size="sm" fw={600} c="white">SQL Queries</Text></Group>}
+      title={<Group gap={8}><IconCode size={16} color="#a855f7" /><Text size="sm" fw={600} c="var(--orcha-text-title)">SQL Queries</Text></Group>}
       size="lg" radius="md"
-      styles={{ content: { background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)" }, header: { background: "#0d0a1a", borderBottom: "1px solid rgba(147,51,234,0.1)" }, title: { color: "white" } }}
+      styles={{ content: { background: "var(--orcha-panel)", border: "1px solid var(--orcha-border)" }, header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)" }, title: { color: "var(--orcha-text-title)" } }}
     >
       <Stack gap="md" pt="xs">
         {queries.map((sql, i) => (
           <Box key={i}>
-            {queries.length > 1 && <Text size="10px" fw={700} c="violet.4" mb={6} style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>Query {i + 1}</Text>}
-            <Box style={{ borderRadius: 8, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(147,51,234,0.15)", overflow: "hidden" }}>
-              <Box style={{ padding: "10px 14px", fontFamily: "var(--font-geist-mono,monospace)", fontSize: 12, color: "rgba(255,255,255,0.85)", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{sql}</Box>
+            {queries.length > 1 && <Text size="10px" fw={700} c="var(--orcha-purple)" mb={6} style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>Query {i + 1}</Text>}
+            <Box style={{ borderRadius: 8, background: "var(--orcha-surface)", border: "1px solid var(--orcha-border)", overflow: "hidden" }}>
+              <Box style={{ padding: "10px 14px", fontFamily: "var(--font-geist-mono,monospace)", fontSize: 12, color: "var(--orcha-text-body)", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{sql}</Box>
               
               {activeSaveIdx === i ? (
-                <Box style={{ borderTop: "1px solid rgba(147,51,234,0.1)", padding: "8px 12px", background: "rgba(147,51,234,0.03)" }}>
+                <Box style={{ borderTop: "1px solid var(--orcha-border)", padding: "8px 12px", background: "var(--orcha-panel)" }}>
                   <Group gap={8} wrap="nowrap" style={{ width: "100%" }}>
                     <TextInput
                       placeholder="Enter query name..."
@@ -73,11 +73,11 @@ export function SQLModal({ queries, opened, onClose, organizationId, configId }:
                       style={{ flex: 1 }}
                       styles={{
                         input: {
-                          background: "rgba(0, 0, 0, 0.4)",
-                          border: "1px solid rgba(147, 51, 234, 0.3)",
-                          color: "white",
+                          background: "var(--orcha-surface)",
+                          border: "1px solid var(--orcha-border)",
+                          color: "var(--orcha-text-title)",
                           "&:focus": {
-                            borderColor: "#a855f7",
+                            borderColor: "var(--orcha-purple)",
                           }
                         }
                       }}
@@ -104,7 +104,7 @@ export function SQLModal({ queries, opened, onClose, organizationId, configId }:
                   </Group>
                 </Box>
               ) : (
-                <Box style={{ borderTop: "1px solid rgba(147,51,234,0.1)", padding: "6px 10px", display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                <Box style={{ borderTop: "1px solid var(--orcha-border)", padding: "6px 10px", display: "flex", justifyContent: "flex-end", gap: 6 }}>
                   <Button size="compact-xs" variant="subtle" color="dimmed" onClick={() => navigator.clipboard.writeText(sql)}>Copy</Button>
                   {organizationId && configId && (
                     <Button

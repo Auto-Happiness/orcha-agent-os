@@ -156,19 +156,19 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
       title={
         <Group gap="xs">
           <IconSettings size={18} color="#a855f7" />
-          <Text fw={700} c="white">Key Settings: {apiKey?.name}</Text>
+          <Text fw={700} c="var(--orcha-text-title)">Key Settings: {apiKey?.name}</Text>
         </Group>
       }
       position="right"
       size="lg"
       styles={{
-        content: { background: "#0c0814", borderLeft: "1px solid rgba(147,51,234,0.1)" },
-        header: { background: "#0c0814", borderBottom: "1px solid rgba(255,255,255,0.05)" },
+        content: { background: "var(--orcha-panel)", borderLeft: "1px solid var(--orcha-border)" },
+        header: { background: "var(--orcha-panel)", borderBottom: "1px solid var(--orcha-border)" },
       }}
     >
       <Stack gap="xl" p="md">
         <Box>
-          <Text size="sm" fw={600} c="white" mb={4}>Default AI Model</Text>
+          <Text size="sm" fw={600} c="var(--orcha-text-title)" mb={4}>Default AI Model</Text>
           <Text size="xs" c="dimmed" mb="md">
             Choose which AI model this key should use by default. You can still override this per-request using the `modelId` parameter.
           </Text>
@@ -179,18 +179,18 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
             placeholder="Select model"
             leftSection={<IconSparkles size={16} color="#a855f7" />}
             styles={{
-              input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" },
-              dropdown: { background: "#1a1226", borderColor: "rgba(147,51,234,0.2)", color: "white" },
-              option: { color: "rgba(255,255,255,0.7)" },
-              groupLabel: { color: "#a855f7", fontWeight: 700, fontSize: "10px", letterSpacing: "1px" }
+              input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" },
+              dropdown: { background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" },
+              option: { color: "var(--orcha-text-title)" },
+              groupLabel: { color: "var(--orcha-purple)", fontWeight: 700, fontSize: "10px", letterSpacing: "1px" }
             }}
           />
         </Box>
 
-        <Divider color="rgba(255,255,255,0.05)" />
+        <Divider color="var(--orcha-border)" />
 
         <Box>
-          <Text size="sm" fw={600} c="white" mb={4}>Default Data Sources</Text>
+          <Text size="sm" fw={600} c="var(--orcha-text-title)" mb={4}>Default Data Sources</Text>
           <Text size="xs" c="dimmed" mb="md">
             Pin this API key to one or more database configurations.
             Requests using this key won't need to specify `configId` or `configIds` if these are set.
@@ -225,7 +225,7 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
                     color="violet"
                     styles={{
                       input: {
-                        borderColor: "rgba(255,255,255,0.2)",
+                        borderColor: "var(--orcha-border)",
                         backgroundColor: checked ? "#a855f7" : "transparent",
                       }
                     }}
@@ -241,18 +241,18 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
               );
             }}
             styles={{
-              input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" },
-              dropdown: { background: "#1a1226", borderColor: "rgba(147,51,234,0.2)", color: "white" },
-              option: { color: "rgba(255,255,255,0.7)" },
-              pill: { background: "rgba(147, 51, 234, 0.15)", color: "white", border: "1px solid rgba(147, 51, 234, 0.3)" }
+              input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" },
+              dropdown: { background: "var(--orcha-panel)", borderColor: "var(--orcha-border)" },
+              option: { color: "var(--orcha-text-title)" },
+              pill: { background: "var(--orcha-sidebar-hover-bg)", color: "var(--orcha-purple)", border: "1px solid var(--orcha-border)" }
             }}
           />
         </Box>
 
-        <Divider color="rgba(255,255,255,0.05)" />
+        <Divider color="var(--orcha-border)" />
 
         <Box>
-          <Text size="sm" fw={600} c="white" mb={4}>Rate Limiting</Text>
+          <Text size="sm" fw={600} c="var(--orcha-text-title)" mb={4}>Rate Limiting</Text>
           <Text size="xs" c="dimmed" mb="md">
             Configure how many requests this specific key can make per minute.
           </Text>
@@ -263,16 +263,16 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
             min={10}
             max={60}
             styles={{
-              input: { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "white" },
-              label: { color: "rgba(255,255,255,0.5)", fontSize: rem(11), marginBottom: 4 }
+              input: { background: "var(--orcha-surface)", borderColor: "var(--orcha-border)", color: "var(--orcha-text-title)" },
+              label: { color: "var(--orcha-text-title)", fontSize: rem(11), marginBottom: 4 }
             }}
           />
         </Box>
 
-        <Divider color="rgba(255,255,255,0.05)" />
+        <Divider color="var(--orcha-border)" />
 
         <Box>
-          <Text size="sm" fw={600} c="white" mb={4}>CORS Policy</Text>
+          <Text size="sm" fw={600} c="var(--orcha-text-title)" mb={4}>CORS Policy</Text>
           <Text size="xs" c="dimmed" mb="md">
             Restrict this key to specific domains.
           </Text>
@@ -292,9 +292,9 @@ export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawer
                     style={{ flex: 1 }}
                     styles={{
                       input: {
-                        background: "rgba(255,255,255,0.03)",
-                        borderColor: isInvalid ? "rgba(250, 82, 82, 0.5)" : "rgba(255,255,255,0.1)",
-                        color: "white"
+                        background: "var(--orcha-surface)",
+                        borderColor: isInvalid ? "rgba(250, 82, 82, 0.5)" : "var(--orcha-border)",
+                        color: "var(--orcha-text-title)"
                       },
                       error: { fontSize: rem(10), marginTop: 4 }
                     }}

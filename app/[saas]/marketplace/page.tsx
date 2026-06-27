@@ -271,15 +271,15 @@ export default function MarketplacePage() {
             const isOAuth = reg?.credentialType === "oauth";
             return (
               <Grid.Col key={item.name} span={{ base: 12, sm: 6, lg: 4 }}>
-                <Card withBorder padding="lg" radius="md" style={{ backgroundColor: "rgba(19,15,34,0.4)", backdropFilter: "blur(10px)", borderColor: connected ? "rgba(34,197,94,0.25)" : "rgba(147,51,234,0.12)", height: "100%", display: "flex", flexDirection: "column" }}>
-                  <Card.Section p="md" style={{ borderBottom: "1px solid rgba(147,51,234,0.08)" }}>
+                <Card withBorder padding="lg" radius="md" style={{ backgroundColor: "var(--orcha-panel)", backdropFilter: "blur(10px)", borderColor: connected ? "rgba(34,197,94,0.25)" : "var(--orcha-border)", height: "100%", display: "flex", flexDirection: "column" }}>
+                  <Card.Section p="md" style={{ borderBottom: "1px solid var(--orcha-border)" }}>
                     <Group justify="space-between" align="center">
                       <Group gap="md">
-                        <Box style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: "1px solid rgba(147,51,234,0.15)", padding: 8 }}>
+                        <Box style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "var(--orcha-bg)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: "1px solid var(--orcha-border)", padding: 8 }}>
                           <img src={item.icon} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                         </Box>
                         <Box>
-                          <Text fw={700} size="md" c="white">{item.name}</Text>
+                          <Text fw={700} size="md" c="var(--orcha-text-title)">{item.name}</Text>
                           <Group gap={4}>
                             <Badge variant="light" color={CATEGORY_COLORS[item.category] ?? "violet"} size="xs" radius="sm">{item.category}</Badge>
                             {isOAuth && <Badge variant="outline" color="orange" size="xs" radius="sm" leftSection={<IconLock size={9} />}>OAuth</Badge>}
@@ -353,7 +353,7 @@ export default function MarketplacePage() {
       <Modal
         opened={!!modal}
         onClose={() => setModal(null)}
-        title={<Group gap={8}><IconPlugConnected size={16} color="#a855f7" /><Text fw={600} c="white">Connect {modal?.name}</Text></Group>}
+        title={<Group gap={8}><IconPlugConnected size={16} color="#a855f7" /><Text fw={600} c="var(--orcha-text-title)">Connect {modal?.name}</Text></Group>}
         radius="md"
         styles={{ content: { background: "#0d0a1a", border: "1px solid rgba(147,51,234,0.2)" }, header: { background: "#0d0a1a", borderBottom: "1px solid rgba(147,51,234,0.1)" } }}
       >
