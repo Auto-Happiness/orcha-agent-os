@@ -28,7 +28,7 @@ export function getPruningModelId(modelId: string): string {
   }
   if (provider === "claude" || provider === "anthropic") {
     // Downgrade to Haiku for cost-effective pruning
-    return "claude:claude-haiku-4-5";
+    return "claude:claude-3-5-haiku-20241022";
   }
   return modelId;
 }
@@ -48,6 +48,10 @@ export async function pruneColumns(
     return `Table: ${model.tableName}. Description: ${model.description || ""}. Columns: [${fields}]`;
   }).join("\n");
 
+  const tempRels = relationships.map((rel: any) =>
+    `- Table "${rel.fromModelId}" (${rel.fromColumn}) joins with "${rel.toModelId}" (${rel.toColumn})`
+  ).join("\n");
+
   const { object: prunedResults } = await generateObject({
     model: pruningModel,
     schema: prunerSchema,
@@ -60,8 +64,9 @@ export async function pruneColumns(
             3. FILTER COLUMNS: Look closely at any constraints or conditions in the user's question (e.g., 'unpaid', 'active', 'recent', 'overdue', 'before 2023'). You MUST select the columns that allow filtering by these values (e.g., 'payment_status', 'is_active', 'status', 'created_at', 'invoice_date'), even if they are not explicitly named in the question.
             4. RECORD IDENTIFICATION: Always include key identifying columns for the selected tables (like 'name', 'title', 'email', 'code', 'status', 'created_at') so the generated SQL can display readable information, not just raw numeric IDs.
             5. BE GENEROUS: Do not over-prune. If there is a chance a column might be needed for the query or filter, err on the side of caution and INCLUDE it.
-            6. Provide the response as a JSON object matching the requested schema.`,
-    prompt: `User Question: "${question}"\n\n### Available Schema ###\n${tempDDL}`,
+            6. INTERMEDIATE / JOIN PATH TABLES: Examine the provided relationships. If you select two tables that do not join directly but can be connected via a third table (e.g., Table A joins to Table B, Table B joins to Table C, and you need A and C), you MUST also select the intermediate table (Table B) so they can be successfully joined in the final query.
+            7. Provide the response as a JSON object matching the requested schema.`,
+    prompt: `User Question: "${question}"\n\n### Available Schema ###\n${tempDDL}\n\n### Available Relationships / Joins ###\n${tempRels || "No relationships defined."}`,
   });
 
   const pruningMap = new Map<string, Set<string>>();
