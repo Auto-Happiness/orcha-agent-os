@@ -1,85 +1,160 @@
-<p align="center">
-  <img src="public/graphics/orca%20ai%202.png" width="128" alt="Orcha AI Logo" />
-</p>
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/graphics/orca%20ai%202.png">
+    <img src="public/graphics/orca%20ai%202.png" width="160px" alt="Orcha Agent OS Logo">
+  </picture>
 
-# Orcha AI / Orcha Agent OS 🌌
+  <h1>Orcha Agent OS 🌌</h1>
+  <h3>The Semantic Operating System for Multi-Tenant AI Agents</h3>
+  <p><i>Bridges the gap between raw data warehouses and context-aware AI agents.</i></p>
 
-**The Semantic Operating System for Multi-Tenant AI Agents**
+  <p>
+    <img src="https://img.shields.io/badge/Next.js-15%2B-000000?style=flat&logo=nextdotjs&logoColor=white" alt="Next.js" />
+    <img src="https://img.shields.io/badge/Mantine-7%2B-339AF0?style=flat&logo=mantine&logoColor=white" alt="Mantine UI" />
+    <img src="https://img.shields.io/badge/Convex-Reactive-FF4F5B?style=flat" alt="Convex Backend" />
+    <img src="https://img.shields.io/badge/Rust-WASM-orange?style=flat&logo=rust&logoColor=white" alt="Rust WASM" />
+    <img src="https://img.shields.io/badge/MCP-Native-blueviolet?style=flat" alt="MCP Native" />
+    <img src="https://img.shields.io/badge/License-Apache_2.0-blue?style=flat" alt="License" />
+  </p>
 
-Orcha Agent OS is a next-generation platform designed to bridge the gap between raw data warehouses and intelligent AI agents. Inspired by semantic modeling, Orcha provides a robust, multi-tenant infrastructure to transform your database into a context-aware knowledge base, accessible via the **Model Context Protocol (MCP)**.
+  <p>
+    <a href="#-features">Features</a> ·
+    <a href="#-architecture">Architecture</a> ·
+    <a href="#-getting-started">Getting Started</a> ·
+    <a href="#-repository-structure">Repository Structure</a>
+  </p>
+</div>
 
 ---
 
 ## 🚀 Vision
 
-In the age of LLMs, the biggest challenge isn't just generating SQL; it's understanding the *business meaning* behind the data. Orcha Agent OS provides a **Semantic Bridge** that allows organizations to map their database catalogs into clear business concepts, ensuring that AI agents provide accurate, governed, and insightful answers every time.
+In the age of Large Language Models (LLMs), the primary barrier to reliable data intelligence isn't SQL syntax generation—it's **business semantics**. AI agents lack the context to understand what raw tables mean.
 
-https://www.orcha-solutions.com/os/chat.mp4
+Orcha Agent OS provides a **Semantic Context Layer** that translates raw database schemas into a unified, versionable, and secure Model Definition Language (MDL) manifest. AI agents query through this semantic model, ensuring queries are always accurate, pre-validated, and governed.
 
-## ✨ Key Features
+---
 
-- **🧠 Semantic Bridge & ModelingWizard**: Map complex schemas to business concepts, define calculated virtual columns (e.g. `revenue = price * quantity`), and configure relationships using a guided wizard or interactive React Flow schema editor.
-- **🦀 Rust Semantic Engine (WASM-powered)**: On-the-fly SQL transpilation powered by an embedded Rust-based planning engine using Apache DataFusion. Transpiles virtual columns into physical dialect queries with sub-second latency.
-- **🔌 Dialect-Specific Unparsing**: Automatically translates and unparses semantic SQL queries into native database dialects (MySQL, PostgreSQL, SQLite, etc.) depending on the connected target database.
-- **⛓️ Automatic Join Pathing**: Automatically detects missing join conditions in queries by traversing the relationship graph via BFS and injects ANSI SQL `JOIN` clauses dynamically before execution.
-- **🌐 Federated Multi-Database Execution**: Query, join, and visualize data across multiple databases simultaneously using an intuitive `alias.table` reference syntax.
-- **🔑 Developer Portal & Multi-Database API Keys**: Expose your semantic databases as a secure API. Supports assigning multiple databases per API key with Mantine MultiSelect interfaces and dynamic database context fallbacks in `/api/chat`.
-- **📓 Databook & Live Query Exploration (Beta)**: Save database query results, browse them with dialect-safe pagination, dynamically sync with the source database, apply runtime filters, and view the full conversation transcript history.
-- **🔌 MCP Native**: Expose your semantic models instantly to LLMs via the Model Context Protocol.
-- **🛡️ Secure Connectivity**: Built-in support for PostgreSQL, MySQL, SQLite, and MSSQL.
-- **⚡ Real-time Reactive Flows**: Powered by Convex for real-time reactivity, vector search embeddings (RAG), and memory recall.
+## ✨ Features
 
-## 🛠️ Tech Stack
+* **🧠 Semantic Bridge & ModelerWizard**: Map raw table structures to friendly business terms, declare calculated variables (e.g. `margin = revenue - cost`), and set primary/foreign keys via a React Flow schema editor.
+* **🦀 Rust-Powered WASM Engine**: On-the-fly SQL transpilation using an embedded WebAssembly build of Apache DataFusion. Resolves calculated virtual columns and schema differences in sub-seconds.
+* **🔌 Automatic Join Pathing**: Traverses table relationships via a Breath-First Search (BFS) graph pathing algorithm to automatically inject ANSI SQL `JOIN` clauses before executing queries.
+* **🌐 Federated Multi-Database Execution**: Query, join, and aggregate data across separate database configurations using a simple `alias.table` naming convention.
+* **🔑 Developer Portal**: Securely expose your database semantic layer as an API. Issue API keys mapped to multiple databases with a Mantine MultiSelect builder.
+* **📓 Databook & Exploration**: Browse saved query records, filter columns, view execution steps, and explore full agent query transcripts.
+* **🛡️ Secure Dialects**: Native unparsing and dialect translation support for **PostgreSQL, MySQL, SQLite, and MSSQL**.
 
-- **Frontend**: [Next.js 16](https://nextjs.org/) (App Router), [Mantine UI](https://mantine.dev/), [Tailwind CSS 4](https://tailwindcss.com/)
-- **Backend / DB**: [Convex](https://www.convex.dev/) (Deployment, Database, Actions, Vector Search)
-- **Auth**: [Clerk](https://clerk.dev/)
-- **Visual Mapping**: [React Flow](https://reactflow.dev/)
-- **Protocol**: [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
-- **Execution & Transpilation**: Rust WebAssembly, Apache DataFusion
-- **Data Drivers**: Prisma, BullMQ, Redis, PostgreSQL, MySQL, SQLite, MSSQL
+---
 
-## 🤖 Local Embedding Transformer
+## ⚡ Architecture: Query Flow
 
-For large database schemas (>12 tables), Orcha OS uses a dedicated local Python-based microservice located in [orcha-embedding-transformer](file:///c:/repos/orcha-agent-os/orcha-embedding-transformer) to index and dynamically retrieve relevant tables via semantic vector search (RAG).
+Every natural language question undergoes a governed validation and compilation pipeline before touching your data:
 
-### What is a Sentence Transformer?
-A **Sentence Transformer** is a deep learning model framework (specifically optimized from transformer architectures like BERT/RoBERTa) designed to map whole sentences, paragraphs, or structural texts to dense, fixed-size numerical vectors (embeddings). Unlike traditional word-level embeddings, it captures the **holistic semantic meaning and context** of entire sentences. 
-
-In Orcha, this allows us to compute the cosine similarity between a user's natural language query (e.g. *"who are our top buyers?"*) and your database metadata (e.g. *"Table: customers. Description: client registry"*), identifying relevant tables for the LLM even when they do not share identical keywords.
-
-- **Model**: `paraphrase-multilingual-MiniLM-L12-v2` (via `sentence-transformers`)
-- **Dimensions**: 384
-- **Languages**: 50+ (multilingual)
-- **Model footprint**: ~90 MB (baked directly into the Docker container to ensure zero-delay cold starts)
-- **Service Port**: Runs locally on port `5001` or via the `orcha-embeddings` Docker container.
-
-## 🚦 Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- pnpm / npm
-- A Convex account
-- A Clerk account
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/your-repo/orcha-agent-os.git
-
-# Install dependencies
-npm install
-
-# Setup environment variables
-cp .env.example .env.local
-
-# Run Convex development
-npm run convex:dev
-
-# Run Next.js app
-npm run dev
+```mermaid
+flowchart TD
+    user["User / MCP Client"] --> intent["1. Intent Classification<br/>(Text-to-SQL / Chat / exploration)"]
+    intent --> recall["2. Semantic Memory Recall<br/>(Find past NL-SQL pairs)"]
+    recall --> pruner["3. Schema Column Pruner<br/>(Keep only relevant columns & joins)"]
+    pruner --> sql_gen["4. LLM Writes SQL against MDL<br/>(Select from semantic names)"]
+    sql_gen --> transpiler["5. WASM Semantic Transpiler<br/>(Inlines formulas & joins)"]
+    transpiler --> validator["6. Dry-Plan SQL Validator<br/>(Detect wrong columns/joins)"]
+    validator --> execution["7. Orcha Fusion Execution<br/>(Native dialect database call)"]
 ```
 
 ---
+
+## 📂 Repository Structure
+
+```
+├── app/                          # Next.js Pages & Routes (SaaS layouts, Databook, Developers Portal)
+├── components/                   # React UI Components (React Flow Modeler, BI Genie panels, Datatables)
+├── convex/                       # Serverless Backend Database (Schemas, Vector indexes, Semantic Memory)
+├── lib/                          # Core Orchestration Libraries
+│   ├── engine/                   # OrchaFusion multi-database executor
+│   ├── wasm-engine/              # Compiled Rust Apache DataFusion WebAssembly binary
+│   ├── chat-agent.ts             # Intent classifier and semantic agent
+│   ├── column-pruner.ts          # LLM-based column context optimizer
+│   ├── query-rewriter.ts         # Query conversational context rewriter
+│   ├── semantic-transpiler.ts    # SQL unparsing and joins injector
+│   └── sql-validator.ts          # Static SQL dry-plan schema checking rules
+│
+├── orcha-embedding-transformer/  # Local Python FastAPI microservice for zero-cost RAG embeddings
+├── orcha-rust-engine/            # Source code for the Rust compilation library
+├── tests/                        # Integration, contract, and unit tests
+└── Zenta/                        # Local clone of WrenAI semantic context library
+```
+
+---
+
+## 🏁 Getting Started
+
+### Prerequisites
+* **Node.js 20+**
+* **pnpm / npm**
+* A **Convex** account (for reactive storage & vector search)
+* A **Clerk** account (for SaaS client authentication)
+
+### 1. Clone & Install Dependencies
+Clone the repository and install npm packages:
+
+```bash
+git clone https://github.com/your-repo/orcha-agent-os.git
+cd orcha-agent-os
+npm install
+```
+
+### 2. Configure Environment Variables
+Copy the example environment configurations:
+
+```bash
+cp .env.example .env.local
+```
+Add your Clerk and Convex access tokens to `.env.local`.
+
+### 3. Spin Up Convex Backend
+In a separate terminal, start the Convex development environment:
+
+```bash
+npm run convex:dev
+```
+
+### 4. Run Next.js Application
+Start the Next.js SaaS server:
+
+```bash
+npm run dev
+```
+Open `http://localhost:3000` to explore the Semantic Modeler, Genie Command Center, and Databook.
+
+---
+
+## 🤖 Local Embedding Transformer
+
+For databases with large schemas, Orcha uses a self-hosted Sentence Transformer FastAPI microservice to generate vectors locally:
+
+```bash
+# Start the transformer container on port 5001
+docker-compose up --build -d orcha-embeddings
+```
+Check out the [orcha-embedding-transformer/README.md](file:///c:/repos/orcha-agent-os/orcha-embedding-transformer/README.md) for local configuration and specifications.
+
+---
+
+## 🧪 Verification & Development Commands
+
+Ensure code stability by running tests and compilation audits:
+
+```bash
+# Run TypeScript compilation checks
+npx tsc --noEmit
+
+# Run unit and contract tests
+npm run test
+```
+
+---
+
+## ⚖️ License
+
+Distributed under the Apache License 2.0. See `LICENSE` for details.
