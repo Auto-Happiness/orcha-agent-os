@@ -247,10 +247,16 @@ export async function createChatAgent(context: AgentContext) {
   const ragSearchQuery = messageIntent !== "GENERAL_CHAT"
     ? await rewriteConversationalQuery(messages, pruningModel)
     : "";
-  const tableNames = allModels.map((m: any) => m.displayName || m.tableName);
 
-  const tableCount = allModels.length;
-  const isBypass = tableCount <= 12;
+  const fullSchemaText = allModels.map((model: any) => {
+    const fields = (model.fields || []).map((f: any) => 
+      `${f.displayName} (${f.columnName}): ${f.type}${f.description ? ` | Info: ${f.description}` : ""}`
+    ).join(", ");
+    return `Table: ${model.tableName}. Columns: [${fields}]`;
+  }).join("\n");
+
+  const schemaLength = fullSchemaText.length;
+  const isBypass = schemaLength <= 30000;
 
   if (messageIntent === "TEXT_TO_SQL" || messageIntent === "CHART_GENERATION" || messageIntent === "SCHEMA_EXPLORATION") {
     const mcpLoadPromise = (async () => {
@@ -260,7 +266,7 @@ export async function createChatAgent(context: AgentContext) {
 
     // --- SMALL-SCHEMA RAG BYPASS ---
     if (isBypass) {
-      console.log(`[Agent] Small schema detected (table count: ${tableCount} <= 12). Bypassing embedding and vector search.`);
+      console.log(`[Agent] Small schema detected (schema length: ${schemaLength} <= 30000 chars). Bypassing embedding and vector search.`);
       filteredModels = allModels;
       relationships = mappedRelationships;
 
@@ -269,7 +275,7 @@ export async function createChatAgent(context: AgentContext) {
 
       compiledManifest = buildManifest(allModels, relationships, dbConfigMap, allOrgConfigs);
     } else {
-      console.log(`[Agent] Large schema detected (table count: ${tableCount} > 12). Running vector RAG...`);
+      console.log(`[Agent] Large schema detected (schema length: ${schemaLength} > 30000 chars). Running vector RAG...`);
       
       const ragAndRecallPromise = (async () => {
         try {
@@ -397,6 +403,7 @@ export async function createChatAgent(context: AgentContext) {
   }
 
   // 3. Build prompts using filtered schema models
+  const tableNames = allModels.map((m: any) => m.displayName || m.tableName);
   const tableDiscoveryList = filteredModels.length === 0 && (messageIntent === "TEXT_TO_SQL" || messageIntent === "CHART_GENERATION")
     ? `### AVAILABLE TABLES:\n- ${tableNames.join("\n- ")}`
     : "";
