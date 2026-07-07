@@ -5,8 +5,8 @@ dns.setDefaultResultOrder("ipv4first");
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { auth } from "@clerk/nextjs/server";
-import { createChatAgent } from "@/lib/chat-agent";
+import { auth } from "@/lib/auth-helper";
+import { agentHelper } from "@/lib/agent-helper";
 import { Id } from "@/convex/_generated/dataModel";
 import { normalizeChatHistory } from "@/lib/chat-utils";
 import { withMetrics } from "@/lib/metrics";
@@ -17,7 +17,7 @@ async function postHandler(req: NextRequest) {
   console.log(`[Chat] ASYNC flag: "${process.env.ASYNC}" | isAsync: ${isAsync}`);
 
   try {
-    const clerkAuth = await auth();
+    const clerkAuth = await auth.getAuth();
     const body = await req.json();
     const { messages, organizationId: rawOrgId, configId: rawConfigId, configIds: rawConfigIds, modelId, showResults = true, sessionId } = body;
     let configIds = (rawConfigIds as string[]) || (rawConfigId ? [rawConfigId as string] : []);
@@ -139,7 +139,7 @@ async function postHandler(req: NextRequest) {
     }
 
     // ── SYNC MODE (Standard) ──
-    const agent = await createChatAgent({
+    const agent = await agentHelper.createChatAgent({
       convex,
       organizationId: organizationId as Id<"organizations">,
       configId: configIds[0],
