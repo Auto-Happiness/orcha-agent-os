@@ -1,0 +1,12 @@
+FROM prom/prometheus:latest
+
+# Copy configuration
+COPY monitoring/prometheus.yml /etc/prometheus/prometheus.yml
+
+EXPOSE 9090
+
+# Enable environment variable expansion to dynamically resolve ORCHA_UI_HOST at runtime
+ENTRYPOINT [ "/bin/prometheus" ]
+CMD [ "--config.file=/etc/prometheus/prometheus.yml", \
+      "--storage.tsdb.path=/prometheus", \
+      "--config.expand-env" ]

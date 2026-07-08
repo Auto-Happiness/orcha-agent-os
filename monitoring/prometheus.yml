@@ -12,7 +12,7 @@ scrape_configs:
     metrics_path: /api/metrics
     scheme: http
     static_configs:
-      - targets: ["host.docker.internal:3000"]
+      - targets: ["${ORCHA_UI_HOST:-host.docker.internal}:3000"]
         labels:
           service: "orcha-agent-os"
     # If METRICS_AUTH_TOKEN is set on the app, uncomment and set the token here:

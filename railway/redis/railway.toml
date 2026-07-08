@@ -1,0 +1,6 @@
+[build]
+builder = "DOCKERIMAGE"
+image = "redis:alpine"
+
+[deploy]
+restartPolicyType = "always"

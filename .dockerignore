@@ -12,8 +12,10 @@ CheckList.md
 diagrams
 scratch
 tasks
-pnpm-lock.yaml
-pnpm-workspace.yaml
+Zenta
+datasamples
+tests
+monitoring
 *.log
 npm-debug.log*
 yarn-debug.log*

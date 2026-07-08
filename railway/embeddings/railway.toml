@@ -1,0 +1,7 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "orcha-embedding-transformer/Dockerfile"
+
+[deploy]
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3

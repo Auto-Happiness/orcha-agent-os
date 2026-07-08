@@ -1,0 +1,7 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "dockerfiles/Dockerfile.grafana"
+
+[deploy]
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,7 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "dockerfiles/Dockerfile.prometheus"
+
+[deploy]
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3

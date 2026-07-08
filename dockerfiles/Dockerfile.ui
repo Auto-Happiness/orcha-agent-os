@@ -47,6 +47,7 @@ ENV CLERK_WEBHOOK_SECRET=""
 ENV NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ENV KEY_STORAGE="convex"
 ENV ASYNC="on"
+ENV REDIS_URL="redis://localhost:6379"
 ENV NODE_ENV=production
 
 EXPOSE 3000
