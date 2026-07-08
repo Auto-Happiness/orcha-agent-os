@@ -18,7 +18,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Ensure DB drivers are installed if they were passed as peer deps
-RUN npm install mysql2 pg mssql
+RUN npm install mysql2 pg mssql --legacy-peer-deps
 
 USER orcha
 

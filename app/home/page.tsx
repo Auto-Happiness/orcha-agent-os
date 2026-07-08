@@ -7,11 +7,13 @@
  * Lets them create their first workspace using Clerk's createOrganization API.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useOrganizationList, useUser } from "@clerk/nextjs";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useMantineColorScheme } from "@mantine/core";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 function OrchaLogo() {
   return (
@@ -36,10 +38,18 @@ export default function HomePage() {
   const { user } = useUser();
   const { createOrganization, setActive } = useOrganizationList();
   const upsertOrg = useMutation(api.organizations.upsertFromClerk);
+  const { colorScheme } = useMantineColorScheme();
 
+  const [mounted, setMounted] = useState(false);
   const [name, setName]       = useState("");
   const [error, setError]     = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDark = !mounted ? true : colorScheme === "dark";
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,30 +86,41 @@ export default function HomePage() {
   const inputStyle: React.CSSProperties = {
     width: "100%",
     height: "44px",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.09)",
+    background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
+    border: isDark ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(0,0,0,0.09)",
     borderRadius: "0.6rem",
-    color: "#fff",
+    color: isDark ? "#fff" : "#1f2937",
     padding: "0 14px",
     fontSize: "14px",
     outline: "none",
     boxSizing: "border-box",
+    transition: "border-color 0.2s, box-shadow 0.2s",
   };
+
+  const bg = isDark ? "#07050f" : "#fcfbfe";
+  const titleColor = isDark ? "text-white" : "text-slate-900";
+  const subtextColor = isDark ? "rgba(255,255,255,0.4)" : "rgba(15,23,42,0.64)";
+  const labelColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(15,23,42,0.7)";
+  const footerColor = isDark ? "rgba(255,255,255,0.22)" : "rgba(15,23,42,0.45)";
 
   return (
     <div
-      className="flex h-screen w-full items-center justify-center px-6"
-      style={{ background: "#07050f" }}
+      className="flex h-screen w-full items-center justify-center px-6 relative"
+      style={{ background: bg }}
     >
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       <div style={{ width: "100%", maxWidth: 420 }}>
         {/* Logo + welcome */}
         <div className="flex flex-col items-center gap-3 mb-10 text-center">
           <OrchaLogo />
           <div>
-            <p className="text-white font-bold text-2xl mt-2">
+            <p className={`${titleColor} font-bold text-2xl mt-2`}>
               Welcome{user?.firstName ? `, ${user.firstName}` : ""}!
             </p>
-            <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <p className="text-sm mt-1" style={{ color: subtextColor }}>
               Create your first workspace to get started.
             </p>
           </div>
@@ -110,7 +131,7 @@ export default function HomePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label
               htmlFor="workspace-name"
-              style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.7)" }}
+              style={{ fontSize: 13, fontWeight: 500, color: labelColor }}
             >
               Workspace Name
             </label>
@@ -126,14 +147,14 @@ export default function HomePage() {
                 e.currentTarget.style.boxShadow = "0 0 0 3px rgba(147,51,234,0.12)";
               }}
               onBlur={(e) => {
-                e.currentTarget.style.border = "1px solid rgba(255,255,255,0.09)";
+                e.currentTarget.style.border = isDark ? "1px solid rgba(255,255,255,0.09)" : "1px solid rgba(0,0,0,0.09)";
                 e.currentTarget.style.boxShadow = "none";
               }}
             />
           </div>
 
           {error && (
-            <p style={{ fontSize: 13, color: "#f87171", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: "0.6rem", padding: "10px 14px" }}>
+            <p style={{ fontSize: 13, color: "#ef4444", background: isDark ? "rgba(239,68,68,0.08)" : "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.18)", borderRadius: "0.6rem", padding: "10px 14px" }}>
               {error}
             </p>
           )}
@@ -154,7 +175,7 @@ export default function HomePage() {
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              boxShadow: loading ? "none" : "0 0 24px rgba(147,51,234,0.4)",
+              boxShadow: loading ? "none" : isDark ? "0 0 24px rgba(147,51,234,0.4)" : "0 0 24px rgba(147,51,234,0.2)",
               transition: "opacity 0.2s",
             }}
           >
@@ -172,7 +193,7 @@ export default function HomePage() {
           </button>
         </form>
 
-        <p className="text-center text-xs mt-6" style={{ color: "rgba(255,255,255,0.22)" }}>
+        <p className="text-center text-xs mt-6" style={{ color: footerColor }}>
           You can create additional workspaces from the dashboard settings.
         </p>
       </div>
