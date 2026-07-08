@@ -24,7 +24,7 @@ USER orcha
 
 # ─── Environment Configuration ──────────────────────────────────────────
 ENV NEXT_PUBLIC_CONVEX_URL=""
-ENV REDIS_URL="redis://redis:6379"
+ENV REDIS_URL="redis://orcha-redis:6379"
 ENV ENCRYPTION_KEY=""
 ENV CLERK_SECRET_KEY=""
 ENV CLERK_WEBHOOK_SECRET=""

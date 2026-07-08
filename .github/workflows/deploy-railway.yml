@@ -1,0 +1,28 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy services to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          # Deploy individual services using their respective configurations
+          cd railway/ui && railway up --service orcha-ui --detach
+          cd ../worker && railway up --service orcha-worker --detach
+          cd ../embeddings && railway up --service orcha-embeddings --detach
+          cd ../redis && railway up --service orcha-redis --detach
+          cd ../grafana && railway up --service orcha-grafana --detach
+          cd ../prometheus && railway up --service orcha-prometheus --detach

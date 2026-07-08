@@ -1,0 +1,6 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "dockerfiles/Dockerfile.worker"
+
+[deploy]
+restartPolicyType = "always"
