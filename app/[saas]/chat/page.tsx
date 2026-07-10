@@ -175,6 +175,8 @@ export default function ChatPage() {
     chatParamsRef.current = { activeOrgId, selectedConfigIds, selectedModel, saas, showResults, activeSessionId };
   }, [activeOrgId, selectedConfigIds, selectedModel, saas, showResults, activeSessionId]);
 
+  const isAsyncRef = useRef(false);
+
   const { messages, sendMessage, setMessages, status, stop } = (useChat as any)({
     id: activeSessionId ?? undefined,
     experimental_throttle: 80,
@@ -194,18 +196,26 @@ export default function ChatPage() {
         const data = await response.json();
         if (data.mode === "async") {
           console.log("[Chat] Async job started:", data.jobId);
+          isAsyncRef.current = true;
           setIsStreaming(false);
           return;
         }
       }
+      isAsyncRef.current = false;
     },
     onError: (error: Error) => {
+      isAsyncRef.current = false;
       setIsStreaming(false);
       console.error("[Chat API Error]", error);
       notifications.show({ title: "Query Failed", message: error.message, color: "red" });
     },
     onFinish: async ({ message }: any) => {
       setIsStreaming(false);
+      if (isAsyncRef.current) {
+        console.log("[Chat] Async mode: skipping client-side message append");
+        isAsyncRef.current = false; // Reset for next queries
+        return;
+      }
       const params = chatParamsRef.current;
       if (!params.activeSessionId) return;
       try {
@@ -401,7 +411,7 @@ export default function ChatPage() {
                     <WelcomeScreen user={user} setInput={setInput} />
                   )}
                   <ChatMessages
-                    messages={messages || []}
+                    messages={(messages || []).filter((m: any) => m.role === "user" || m.content || (m.parts && m.parts.length > 0))}
                     isLoading={isLoading}
                     showResults={showResults}
                     organizationId={activeOrgId}

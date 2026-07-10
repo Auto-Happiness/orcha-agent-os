@@ -169,7 +169,7 @@ function hasSuccessfulSQLResult(parts: any[]): boolean {
 
 function extractMcpToolsFromParts(parts: any[]): McpToolCall[] {
   const calls: McpToolCall[] = [];
-  const NATIVE_TOOLS = ["search_db_schema", "dry_plan_sql", "execute_sql", "execute_federated_sql"];
+  const NATIVE_TOOLS = ["search_db_schema", "dry_plan_sql", "execute_sql", "execute_federated_sql", "query_cube"];
 
   if (!parts) return [];
 
@@ -403,15 +403,18 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
         </Avatar>
         <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
           <Text fw={700} size="sm" c="var(--orcha-text-title)">{m.role === "user" ? "You" : "Orcha Agent"}</Text>
-          {m.parts.map((part: any, i: number) => {
+          {(() => {
+            let reasoningRendered = false;
+            return m.parts.map((part: any, i: number) => {
             if (part.type !== "text" || !part.text) return null;
 
             const MARKER = "### \uD83E\uDDE0 Reasoning";
             const markerIdx = part.text.indexOf(MARKER);
 
-            // Combined Reasoning Split Logic
-            // Combined Reasoning Split Logic
-              if (markerIdx !== -1) {
+            // Reasoning Split Logic — only render the FIRST reasoning block as a collapsible dropdown.
+            // Subsequent text parts with reasoning markers are stripped and rendered as plain text.
+              if (markerIdx !== -1 && !reasoningRendered) {
+                reasoningRendered = true;
                 const before = part.text.slice(0, markerIdx).trim();
                 const reasoningAndAfter = part.text.slice(markerIdx);
                 const afterMarker = reasoningAndAfter.slice(MARKER.length).trimStart();
@@ -442,13 +445,25 @@ const MessageRow = memo(function MessageRow({ m, showResults, organizationId, co
                 );
               }
 
+            // Strip duplicate reasoning markers from subsequent text parts
+            let displayText = part.text;
+            if (reasoningRendered && markerIdx !== -1) {
+              displayText = displayText.replace(/###\s*🧠\s*Reasoning\s*/gi, "").trim();
+              if (!displayText) return null;
+            }
+
             // Plain text part — no reasoning marker
+            if (/^Agent is thinking\.{0,3}$/i.test(displayText.trim())) {
+              return <ThinkingLoader key={i} />;
+            }
+
             return (
               <Text key={i} size="sm" c="var(--orcha-text-body)" style={{ lineHeight: 1.7, whiteSpace: "pre-wrap" }} component="div">
-                {parseMarkdown(part.text, hasSqlResult)}
+                {parseMarkdown(displayText, hasSqlResult)}
               </Text>
             );
-          })}
+          });
+          })()}
           {hasButtons && (
             <Group gap="xs" mt={6}>
               {sqlQueries.length > 0 && (

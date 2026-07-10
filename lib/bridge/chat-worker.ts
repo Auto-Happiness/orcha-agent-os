@@ -76,7 +76,14 @@ export class ChatWorker {
             // Helper to build the parts array for the current update tick
             const getPartsToPush = (appendText: string) => {
               if (appendText) {
-                return [...collectedParts, { type: "text", text: appendText }];
+                // Strip duplicate reasoning markers from trailing text
+                const hasTextParts = collectedParts.some(p => p.type === "text");
+                const cleanText = hasTextParts
+                  ? appendText.replace(/###\s*🧠\s*Reasoning\s*/gi, "").trim()
+                  : appendText;
+                if (cleanText) {
+                  return [...collectedParts, { type: "text", text: cleanText }];
+                }
               }
               return collectedParts;
             };
@@ -97,25 +104,22 @@ export class ChatWorker {
                   lastPushedLength = fullContent.length;
                 }
               } else if (value.type === "tool-call") {
-                // BULLETPROOF REASONING INJECTION:
-                // Some models skip the reasoning block even when instructed not to.
-                // Guarantee one is always present at the code level — no prompt dependency.
-                if (!currentText.trim()) {
-                  // AI produced zero text — inject a default reasoning block using the tool name
-                  const toolLabel = value.toolName
-                    .replace(/_/g, " ")
-                    .replace(/\b\w/g, (c: string) => c.toUpperCase());
-                  currentText = `${REASONING_MARKER}\n- Calling \`${toolLabel}\` to retrieve the information needed to answer your question.`;
-                  fullContent = currentText + fullContent;
-                  await pushUpdate(fullContent, trimToolResultParts(getPartsToPush(currentText)));
-                  lastPushedLength = fullContent.length;
-                } else if (!currentText.toLowerCase().includes("reasoning")) {
-                  // AI produced text but without the reasoning header — prepend it
+                const hasTextParts = collectedParts.some(p => p.type === "text");
+
+                // First text part: prepend reasoning marker if the model didn't include one
+                if (!hasTextParts && currentText.trim() && !currentText.toLowerCase().includes("reasoning")) {
                   currentText = `${REASONING_MARKER}\n${currentText.trim()}`;
                 }
 
-                // Commit the guaranteed reasoning block as a frozen part
-                collectedParts.push({ type: "text", text: currentText });
+                // Subsequent text parts: strip any duplicate reasoning markers the model generated
+                if (hasTextParts) {
+                  currentText = currentText.replace(/###\s*🧠\s*Reasoning\s*/gi, "").trim();
+                }
+
+                // Only commit non-empty text parts
+                if (currentText.trim()) {
+                  collectedParts.push({ type: "text", text: currentText });
+                }
                 currentText = ""; // Fresh slate for any text after the tool
 
                 const args = typeof (value as any).args === 'string' ? JSON.parse((value as any).args) : (value.input ?? (value as any).args);

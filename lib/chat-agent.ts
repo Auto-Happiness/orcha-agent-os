@@ -115,27 +115,20 @@ export async function createChatAgent(context: AgentContext) {
 
   const configId = activeConfigIds[0];
 
-  // 1. Parallel fetch configurations, AI keys, integrations, and the MDL manifest document
-  let [allConfigs, aiKeys, integrationKeys, manifest] = await Promise.all([
+  // 1. Parallel fetch configurations, AI keys, integrations, and source V1 models
+  let [allConfigs, aiKeys, integrationKeys, v1Models, v1Rels] = await Promise.all([
     convex.query(api.databaseConfigs.listByOrganization, { organizationId, apiKey }),
     convex.query(api.aiKeys.listByOrganization, { organizationId, apiKey }),
     convex.query(api.integrationKeys.listByOrganization, { organizationId, apiKey }),
-    convex.query(api.mdlManifests.get, { configId, apiKey }),
+    convex.query(api.semanticModels.listModelsByConfig, { configId, apiKey }),
+    convex.query(api.semanticRelationships.listByConfig, { configId, apiKey }),
   ]);
 
-  if (!manifest) {
-    console.log(`[Agent] No V2 manifest found for config ${configId}. Attempting on-the-fly compilation from V1 semantic models...`);
-    const [v1Models, v1Rels] = await Promise.all([
-      convex.query(api.semanticModels.listModelsByConfig, { configId, apiKey }),
-      convex.query(api.semanticRelationships.listByConfig, { configId, apiKey }),
-    ]);
-
-    if (!v1Models || v1Models.length === 0) {
-      throw new Error("No database schema scan found. Please scan the database schema first to build the semantic layer.");
-    }
-
-    manifest = compileToMdl(v1Models, v1Rels, configId, allConfigs);
+  if (!v1Models || v1Models.length === 0) {
+    throw new Error("No database schema scan found. Please scan the database schema first to build the semantic layer.");
   }
+
+  const manifest = compileToMdl(v1Models, v1Rels, configId, allConfigs);
 
   // Resolve the primary database config from the already-fetched list
   let config: any = allConfigs.find((c: any) => c._id === configId);
@@ -177,12 +170,12 @@ export async function createChatAgent(context: AgentContext) {
   const allModels = (manifest.models || []).map((m: any) => ({
     _id: m.name,
     tableName: m.name,
-    displayName: m.name,
+    displayName: m.displayName || m.name,
     description: m.description || "",
     remarks: m.remarks || "",
     fields: (m.columns || []).map((c: any) => ({
       columnName: c.name,
-      displayName: c.name,
+      displayName: c.displayName || c.name,
       type: c.type,
       rawType: c.type,
       dataType: c.type,
@@ -190,7 +183,7 @@ export async function createChatAgent(context: AgentContext) {
       remarks: c.remarks || "",
       isPrimary: m.primaryKey === c.name,
       isNullable: !c.notNull,
-      fieldType: c.relationship ? "relationship" : "dimension",
+      fieldType: c.relationship ? "relationship" : (c.fieldType || "dimension"),
       relationship: c.relationship || null,
       defaultAggregation: c.defaultAggregation || null,
       sqlExpression: c.expression || null,
