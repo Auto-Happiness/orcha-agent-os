@@ -223,6 +223,10 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
     api.databaseConfigs.listByOrganization,
     orgDoc?._id && user ? { organizationId: orgDoc._id } : "skip"
   );
+  const databookEntries = useQuery(
+    api.databook.listByOrg,
+    orgDoc?._id && user ? { organizationId: orgDoc._id } : "skip"
+  );
 
   // Developer Diagnostics
   useEffect(() => {
@@ -238,7 +242,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
   }, [userLoaded, orgLoaded, orgDoc, isMember, slug]);
 
   const spotlightActions = useMemo(() => {
-    return (dbConfigs || []).map((config) => ({
+    const configActions = (dbConfigs || []).map((config) => ({
       id: config._id,
       label: config.name,
       description: `${config.type.charAt(0).toUpperCase() + config.type.slice(1)} Environment`,
@@ -259,7 +263,31 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
         </Box>
       ),
     }));
-  }, [dbConfigs, router, slug]);
+
+    const databookActions = (databookEntries || []).map((entry) => ({
+      id: entry._id,
+      label: entry.name,
+      description: `Saved Query: "${entry.question}"`,
+      onClick: () => router.push(`/${slug}/databook/${entry._id}`),
+      leftSection: (
+        <Box
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            background: "rgba(124,58,237,0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          }}
+        >
+          <IconNotebook size={16} color="#7c3aed" />
+        </Box>
+      ),
+    }));
+
+    return [...configActions, ...databookActions];
+  }, [dbConfigs, databookEntries, router, slug]);
 
   const [isSyncingOrg, setIsSyncingOrg] = useState(false);
   const [isSyncingMembership, setIsSyncingMembership] = useState(false);
@@ -374,7 +402,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                 onClick={toggleMobile}
                 hiddenFrom="sm"
                 size="sm"
-                color="rgba(255,255,255,0.6)"
+                color="var(--orcha-text-muted)"
               />
               {/* Search hint */}
               <Group
@@ -458,8 +486,8 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
 
                 <Menu.Dropdown
                   style={{
-                    background: "#130f22",
-                    border: "1px solid rgba(147,51,234,0.18)",
+                    background: "var(--orcha-panel)",
+                    border: "1px solid var(--orcha-border)",
                     borderRadius: "10px",
                   }}
                 >
@@ -470,15 +498,15 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
                     component={Link}
                     href={`/${slug}/settings`}
                     leftSection={<IconSettings size={15} />}
-                    c="rgba(255,255,255,0.75)"
+                    c="var(--orcha-text-body)"
                   >
                     Settings
                   </Menu.Item>
-                  <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.06)" }} />
-                  <Menu.Item leftSection={<IconHelpCircle size={15} />} c="rgba(255,255,255,0.75)">
+                  <Menu.Divider style={{ borderColor: "var(--orcha-border)" }} />
+                  <Menu.Item leftSection={<IconHelpCircle size={15} />} c="var(--orcha-text-body)">
                     Help & Docs
                   </Menu.Item>
-                  <Menu.Divider style={{ borderColor: "rgba(255,255,255,0.06)" }} />
+                  <Menu.Divider style={{ borderColor: "var(--orcha-border)" }} />
                   <SignOutButton>
                     <Menu.Item
                       leftSection={<IconLogout size={15} />}
@@ -662,14 +690,14 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
           styles={{
             root: { zIndex: 1000 },
             content: {
-              background: "#130f22",
-              border: "1px solid rgba(147,51,234,0.18)",
+              background: "var(--orcha-panel)",
+              border: "1px solid var(--orcha-border)",
               borderRadius: "12px",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+              boxShadow: "0 20px 40px var(--orcha-glow)"
             },
             action: {
               background: "transparent",
-              color: "white",
+              color: "var(--orcha-text-title)",
               padding: "10px",
               borderRadius: "8px",
             }
