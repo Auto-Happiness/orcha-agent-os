@@ -53,6 +53,13 @@ export function compileToMdl(
       const col: any = {
         name: f.columnName,
         type: (f.rawType || f.dataType || f.type || "VARCHAR").toUpperCase(),
+        displayName: f.displayName,
+        description: f.description || "",
+        remarks: f.remarks || "",
+        fieldType: f.fieldType || "dimension",
+        defaultAggregation: f.defaultAggregation || null,
+        isTimeDimension: !!f.isTimeDimension,
+        isHidden: !!f.isHidden,
       };
       if (f.sqlExpression) {
         col.expression = f.sqlExpression;
@@ -111,6 +118,9 @@ export function compileToMdl(
 
     const modelObj: any = {
       name: mdlName,
+      displayName: m.displayName || m.tableName,
+      description: m.description || "",
+      remarks: m.remarks || "",
       tableReference: {
         catalog: null,
         schema: alias,

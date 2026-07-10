@@ -1,3 +1,6 @@
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
+
 import { ChatWorker } from "./chat-worker";
 import { DashboardWorker } from "./dashboard-worker";
 import fs from "fs";
