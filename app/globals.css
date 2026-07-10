@@ -16,11 +16,16 @@
   background-color: #9333ea !important;
   color: white !important;
 }
-
-.mantine-Select-dropdown {
+html[data-mantine-color-scheme="dark"] .mantine-Select-dropdown {
   background-color: #130f22 !important;
   border-color: rgba(147, 51, 234, 0.18) !important;
   color: white !important;
+}
+
+html[data-mantine-color-scheme="light"] .mantine-Select-dropdown {
+  background-color: #ffffff !important;
+  border-color: rgba(147, 51, 234, 0.12) !important;
+  color: #0f172a !important;
 }
 
 /* Spotlight Overrides */
