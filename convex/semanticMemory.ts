@@ -216,6 +216,21 @@ export const remove = mutation({
 });
 
 /**
+ * Mutation to delete multiple semantic query memories in bulk.
+ */
+export const removeBulk = mutation({
+  args: {
+    ids: v.array(v.id("semanticMemory")),
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
+    await Promise.all(args.ids.map((id) => ctx.db.delete(id)));
+    return { success: true };
+  },
+});
+
+/**
  * Mutation to manually seed a NL-to-SQL query memory mapping.
  */
 export const createManualMapping = mutation({
@@ -248,6 +263,53 @@ export const createManualMapping = mutation({
     });
 
     return { success: true, memoryId };
+  },
+});
+
+/**
+ * Mutation to manually seed multiple NL-to-SQL query mappings in bulk.
+ */
+export const bulkCreateManualMappings = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    mappings: v.array(
+      v.object({
+        question: v.string(),
+        sql: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
+
+    const config = await ctx.db.get(args.configId);
+    const provider = config?.memoryProvider || "local";
+    const now = Date.now();
+    const results = [];
+
+    await Promise.all(
+      args.mappings.map(async (mapping) => {
+        const memoryId = await ctx.db.insert("semanticMemory", {
+          organizationId: args.organizationId,
+          configId: args.configId,
+          question: mapping.question,
+          sql: mapping.sql,
+          createdAt: now,
+        });
+
+        await ctx.scheduler.runAfter(0, internal.semanticMemory.generateMemoryEmbedding, {
+          organizationId: args.organizationId,
+          memoryId,
+          question: mapping.question,
+          provider: provider as any,
+        });
+
+        results.push(memoryId);
+      })
+    );
+
+    return { success: true, count: results.length };
   },
 });
 

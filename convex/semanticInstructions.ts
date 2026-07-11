@@ -70,6 +70,68 @@ export const remove = mutation({
 });
 
 /**
+ * Mutation to remove multiple semantic instructions in bulk.
+ */
+export const removeBulk = mutation({
+  args: {
+    ids: v.array(v.id("semanticInstructions")),
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
+    await Promise.all(args.ids.map((id) => ctx.db.delete(id)));
+    return { success: true };
+  },
+});
+
+/**
+ * Mutation to create multiple semantic instructions in bulk.
+ */
+export const bulkSave = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    configId: v.id("databaseConfigs"),
+    instructions: v.array(
+      v.object({
+        title: v.string(),
+        content: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    await checkMembership(ctx, args.organizationId);
+
+    const config = await ctx.db.get(args.configId);
+    const provider = config?.memoryProvider || "local";
+    const now = Date.now();
+    const results = [];
+
+    await Promise.all(
+      args.instructions.map(async (inst) => {
+        const instructionId = await ctx.db.insert("semanticInstructions", {
+          organizationId: args.organizationId,
+          configId: args.configId,
+          title: inst.title,
+          content: inst.content,
+          createdAt: now,
+        });
+
+        await ctx.scheduler.runAfter(0, internal.semanticInstructions.generateInstructionEmbedding, {
+          organizationId: args.organizationId,
+          instructionId,
+          text: `Instruction: ${inst.title}. Detail: ${inst.content}`,
+          provider: provider as any,
+        });
+
+        results.push(instructionId);
+      })
+    );
+
+    return { success: true, count: results.length };
+  },
+});
+
+/**
  * Query to list all semantic instructions for a config.
  */
 export const listByConfig = query({
