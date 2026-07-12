@@ -116,15 +116,55 @@ export const DataTable = memo(function DataTable({ data, sql, organizationId, co
         body: JSON.stringify({ sql, organizationId, configId }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Export failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `export_${Date.now()}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.mode === "async") {
+          // Poll for completion
+          const downloadUrl = await new Promise<string>((resolve, reject) => {
+            const interval = setInterval(async () => {
+              try {
+                const checkRes = await fetch(`/api/export/csv?jobId=${data.jobId}`);
+                if (!checkRes.ok) throw new Error("Status check failed");
+                const statusData = await checkRes.json();
+                
+                if (statusData.status === "completed") {
+                  clearInterval(interval);
+                  resolve(statusData.downloadUrl);
+                } else if (statusData.status === "failed") {
+                  clearInterval(interval);
+                  reject(new Error(statusData.error || "Export job failed"));
+                }
+              } catch (err) {
+                clearInterval(interval);
+                reject(err);
+              }
+            }, 1500);
+          });
+
+          // Download using link
+          const a = document.createElement("a");
+          a.href = downloadUrl;
+          a.download = `export_${Date.now()}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          throw new Error("Unexpected response format");
+        }
+      } else {
+        // Sync mode: Direct stream download
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `export_${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
     } catch (e: any) {
       alert(`Export failed: ${e.message}`);
     } finally {

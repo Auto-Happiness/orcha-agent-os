@@ -28,6 +28,7 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
 
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [pageData, setPageData] = useState<any[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -145,48 +146,91 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
 
   const handleDownloadCSV = useCallback(async () => {
     if (!activeDetailTable) return;
-    const { sql, data, title } = activeDetailTable;
-
-    // Fallback to client-side page download if no sql, not paginatable, or no configId
-    if (!sql || !isPaginatable(sql) || !configId) {
-      const columns = Object.keys(data[0] || {});
-      const escape = (v: any) => {
-        if (v == null) return "";
-        const s = String(v);
-        return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-      };
-      const header = columns.join(",");
-      const rows = data.map(row => columns.map(c => escape(row[c])).join(","));
-      const csv = [header, ...rows].join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title.toLowerCase().replace(/\s+/g, "_")}_preview.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      return;
-    }
-
-    // Export full dataset via API
+    setIsDownloading(true);
     try {
+      const { sql, data, title } = activeDetailTable;
+
+      // Fallback to client-side page download if no sql, not paginatable, or no configId
+      if (!sql || !isPaginatable(sql) || !configId) {
+        const columns = Object.keys(data[0] || {});
+        const escape = (v: any) => {
+          if (v == null) return "";
+          const s = String(v);
+          return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const header = columns.join(",");
+        const rows = data.map(row => columns.map(c => escape(row[c])).join(","));
+        const csv = [header, ...rows].join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${title.toLowerCase().replace(/\s+/g, "_")}_preview.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      // Export full dataset via API
       const res = await fetch("/api/export/csv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sql, configId }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Export failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title.toLowerCase().replace(/\s+/g, "_")}_full.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.mode === "async") {
+          // Poll for completion
+          const downloadUrl = await new Promise<string>((resolve, reject) => {
+            const interval = setInterval(async () => {
+              try {
+                const checkRes = await fetch(`/api/export/csv?jobId=${data.jobId}`);
+                if (!checkRes.ok) throw new Error("Status check failed");
+                const statusData = await checkRes.json();
+                
+                if (statusData.status === "completed") {
+                  clearInterval(interval);
+                  resolve(statusData.downloadUrl);
+                } else if (statusData.status === "failed") {
+                  clearInterval(interval);
+                  reject(new Error(statusData.error || "Export job failed"));
+                }
+              } catch (err) {
+                clearInterval(interval);
+                reject(err);
+              }
+            }, 1500);
+          });
+
+          // Download using link
+          const a = document.createElement("a");
+          a.href = downloadUrl;
+          a.download = `${title.toLowerCase().replace(/\s+/g, "_")}_full.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          throw new Error("Unexpected response format");
+        }
+      } else {
+        // Sync mode: Direct stream download
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${title.toLowerCase().replace(/\s+/g, "_")}_full.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
     } catch (e: any) {
       alert(`Export failed: ${e.message}`);
+    } finally {
+      setIsDownloading(false);
     }
   }, [activeDetailTable, configId]);
 
@@ -224,9 +268,12 @@ export function DatasetDetailPanel({ activeDetailTable, configId, onClose }: Dat
             <Text size="xs" fw={700} c="var(--orcha-purple)" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>Dataset View</Text>
             <Text fw={700} size="sm" c="var(--orcha-text-title)" truncate>{activeDetailTable.title}</Text>
           </Stack>
-          <Group gap={8}>
-            <ActionIcon variant="subtle" color="violet" radius="md" size="md" onClick={handleDownloadCSV} title="Download CSV">
-              <IconDownload size={16} />
+          <Group gap={8} wrap="nowrap" align="center">
+            {isDownloading && (
+              <Text size="xs" c="violet" fw={500} style={{ animation: "pulse 1.5s infinite" }}>processing...</Text>
+            )}
+            <ActionIcon variant="subtle" color="violet" radius="md" size="md" onClick={handleDownloadCSV} disabled={isDownloading} title="Download CSV">
+              {isDownloading ? <Loader size={14} color="violet" /> : <IconDownload size={16} />}
             </ActionIcon>
             <ActionIcon variant="subtle" color="gray" radius="md" size="md" onClick={onClose} title="Close Panel">
               <IconX size={16} />
