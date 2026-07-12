@@ -36,6 +36,10 @@ print('Downloading model...'); \
 SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2'); \
 print('Model ready.')"
 
+# Set runtime offline flags so the container runs fully local without Hugging Face network requests
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
+
 EXPOSE 5001
 
 # Health check — waits for the service to be ready before marking healthy

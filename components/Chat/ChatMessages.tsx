@@ -127,11 +127,11 @@ function extractSQLFromParts(parts: any[]): string[] {
   for (const part of parts) {
     const type: string = part.type ?? "";
     let sql: string | undefined;
-    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") sql = part.input?.sql;
-    else if (type === "tool-invocation" && (part.toolInvocation?.toolName === "execute_sql" || part.toolInvocation?.toolName === "execute_federated_sql"))
-      sql = (part.toolInvocation.input as any)?.sql ?? (part.toolInvocation.args as any)?.sql;
-    else if (type === "tool-result" && (part.toolName === "execute_sql" || part.toolName === "execute_federated_sql"))
-      sql = (part.input as any)?.sql ?? (part.args as any)?.sql;
+    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql" || type === "tool-query_cube") sql = part.input?.sql ?? part.output?.sql;
+    else if (type === "tool-invocation" && (part.toolInvocation?.toolName === "execute_sql" || part.toolInvocation?.toolName === "execute_federated_sql" || part.toolInvocation?.toolName === "query_cube"))
+      sql = (part.toolInvocation.input as any)?.sql ?? (part.toolInvocation.args as any)?.sql ?? (part.toolInvocation.result as any)?.sql;
+    else if (type === "tool-result" && (part.toolName === "execute_sql" || part.toolName === "execute_federated_sql" || part.toolName === "query_cube"))
+      sql = (part.input as any)?.sql ?? (part.args as any)?.sql ?? (part.result as any)?.sql;
     
     if (sql && !queries.includes(sql)) queries.push(sql);
   }
@@ -143,17 +143,17 @@ function hasSuccessfulSQLResult(parts: any[]): boolean {
   return parts.some((part) => {
     const type = part.type ?? "";
     let toolName = part.toolInvocation?.toolName || part.toolName || "query";
-    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") {
-      toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
+    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql" || type === "tool-query_cube") {
+      toolName = type === "tool-execute_sql" ? "execute_sql" : type === "tool-execute_federated_sql" ? "execute_federated_sql" : "query_cube";
     } else if (type === "tool-output-available") {
       toolName = part.toolName || "tool";
     }
 
-    const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
+    const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql" || toolName === "query_cube";
     if (!isSQL) return false;
 
     let result: any = null;
-    if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql") && part.state === "output-available") {
+    if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql" || type === "tool-query_cube") && part.state === "output-available") {
       result = part.output;
     } else if (type === "tool-result") {
       result = part.result;
@@ -226,14 +226,14 @@ function extractRetryLogsFromParts(parts: any[]): RetryLog[] {
   for (const part of parts) {
     const type: string = part.type ?? "";
     let toolName = part.toolInvocation?.toolName || part.toolName || "query";
-    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") {
-      toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
+    if (type === "tool-execute_sql" || type === "tool-execute_federated_sql" || type === "tool-query_cube") {
+      toolName = type === "tool-execute_sql" ? "execute_sql" : type === "tool-execute_federated_sql" ? "execute_federated_sql" : "query_cube";
     } else if (type === "tool-output-available") {
       toolName = part.toolName || "tool";
     }
 
     let result: any = null;
-    if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql") && part.state === "output-available") {
+    if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql" || type === "tool-query_cube") && part.state === "output-available") {
       result = part.output;
     } else if (type === "tool-result") {
       result = part.result;
@@ -273,6 +273,8 @@ function renderToolPart(
   let toolName = part.toolInvocation?.toolName || part.toolName || "query";
   if (type === "tool-execute_sql" || type === "tool-execute_federated_sql") {
     toolName = type === "tool-execute_sql" ? "execute_sql" : "execute_federated_sql";
+  } else if (type === "tool-query_cube") {
+    toolName = "query_cube";
   } else if (type === "tool-output-available") {
     toolName = part.toolName || "tool";
   }
@@ -284,9 +286,9 @@ function renderToolPart(
     type === "tool-call" ||
     (type === "tool-invocation" && (part.toolInvocation?.state === "call" || part.toolInvocation?.state === "partial-call")) ||
     type.startsWith("tool-input") ||
-    (type === "tool-execute_sql" && part.state === "input-streaming")
+    ((type === "tool-execute_sql" || type === "tool-query_cube") && part.state === "input-streaming")
   ) {
-    const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
+    const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql" || toolName === "query_cube";
     
     return (
       <Box key={i} ml="3rem" mt="xs">
@@ -301,7 +303,7 @@ function renderToolPart(
 
   let result: any = null;
 
-  if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql") && part.state === "output-available") {
+  if ((type === "tool-execute_sql" || type === "tool-execute_federated_sql" || type === "tool-query_cube") && part.state === "output-available") {
     result = part.output;
   }
   else if (type === "tool-result") {
@@ -320,9 +322,9 @@ function renderToolPart(
     return null;
   }
 
-  const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql";
+  const isSQL = toolName === "execute_sql" || toolName === "execute_federated_sql" || toolName === "query_cube";
   const partSql = isSQL 
-    ? (part.input?.sql ?? part.toolInvocation?.args?.sql ?? part.args?.sql) 
+    ? (part.input?.sql ?? part.toolInvocation?.args?.sql ?? part.args?.sql ?? result?.sql) 
     : undefined;
 
   // Render chart

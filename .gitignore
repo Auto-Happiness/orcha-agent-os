@@ -24,6 +24,7 @@ convex/_generated/
 # next.js
 /.next/
 /out/
+/public/exports/
 
 # production
 /build

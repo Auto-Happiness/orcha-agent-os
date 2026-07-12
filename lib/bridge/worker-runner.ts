@@ -3,6 +3,7 @@ dns.setDefaultResultOrder("ipv4first");
 
 import { ChatWorker } from "./chat-worker";
 import { DashboardWorker } from "./dashboard-worker";
+import { CSVExportWorker } from "./worker";
 import fs from "fs";
 import path from "path";
 
@@ -42,10 +43,12 @@ console.log(`🔑 Key: ${process.env.ENCRYPTION_KEY ? "LOADED" : "MISSING"}`);
 
 const chatWorker = new ChatWorker(true);
 const dashboardWorker = new DashboardWorker(true);
+const csvExportWorker = new CSVExportWorker();
 
 process.on("SIGINT", async () => {
   console.log("🛑 Closing Orcha Workers gracefully...");
   await chatWorker.close();
   await dashboardWorker.close();
+  await csvExportWorker.close();
   process.exit(0);
 });
