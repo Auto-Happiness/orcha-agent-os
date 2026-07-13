@@ -45,10 +45,15 @@ export class ChatWorker {
             if (!messageId) return;
             try {
               const payload: any = { messageId, content };
-              if (parts) payload.parts = parts;
+              if (parts) {
+                // Sanitize parts to strip native classes (like Date) that Convex doesn't support
+                payload.parts = JSON.parse(JSON.stringify(parts));
+              }
               await convex.mutation(api.chatMessages.workerUpdate, payload);
             } catch (e: any) {
-              console.error("[ChatWorker] Convex update failed:", e.message);
+              const msg = e.message || "Unknown error";
+              const truncatedMsg = msg.length > 500 ? msg.substring(0, 500) + "... [truncated]" : msg;
+              console.error("[ChatWorker] Convex update failed:", truncatedMsg);
             }
           };
 
@@ -93,6 +98,14 @@ export class ChatWorker {
             let lastPushedLength = 0;
             const reader = result.fullStream.getReader();
             while (true) {
+              // Check if job is cancelled
+              const isCancelled = await this.redis.exists(`cancel:${job.id}`);
+              if (isCancelled) {
+                console.log(`[ChatWorker] Job ${job.id} was cancelled by user. Aborting stream...`);
+                await pushUpdate("⚠️ Query execution cancelled by user.");
+                break;
+              }
+
               const { done, value } = await reader.read();
               if (done) break;
 
@@ -186,6 +199,20 @@ export class ChatWorker {
         count: 500, // Keep more failures for debugging
       },
     });
+  }
+
+  async getJob(jobId: string) {
+    return await this.queue.getJob(jobId);
+  }
+
+  async cancelJob(jobId: string) {
+    await this.redis.set(`cancel:${jobId}`, "1", "EX", 300);
+    const job = await this.queue.getJob(jobId);
+    if (job) {
+      try {
+        await job.remove();
+      } catch (err) {}
+    }
   }
 
   async close() {

@@ -116,6 +116,7 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeDetailTable, setActiveDetailTable] = useState<{ data: any[], title: string, sql?: string } | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
 
   const handleViewFullData = useCallback((tableDetails: { data: any[], title: string, sql?: string } | null) => {
@@ -197,6 +198,7 @@ export default function ChatPage() {
         if (data.mode === "async") {
           console.log("[Chat] Async job started:", data.jobId);
           isAsyncRef.current = true;
+          setActiveJobId(data.jobId);
           setIsStreaming(false);
           return;
         }
@@ -233,14 +235,26 @@ export default function ChatPage() {
     },
   });
 
-  const handleStop = useCallback(() => {
+  const handleStop = useCallback(async () => {
+    if (activeJobId) {
+      try {
+        await fetch("/api/chat/stop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: activeJobId }),
+        });
+      } catch (e) {
+        console.error("[Chat] Failed to cancel async job:", e);
+      }
+      setActiveJobId(null);
+    }
     if (stop) {
       stop();
     }
     setIsStreaming(false);
-  }, [stop]);
+  }, [stop, activeJobId]);
 
-  const isLoading = status === "streaming" || status === "submitted";
+  const isLoading = status === "streaming" || status === "submitted" || !!activeJobId;
 
   const persistedMessages = useQuery(
     api.chatMessages.listBySession,
@@ -276,6 +290,18 @@ export default function ChatPage() {
     });
     setMessages(restored as any);
   }, [activeSessionId, persistedMessages, setMessages, isStreaming]);
+
+  const lastMessage = persistedMessages && persistedMessages.length > 0
+    ? persistedMessages[persistedMessages.length - 1]
+    : null;
+
+  const isLastMessageFinished = lastMessage && lastMessage.role === "assistant" && lastMessage.content !== "Agent is thinking..." && !lastMessage.parts?.some((p: any) => p.state === "input-streaming" || p.toolInvocation?.state === "call");
+
+  useEffect(() => {
+    if (isLastMessageFinished && activeJobId) {
+      setActiveJobId(null);
+    }
+  }, [isLastMessageFinished, activeJobId]);
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
