@@ -183,15 +183,20 @@ export async function executeGeneration({
 
   // 2. Perform intelligent column pruning to stay well within token limits
   const consolidatedQuestion = draftPrompts.map(p => `[${p.type}] ${p.text}`).join(" | ");
-  const pruningModelId = getPruningModelId(selectedModel);
-  const pruningModel = resolveModel(pruningModelId, aiKeys, organizationId as string);
+  let prunedModels = combinedModels;
+  try {
+    const pruningModelId = getPruningModelId(selectedModel);
+    const pruningModel = resolveModel(pruningModelId, aiKeys, organizationId as string);
 
-  const prunedModels = await pruneColumns(
-    consolidatedQuestion,
-    combinedModels,
-    combinedRelationships,
-    pruningModel
-  );
+    prunedModels = await pruneColumns(
+      consolidatedQuestion,
+      combinedModels,
+      combinedRelationships,
+      pruningModel
+    );
+  } catch (err: any) {
+    console.warn(`⚠️ [DashboardWorker] Column pruning failed: ${err.message || err}. Falling back to full schema.`);
+  }
 
   // 3. Construct detailed schema DDL for the prompt
   const schemaCatalog = prunedModels.map((m: any) => {
@@ -246,14 +251,46 @@ export async function executeGeneration({
     ${draftPrompts.map((p, i) => `${i + 1}. [Type: ${p.type}] "${p.text}"`).join("\n")}
   `;
 
-  // 5. Generate structured object
-  const { object } = await generateObject({
-    model,
-    schema: dashboardGenerationSchema,
-    system: systemPrompt,
-    prompt: userPrompt,
-    temperature: 0.2,
-  });
+  // 5. Generate structured object with self-healing fallback
+  let responseWidgets;
+  try {
+    const { object } = await generateObject({
+      model,
+      schema: dashboardGenerationSchema,
+      system: systemPrompt,
+      prompt: userPrompt,
+      temperature: 0.2,
+    });
+    responseWidgets = object.widgets;
+  } catch (err: any) {
+    console.error(`⚠️ [DashboardWorker] Main generation failed with ${selectedModel}:`, err.message || err);
+    
+    // Check if we can fall back to Gemini or OpenAI
+    const hasKey = (provider: string) => aiKeys.some(k => k.provider === provider && k.keyValue);
+    let fallbackModelId = "";
+    if (hasKey("gemini")) {
+      fallbackModelId = "gemini:gemini-1.5-flash";
+    } else if (hasKey("openai")) {
+      fallbackModelId = "openai:gpt-4o-mini";
+    }
 
-  return object.widgets;
+    if (fallbackModelId && fallbackModelId !== selectedModel) {
+      console.log(`🔄 [DashboardWorker] Attempting self-healing fallback to: ${fallbackModelId}`);
+      const fallbackModel = resolveModel(fallbackModelId, aiKeys, organizationId as string);
+      
+      const { object } = await generateObject({
+        model: fallbackModel,
+        schema: dashboardGenerationSchema,
+        system: systemPrompt,
+        prompt: userPrompt,
+        temperature: 0.2,
+      });
+      responseWidgets = object.widgets;
+    } else {
+      // Re-throw the original error if no fallback is available
+      throw err;
+    }
+  }
+
+  return responseWidgets;
 }

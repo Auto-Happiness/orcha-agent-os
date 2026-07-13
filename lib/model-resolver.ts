@@ -14,7 +14,8 @@ interface AiKeyRecord {
 function decryptKey(record: AiKeyRecord | undefined, orgIdStr: string): string | undefined {
   if (record?.keyValue && record.storageStrategy === "convex") {
     try {
-      return KeyManager.decrypt(record.keyValue, orgIdStr);
+      const decrypted = KeyManager.decrypt(record.keyValue, orgIdStr);
+      return decrypted ? decrypted.trim() : undefined;
     } catch (e) {
       console.error(`[ModelResolver] Failed to decrypt ${record.provider} key:`, e);
     }
