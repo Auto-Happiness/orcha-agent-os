@@ -27,8 +27,8 @@ export function getPruningModelId(modelId: string): string {
     return "gemini:gemini-1.5-flash";
   }
   if (provider === "claude" || provider === "anthropic") {
-    // Downgrade to Haiku for cost-effective pruning
-    return "claude:claude-3-5-haiku-20241022";
+    // Fall back to Claude 3 Haiku which is universally available on all Claude accounts (including free/restricted tiers)
+    return "claude:claude-3-haiku-20240307";
   }
   return modelId;
 }
