@@ -18,7 +18,9 @@ import {
   ActionIcon,
   Divider,
   Alert,
-  Modal
+  Modal,
+  Pagination,
+  Select
 } from "@mantine/core";
 import {
   IconTerminal2,
@@ -40,6 +42,7 @@ import { useIntersection } from "@mantine/hooks";
 import { api } from "@/convex/_generated/api";
 import { inputStyles } from "@/lib/styles";
 import dynamic from "next/dynamic";
+import { buildCountSql, buildPageSql } from "../Databook/paginationHelpers";
 
 // Use dynamic to ensure client-side rendering for the editor component
 const SqlEditor = dynamic(() => import("./SqlEditor").then(m => m.SqlEditor), {
@@ -71,8 +74,20 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
   const [selectedSql, setSelectedSql] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [queryResults, setQueryResults] = useState<{ columns: string[], rows: any[], executionTime?: number } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [totalRows, setTotalRows] = useState<number | null>(null);
+  const [activeSql, setActiveSql] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>("schema");
   const [librarySearch, setLibrarySearch] = useState("");
+
+  const totalPages = useMemo(() => {
+    if (totalRows === null) return 1;
+    return Math.ceil(totalRows / rowsPerPage);
+  }, [totalRows, rowsPerPage]);
+
+  const startIndex = (currentPage - 1) * rowsPerPage;
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [queryToDelete, setQueryToDelete] = useState<any>(null);
 
@@ -131,6 +146,46 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
     return { valid: true };
   };
 
+  const fetchPage = async (page: number, limit: number, querySql: string) => {
+    setIsExecuting(true);
+    const startTime = performance.now();
+    const offset = (page - 1) * limit;
+    try {
+      const pageSql = buildPageSql(querySql, offset, limit, currentConfig.type);
+      const res = await fetch("/api/db/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: currentConfig.type,
+          config: wizardData.dbConfig,
+          sql: pageSql
+        })
+      });
+      const result = await res.json();
+      const endTime = performance.now();
+      const duration = Math.round(endTime - startTime);
+
+      if (result.success) {
+        setQueryResults({
+          columns: result.columns,
+          rows: result.rows,
+          executionTime: duration
+        });
+        setCurrentPage(page);
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err: any) {
+      notifications.show({
+        title: "Query Failed",
+        message: err.message || "An error occurred fetching the query results.",
+        color: "red"
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
   const handleRunQuery = async () => {
     const finalSql = (selectedSql && selectedSql.trim().length > 0) ? selectedSql : sql;
     const validation = validateSql(finalSql);
@@ -142,42 +197,77 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
 
     setIsExecuting(true);
     setQueryResults(null);
-    const startTime = performance.now();
+    setTotalRows(null);
+    setCurrentPage(1);
+    setActiveSql(finalSql);
+
     try {
-      const response = await fetch("/api/db/query", {
+      // 1. Start fetching count query in background
+      const countPromise = (async () => {
+        try {
+          const countSql = buildCountSql(finalSql, currentConfig.type);
+          const res = await fetch("/api/db/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: currentConfig.type,
+              config: wizardData.dbConfig,
+              sql: countSql
+            })
+          });
+          const result = await res.json();
+          if (result.success && result.rows && result.rows.length > 0) {
+            const row = result.rows[0];
+            const countKey = Object.keys(row).find(k => k.toLowerCase() === "total_count");
+            return countKey ? parseInt(row[countKey], 10) : null;
+          }
+        } catch (e) {
+          console.warn("[QueryLab] Count query failed:", e);
+        }
+        return null;
+      })();
+
+      // 2. Fetch page 1 data
+      const offset = 0;
+      const pageSql = buildPageSql(finalSql, offset, rowsPerPage, currentConfig.type);
+      const startTime = performance.now();
+      const pageRes = await fetch("/api/db/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: currentConfig.type,
           config: wizardData.dbConfig,
-          sql: finalSql
+          sql: pageSql
         })
       });
-
-      const result = await response.json();
+      const pageResult = await pageRes.json();
       const endTime = performance.now();
       const duration = Math.round(endTime - startTime);
 
-      if (result.success) {
-        setQueryResults({
-          columns: result.columns,
-          rows: result.rows,
-          executionTime: duration
-        });
-        notifications.show({
-          title: "Query Success",
-          message: `${result.rowCount} rows returned in ${duration}ms.`,
-          color: "green",
-          icon: <IconBookmark size={16} />
-        });
-      } else {
-        throw new Error(result.message);
+      if (!pageResult.success) {
+        throw new Error(pageResult.message);
       }
+
+      setQueryResults({
+        columns: pageResult.columns,
+        rows: pageResult.rows,
+        executionTime: duration
+      });
+
+      // 3. Wait for total count to resolve and update
+      const totalCount = await countPromise;
+      setTotalRows(totalCount !== null ? totalCount : pageResult.rows.length);
+
+      notifications.show({
+        title: "Query Success",
+        message: `Returned ${totalCount !== null ? totalCount : pageResult.rows.length} rows.`,
+        color: "green",
+        icon: <IconBookmark size={16} />
+      });
     } catch (err: any) {
-      const message = typeof err.message === 'string' ? err.message : JSON.stringify(err);
       notifications.show({
         title: "Query Failed",
-        message: message || "An unexpected error occurred.",
+        message: err.message || "An unexpected error occurred.",
         color: "red"
       });
     } finally {
@@ -238,32 +328,55 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
     }
   };
 
-  const handleExportCsv = () => {
-    if (!queryResults || queryResults.rows.length === 0) return;
+  const handleExportCsv = async () => {
+    const finalSql = (selectedSql && selectedSql.trim().length > 0) ? selectedSql : sql;
+    setIsExporting(true);
+    try {
+      const response = await fetch("/api/db/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: currentConfig.type,
+          config: wizardData.dbConfig,
+          sql: finalSql
+        })
+      });
 
-    // Create CSV rows
-    const headers = queryResults.columns.join(",");
-    const rows = queryResults.rows.map(row =>
-      queryResults.columns.map(col => {
-        const val = row[col];
-        if (val === null || val === undefined) return "";
-        const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
-        // Escape quotes and wrap in quotes
-        const escaped = str.replace(/"/g, '""');
-        return `"${escaped}"`;
-      }).join(",")
-    );
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message);
 
-    const csvContent = [headers, ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `query_results_${new Date().getTime()}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // Create CSV rows
+      const headers = result.columns.join(",");
+      const rows = result.rows.map((row: any) =>
+        result.columns.map((col: string) => {
+          const val = row[col];
+          if (val === null || val === undefined) return "";
+          const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+          const escaped = str.replace(/"/g, '""');
+          return `"${escaped}"`;
+        }).join(",")
+      );
+
+      const csvContent = [headers, ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `query_results_${new Date().getTime()}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      notifications.show({
+        title: "Export Failed",
+        message: err.message || "An unexpected error occurred during CSV export.",
+        color: "red"
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -311,7 +424,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                 {queryResults && (
                   <Group gap="md">
                     <Text size="11px" c="dimmed" fw={500}>
-                      {queryResults.rows.length} rows returned
+                      {totalRows !== null ? `${totalRows} total rows` : "Multiple rows"} returned
                       <span style={{ margin: "0 8px", opacity: 0.3 }}>•</span>
                       {queryResults.executionTime}ms
                     </Text>
@@ -321,6 +434,7 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
                       size="compact-xs"
                       leftSection={<IconTableExport size={12} />}
                       onClick={handleExportCsv}
+                      loading={isExporting}
                     >
                       Export CSV
                     </Button>
@@ -331,31 +445,84 @@ export function QueryLab({ currentConfig, organization, currentUser, savedQuerie
             {isExecuting ? (
               <Center h={300}><Stack align="center"><Loader size="sm" color="violet" /><Text size="xs" c="dimmed">Executing query...</Text></Stack></Center>
             ) : queryResults ? (
-              <ScrollArea h={400}>
-                <Table variant="simple" verticalSpacing="xs" stickyHeader stickyHeaderOffset={0}>
-                  <Table.Thead style={{ zIndex: 1 }}>
-                    <Table.Tr style={{ background: "var(--orcha-panel)" }}>
-                      {queryResults.columns.map(col => (
-                        <Table.Th key={col} style={{ color: "var(--orcha-text-title)", fontSize: "11px", borderColor: "var(--orcha-border)", background: "var(--orcha-panel)" }}>{col}</Table.Th>
-                      ))}
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {queryResults.rows.map((row, i) => (
-                      <Table.Tr key={i}>
+              <Stack gap="xs">
+                <ScrollArea h={400}>
+                  <Table variant="simple" verticalSpacing="xs" stickyHeader stickyHeaderOffset={0}>
+                    <Table.Thead style={{ zIndex: 1 }}>
+                      <Table.Tr style={{ background: "var(--orcha-panel)" }}>
                         {queryResults.columns.map(col => (
-                          <Table.Td key={col} style={{ color: "var(--orcha-text-body)", fontSize: "11px", borderColor: "var(--orcha-border)" }}>
-                            {typeof row[col] === 'object' && row[col] !== null
-                              ? JSON.stringify(row[col])
-                              : row[col]?.toString() ?? <Text span c="dimmed" size="10px">NULL</Text>
-                            }
-                          </Table.Td>
+                          <Table.Th key={col} style={{ color: "var(--orcha-text-title)", fontSize: "11px", borderColor: "var(--orcha-border)", background: "var(--orcha-panel)" }}>{col}</Table.Th>
                         ))}
                       </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </ScrollArea>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {queryResults.rows.map((row, i) => (
+                        <Table.Tr key={i}>
+                          {queryResults.columns.map(col => (
+                            <Table.Td key={col} style={{ color: "var(--orcha-text-body)", fontSize: "11px", borderColor: "var(--orcha-border)" }}>
+                              {typeof row[col] === 'object' && row[col] !== null
+                                ? JSON.stringify(row[col])
+                                : row[col]?.toString() ?? <Text span c="dimmed" size="10px">NULL</Text>
+                              }
+                            </Table.Td>
+                          ))}
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollArea>
+
+                {queryResults.rows.length > 0 && (
+                  <Group justify="space-between" align="center" mt="xs" px="xs">
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed">
+                        Showing {startIndex + 1}–{startIndex + queryResults.rows.length} of {totalRows !== null ? totalRows : "many"} rows
+                      </Text>
+                      <Select
+                        size="xs"
+                        w={75}
+                        value={String(rowsPerPage)}
+                        onChange={(val) => {
+                          const nextLimit = val ? Number(val) : 100;
+                          setRowsPerPage(nextLimit);
+                          setCurrentPage(1);
+                          if (activeSql) {
+                            fetchPage(1, nextLimit, activeSql);
+                          }
+                        }}
+                        data={[
+                          { value: "50", label: "50" },
+                          { value: "100", label: "100" },
+                          { value: "200", label: "200" },
+                          { value: "500", label: "500" },
+                        ]}
+                        styles={{
+                          input: {
+                            height: "24px",
+                            minHeight: "24px",
+                            padding: "0 8px",
+                            fontSize: "11px",
+                            background: "var(--orcha-panel)",
+                            borderColor: "var(--orcha-border)",
+                            borderRadius: "6px"
+                          }
+                        }}
+                      />
+                      <Text size="xs" c="dimmed">per page</Text>
+                    </Group>
+                    {totalPages > 1 && (
+                      <Pagination
+                        total={totalPages}
+                        value={currentPage}
+                        onChange={(newPage) => fetchPage(newPage, rowsPerPage, activeSql)}
+                        size="xs"
+                        color="violet"
+                        withEdges
+                      />
+                    )}
+                  </Group>
+                )}
+              </Stack>
             ) : (
               <Center h={200}>
                 <Stack align="center" gap="xs">
