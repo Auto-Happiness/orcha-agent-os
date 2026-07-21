@@ -6,11 +6,14 @@ WORKDIR /build
 # Install build tools
 RUN pip install --no-cache-dir setuptools wheel
 
+# Install CPU-only PyTorch to the prefix first to avoid heavy GPU/CUDA dependencies
+RUN pip install --no-cache-dir --prefix=/install torch --index-url https://download.pytorch.org/whl/cpu
+
 # Copy project definition and install into a prefix we can COPY later
 COPY pyproject.toml .
 COPY src/ src/
 
-RUN pip install --no-cache-dir --prefix=/install .
+RUN PYTHONPATH=/install/lib/python3.11/site-packages pip install --no-cache-dir --prefix=/install .
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM python:3.11-slim

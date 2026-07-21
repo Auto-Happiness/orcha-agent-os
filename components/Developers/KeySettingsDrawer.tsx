@@ -21,44 +21,13 @@ import { IconSettings, IconPlus, IconTrash, IconRobot, IconDatabase, IconSparkle
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { notifications } from "@mantine/notifications";
+import { MODEL_OPTIONS } from "@/lib/model-options";
 
 interface KeySettingsDrawerProps {
   opened: boolean;
   onClose: () => void;
   apiKey: any;
 }
-
-const MODEL_OPTIONS = [
-  {
-    group: "Google Gemini",
-    items: [
-      { value: "gemini:gemini-1.5-pro", label: "Gemini 1.5 Pro" },
-      { value: "gemini:gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-    ],
-  },
-  {
-    group: "OpenAI",
-    items: [
-      { value: "openai:gpt-4o", label: "GPT-4o" },
-      { value: "openai:gpt-4o-mini", label: "GPT-4o mini" },
-    ],
-  },
-  {
-    group: "Anthropic Claude",
-    items: [
-      { value: "claude:claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
-      { value: "claude:claude-3-opus-20240229", label: "Claude 3 Opus" },
-    ],
-  },
-  {
-    group: "Local & Grok",
-    items: [
-      { value: "grok:grok-2", label: "Grok-2" },
-      { value: "local:qwen3:latest", label: "Qwen3 (Local)" },
-      { value: "local:llama3.1:latest", label: "Llama 3.1 (Local)" },
-    ],
-  }
-];
 
 export function KeySettingsDrawer({ opened, onClose, apiKey }: KeySettingsDrawerProps) {
   const [origins, setOrigins] = useState<string[]>([""]);

@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { KeyManager } from "@/lib/key-manager";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth-helper";
 
 function getConvexClient() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -16,7 +16,7 @@ function getConvexClient() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, orgId, getToken } = await auth();
+    const { userId, orgId, getToken } = await auth.getAuth();
     const convex = getConvexClient();
     const token = await getToken({ template: "convex" });
     const { organizationId, integration, qualifiedName, mcpUrl, keyType, keyValue } = await req.json();
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { userId, getToken } = await auth();
+    const { userId, getToken } = await auth.getAuth();
     const convex = getConvexClient();
     const token = await getToken({ template: "convex" });
     const { organizationId, integration } = await req.json();

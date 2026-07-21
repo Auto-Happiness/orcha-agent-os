@@ -108,6 +108,6 @@ export class KeyManager {
   }
 
   static getStrategy(): KeyStorageStrategy {
-    return this.strategy;
+    return (process.env.KEY_STORAGE as KeyStorageStrategy) || this.strategy || "convex";
   }
 }

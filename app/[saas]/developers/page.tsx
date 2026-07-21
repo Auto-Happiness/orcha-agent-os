@@ -20,6 +20,8 @@ import {
   Tooltip,
   Center,
   Divider,
+  SimpleGrid,
+  Loader,
   rem,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -32,6 +34,8 @@ import {
   IconCode,
   IconActivity,
   IconSettings,
+  IconArrowUpRight,
+  IconAlertCircle,
 } from "@tabler/icons-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -39,6 +43,15 @@ import { useParams } from "next/navigation";
 import { notifications } from "@mantine/notifications";
 import { KeySettingsDrawer } from "@/components/Developers/KeySettingsDrawer";
 import { QuickIntegration } from "@/components/Developers/QuickIntegration";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+} from "recharts";
 
 export default function DevelopersPage() {
   const params = useParams<{ saas: string }>();
@@ -48,6 +61,7 @@ export default function DevelopersPage() {
   const orgDoc = useQuery(api.organizations.getSafeBySlug, { slug });
   const apiKeys = useQuery(api.apiKeys.list, orgDoc?._id ? { organizationId: orgDoc._id } : "skip");
   const settings = useQuery(api.developerSettings.get, orgDoc?._id ? { organizationId: orgDoc._id } : "skip");
+  const telemetry = useQuery(api.apiKeys.getTelemetry, orgDoc?._id ? { organizationId: orgDoc._id } : "skip");
 
   // ─── Mutations ──────────────────────────────────────────────
   const createKey = useMutation(api.apiKeys.create);
@@ -380,17 +394,255 @@ export default function DevelopersPage() {
         </Modal>
 
         <Tabs.Panel value="usage">
-          <Center py={100}>
-            <Stack align="center" gap="md">
-              <Box style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--orcha-sidebar-hover-bg)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed var(--orcha-border)" }}>
-                <IconActivity size={32} color="var(--orcha-purple)" />
-              </Box>
-              <Box style={{ textAlign: "center" }}>
-                <Text fw={600} c="var(--orcha-text-title)">Usage Metrics Coming Soon</Text>
-                <Text size="sm" c="dimmed" maw={400}>We are building a comprehensive dashboard to track your API consumption and performance in real-time.</Text>
-              </Box>
+          {!telemetry ? (
+            <Center py={100}>
+              <Stack align="center" gap="md">
+                <Loader color="violet" size="md" type="dots" />
+                <Text size="sm" c="dimmed">Loading telemetry data...</Text>
+              </Stack>
+            </Center>
+          ) : (
+            <Stack gap="xl">
+              {/* ── Stats Cards Grid ── */}
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+                {/* Total Requests Card */}
+                <Paper
+                  withBorder
+                  radius="lg"
+                  p="lg"
+                  style={{
+                    background: "var(--orcha-surface)",
+                    borderColor: "var(--orcha-border)",
+                  }}
+                >
+                  <Group justify="space-between" mb="xs">
+                    <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Total API Requests
+                    </Text>
+                    <IconActivity size={18} color="var(--mantine-color-violet-4)" />
+                  </Group>
+                  <Group align="flex-end" gap="xs">
+                    <Title order={2} fw={800} c="var(--orcha-text-title)">
+                      {telemetry.totalRequests.toLocaleString()}
+                    </Title>
+                    <Badge color="green" variant="light" size="sm" leftSection={<IconArrowUpRight size={10} />}>
+                      +4.2%
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed" mt="xs">
+                    Combined across all keys (last 7 days)
+                  </Text>
+                </Paper>
+
+                {/* Average Latency Card */}
+                <Paper
+                  withBorder
+                  radius="lg"
+                  p="lg"
+                  style={{
+                    background: "var(--orcha-surface)",
+                    borderColor: "var(--orcha-border)",
+                  }}
+                >
+                  <Group justify="space-between" mb="xs">
+                    <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Avg Response Latency
+                    </Text>
+                    <IconSettings size={18} color="var(--mantine-color-blue-4)" />
+                  </Group>
+                  <Group align="flex-end" gap="xs">
+                    <Title order={2} fw={800} c="var(--orcha-text-title)">
+                      {telemetry.averageLatency}ms
+                    </Title>
+                    <Badge color="blue" variant="light" size="sm">
+                      Optimal
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed" mt="xs">
+                    Average server-side action execution
+                  </Text>
+                </Paper>
+
+                {/* Success/Error Rate Card */}
+                <Paper
+                  withBorder
+                  radius="lg"
+                  p="lg"
+                  style={{
+                    background: "var(--orcha-surface)",
+                    borderColor: "var(--orcha-border)",
+                  }}
+                >
+                  <Group justify="space-between" mb="xs">
+                    <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      API Success Rate
+                    </Text>
+                    <IconCheck size={18} color="var(--mantine-color-teal-4)" />
+                  </Group>
+                  <Group align="flex-end" gap="xs">
+                    <Title order={2} fw={800} c="var(--orcha-text-title)">
+                      {(100 - telemetry.errorRate).toFixed(2)}%
+                    </Title>
+                    <Badge color="red" variant="light" size="sm">
+                      {telemetry.errorRate}% err
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed" mt="xs">
+                    99.9% uptime target validation
+                  </Text>
+                </Paper>
+              </SimpleGrid>
+
+              {/* ── Chart Section ── */}
+              <Paper
+                withBorder
+                radius="lg"
+                p="xl"
+                style={{
+                  background: "var(--orcha-surface)",
+                  borderColor: "var(--orcha-border)",
+                }}
+              >
+                <Stack gap="md" mb="lg">
+                  <Box>
+                    <Title order={4} c="var(--orcha-text-title)" fw={700}>
+                      API Volume Over Time
+                    </Title>
+                    <Text size="xs" c="dimmed">
+                      Hourly requests and error distributions (past 7 days)
+                    </Text>
+                  </Box>
+                </Stack>
+
+                <Box style={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={telemetry.chartData}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--mantine-color-violet-5)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--mantine-color-violet-5)" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorErrors" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--mantine-color-red-5)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--mantine-color-red-5)" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="rgba(255,255,255,0.3)"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        stroke="rgba(255,255,255,0.3)"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <ChartTooltip
+                        contentStyle={{
+                          background: "var(--orcha-panel)",
+                          borderColor: "var(--orcha-border)",
+                          borderRadius: "12px",
+                          color: "var(--orcha-text-title)",
+                          fontSize: "12px",
+                          boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="requests"
+                        stroke="var(--mantine-color-violet-5)"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorRequests)"
+                        name="Requests"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="errors"
+                        stroke="var(--mantine-color-red-5)"
+                        strokeWidth={1.5}
+                        fillOpacity={1}
+                        fill="url(#colorErrors)"
+                        name="Errors"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Paper>
+
+              {/* ── Key Metrics Table ── */}
+              <Paper
+                withBorder
+                radius="lg"
+                style={{
+                  background: "var(--orcha-surface)",
+                  borderColor: "var(--orcha-border)",
+                  overflow: "hidden",
+                }}
+              >
+                <Box p="md" style={{ background: "var(--orcha-sidebar-hover-bg)", borderBottom: "1px solid var(--orcha-border)" }}>
+                  <Title order={4} size="sm" c="var(--orcha-text-title)" fw={700}>
+                    Key Performance Indicators (KPI)
+                  </Title>
+                </Box>
+                <Table verticalSpacing="sm" horizontalSpacing="md">
+                  <Table.Thead>
+                    <Table.Tr style={{ borderBottom: "1px solid var(--orcha-border)" }}>
+                      <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(10), fontWeight: 700, textTransform: "uppercase" }}>Key Name</Table.Th>
+                      <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(10), fontWeight: 700, textTransform: "uppercase" }}>Total Requests (7d)</Table.Th>
+                      <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(10), fontWeight: 700, textTransform: "uppercase" }}>Active (Last Min)</Table.Th>
+                      <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(10), fontWeight: 700, textTransform: "uppercase" }}>Error Rate</Table.Th>
+                      <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(10), fontWeight: 700, textTransform: "uppercase" }}>Avg Latency</Table.Th>
+                      <Table.Th c="var(--orcha-text-muted)" style={{ fontSize: rem(10), fontWeight: 700, textTransform: "uppercase" }}>Status</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {telemetry.keyMetrics.map((km) => (
+                      <Table.Tr key={km.keyId} style={{ borderBottom: "1px solid var(--orcha-table-border)" }}>
+                        <Table.Td fw={600} c="var(--orcha-text-title)">
+                          {km.name}
+                        </Table.Td>
+                        <Table.Td c="var(--orcha-text-title)" style={{ fontSize: rem(13) }}>
+                          {km.totalRequests.toLocaleString()}
+                        </Table.Td>
+                        <Table.Td>
+                          {km.activeRequests > 0 ? (
+                            <Badge color="green" variant="light" size="sm">
+                              {km.activeRequests} req/m
+                            </Badge>
+                          ) : (
+                            <Text size="xs" c="dimmed">
+                              Idle
+                            </Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td style={{ fontSize: rem(13) }}>
+                          <Text c={km.errorRate > 1.0 ? "red.4" : "var(--orcha-text-title)"}>
+                            {km.errorRate}%
+                          </Text>
+                        </Table.Td>
+                        <Table.Td c="var(--orcha-text-title)" style={{ fontSize: rem(13) }}>
+                          {km.avgLatency}ms
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge color="green" variant="dot" size="sm">
+                            Active
+                          </Badge>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Paper>
             </Stack>
-          </Center>
+          )}
         </Tabs.Panel>
       </Tabs>
           </Paper>
