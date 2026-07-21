@@ -13,8 +13,9 @@
     "worker": "npx tsx lib/bridge/worker-runner.ts",
     "test:engine": "node --test orcha-rust-engine/tests/index.test.js",
     "test:transpiler": "npx tsx --test lib/__tests__/semantic-transpiler.test.ts",
+    "test:developer": "npx tsx --test lib/__tests__/developer-api.test.ts",
     "test:contract": "pnpm exec jest --config jest.contract.config.js",
-    "test": "npm run test:engine && npm run test:transpiler"
+    "test": "npm run test:engine && npm run test:transpiler && npm run test:developer"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.78",

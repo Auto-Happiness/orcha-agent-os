@@ -13,7 +13,7 @@ import { withMetrics } from "@/lib/metrics";
 
 async function postHandler(req: NextRequest) {
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-  const isAsync = process.env.ASYNC === "on";
+  let isAsync = process.env.ASYNC === "on";
   console.log(`[Chat] ASYNC flag: "${process.env.ASYNC}" | isAsync: ${isAsync}`);
 
   try {
@@ -34,6 +34,7 @@ async function postHandler(req: NextRequest) {
     const providedKey = (authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : xApiKey) || undefined;
 
     if (providedKey) {
+      isAsync = false; // Force synchronous execution for external API/SDK clients
       const apiInfo = await convex.query(api.apiKeys.validate, { key: providedKey });
       if (!apiInfo) {
         return NextResponse.json({ error: "Invalid or disabled API key." }, { status: 401 });
