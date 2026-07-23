@@ -662,7 +662,7 @@ export default function SaasLayout({ children }: { children: ReactNode }) {
             <Group gap={6}>
               <IconPointFilled size={10} color="#22c55e" />
               {!collapsed && (
-                <Text size="11px" c="dimmed">All systems operational</Text>
+                <Text size="11px" c="dimmed"></Text>
               )}
             </Group>
           </Box>
