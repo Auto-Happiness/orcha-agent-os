@@ -119,24 +119,33 @@ services:
         - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
-      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CONVEX_URL=http://backend:3210
+      - NEXT_PUBLIC_CONVEX_URL=http://backend:3210
+      - REDIS_URL=redis://redis:6379
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   worker:
     build:
       context: .
       dockerfile: dockerfiles/Dockerfile.worker
+    env_file:
+      - .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CONVEX_URL=http://backend:3210
+      - NEXT_PUBLIC_CONVEX_URL=http://backend:3210
     depends_on:
-      - redis
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   orcha-embeddings:
     build:
