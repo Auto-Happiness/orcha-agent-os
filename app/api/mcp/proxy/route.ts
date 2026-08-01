@@ -10,9 +10,10 @@ import { KeyManager } from "@/lib/key-manager";
 import { getMcpServer } from "@/lib/mcp-registry";
 import { McpClient } from "@/lib/mcp-client";
 import { Id } from "@/convex/_generated/dataModel";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = getServerConvexUrl();
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
 }

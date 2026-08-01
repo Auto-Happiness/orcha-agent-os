@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { createChatAgent } from "../chat-agent";
 import { normalizeChatHistory, trimToolResultParts, MAX_RESULT_ROWS } from "../chat-utils";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 /**
  * ChatWorker handles AI Agent execution in the background
@@ -32,7 +33,7 @@ export class ChatWorker {
           const { context, messageId, clerkToken } = job.data;
           
           // 1. Fresh Convex client per job for multi-user isolation
-          const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+          const convex = new ConvexHttpClient(getServerConvexUrl());
           if (clerkToken) convex.setAuth(clerkToken);
 
           if (!process.env.ENCRYPTION_KEY) {

@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import postgres from "postgres";
 import mysql2 from "mysql2";
 import * as mssql from "mssql";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function escapeCell(v: any): string {
   if (v == null) return "";
@@ -131,7 +132,7 @@ export class CSVExportWorker {
     const filePath = path.join(exportDir, filename);
     const writableStream = fs.createWriteStream(filePath);
 
-    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const convex = new ConvexHttpClient(getServerConvexUrl());
     if (clerkToken) {
       convex.setAuth(clerkToken);
     }

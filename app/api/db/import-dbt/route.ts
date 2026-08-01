@@ -9,9 +9,10 @@ import { auth } from "@clerk/nextjs/server";
 import { parseDbtProject } from "@/lib/dbt-parser";
 import { compileToMdl } from "@/lib/semantic-compiler";
 import { KeyManager } from "@/lib/key-manager";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = getServerConvexUrl();
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
 }

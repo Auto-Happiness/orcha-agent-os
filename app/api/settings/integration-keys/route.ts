@@ -7,9 +7,10 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { KeyManager } from "@/lib/key-manager";
 import { auth } from "@/lib/auth-helper";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = getServerConvexUrl();
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
 }

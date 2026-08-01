@@ -10,9 +10,10 @@ import { auth } from "@clerk/nextjs/server";
 import { KeyManager } from "@/lib/key-manager";
 import { withMetrics } from "@/lib/metrics";
 import { compileScanToMdl } from "@/lib/semantic-compiler";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = getServerConvexUrl();
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
 }
