@@ -272,12 +272,7 @@ export async function createChatAgent(context: AgentContext) {
       
       const ragAndRecallPromise = (async () => {
         try {
-          const mainProvider = selectedModelStr.split(":")[0];
-          if (mainProvider === "claude" || mainProvider === "anthropic") {
-            console.log(`[Agent] Claude provider selected. Skipping embeddings and running LLM-based table selection...`);
-            const matched = await selectTablesWithLLM(ragSearchQuery, allModels, pruningModel);
-            return { matchedModels: matched, recallResult: [], recalledInstructions: [] };
-          }
+
 
           const embedProvider = "local";
           const { embedding, dimensions } = await convex.action(api.embeddings.generateEmbedding, {
@@ -449,7 +444,7 @@ export async function createChatAgent(context: AgentContext) {
   const dialectRules = getNativeDialectRule(config.type);
 
   const buildSystemPrompt = (toolNames: string[]) => {
-    const mcpToolNames = toolNames.filter(t => t !== "execute_sql" && t !== "query_cube" && t !== "search_db_schema" && t !== "dry_plan_sql");
+    const mcpToolNames = toolNames.filter(t => t !== "execute_sql" && t !== "query_cube" && t !== "search_db_schema" && t !== "dry_plan_sql" && t !== "search_column_values");
     const mcpSection = mcpToolNames.length > 0
       ? `### AVAILABLE MCP TOOLS:
 You have the following external integrations connected via MCP. YOU MUST use these tools when a user asks about them:
@@ -645,6 +640,64 @@ ${skillInstructions}
           return { success: false, error: `Database error: ${classified.message}. Fix the query and retry.` };
         }
       },
+    },
+    search_column_values: {
+      description: `Searches or samples distinct values in a specific database column. Use this tool when you need to write a WHERE filter on a column (such as status, country, or category) but don't know the exact spelling, formatting, or casing of the stored values.`,
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          table: { type: "string", description: "The table/model name." },
+          column: { type: "string", description: "The column name." },
+          searchTerm: { type: "string", description: "Optional substring to filter values by." }
+        },
+        required: ["table", "column"],
+      }),
+      execute: async ({ table, column, searchTerm }: { table: string; column: string; searchTerm?: string }) => {
+        let sql = "";
+        const filterStr = searchTerm ? `%${searchTerm.replace(/'/g, "''")}%` : null;
+
+        if (config.type === "mssql") {
+          sql = `SELECT DISTINCT TOP 20 ${column} FROM ${table}`;
+          if (filterStr) sql += ` WHERE ${column} LIKE '${filterStr}'`;
+        } else if (config.type === "oracle") {
+          sql = `SELECT DISTINCT ${column} FROM ${table}`;
+          if (filterStr) {
+            sql += ` WHERE ${column} LIKE '${filterStr}' AND ROWNUM <= 20`;
+          } else {
+            sql += ` WHERE ROWNUM <= 20`;
+          }
+        } else {
+          sql = `SELECT DISTINCT ${column} FROM ${table}`;
+          if (filterStr) sql += ` WHERE ${column} LIKE '${filterStr}'`;
+          sql += ` LIMIT 20`;
+        }
+
+        let execSql = sql;
+        try {
+          const transpiled = await transpileSemanticSQL(
+            sql,
+            manifest,
+            config.type
+          );
+          execSql = transpiled;
+        } catch {
+          // fallback to raw
+        }
+
+        try {
+          const schemaName = config.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+          const rows = await OrchaFusion.execute(execSql, schemaName, dbConfig);
+          const values = rows.map((r: any) => r[Object.keys(r)[0]] ?? r[column] ?? r[column.toUpperCase()]);
+          return {
+            success: true,
+            table,
+            column,
+            values: Array.from(new Set(values)).slice(0, 20)
+          };
+        } catch (err: any) {
+          return { success: false, error: `Failed to search values: ${err.message}` };
+        }
+      }
     },
     query_cube: {
       description: `Executes a structured Cube query to retrieve aggregated database metrics. Use this tool for ANY quantitative analysis (such as counts, sums, averages, or breakouts by dimension/time).`,
