@@ -7,6 +7,7 @@ import { getAuth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { DbExecutor, DbConfig } from "@/lib/db-executor";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 interface McpToolParameter {
   name: string;
@@ -23,7 +24,7 @@ interface McpTool {
 
 
 function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = getServerConvexUrl();
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
 }

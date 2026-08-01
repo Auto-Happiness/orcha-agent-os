@@ -31,14 +31,19 @@ function loadEnv() {
   });
 }
 
+import { getServerConvexUrl } from "@/lib/server-convex-url";
+
 loadEnv();
 
-if (!process.env.NEXT_PUBLIC_CONVEX_URL) {
-  console.error("❌ ERROR: NEXT_PUBLIC_CONVEX_URL is still undefined after manual load.");
+let convexUrl: string;
+try {
+  convexUrl = getServerConvexUrl();
+} catch (e: any) {
+  console.error(`❌ ERROR: ${e.message}`);
   process.exit(1);
 }
 
-console.log(`🚀 Starting Orcha Background Workers on ${process.env.NEXT_PUBLIC_CONVEX_URL}...`);
+console.log(`🚀 Starting Orcha Background Workers on ${convexUrl}...`);
 console.log(`🔑 Key: ${process.env.ENCRYPTION_KEY ? "LOADED" : "MISSING"}`);
 
 const chatWorker = new ChatWorker(true);

@@ -11,6 +11,7 @@ import { getMcpServer } from "@/lib/mcp-registry";
 import { McpClient } from "@/lib/mcp-client";
 import { KeyManager } from "@/lib/key-manager";
 import { resolveGoogleAccessToken } from "@/lib/google-token-resolver";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 /**
  * GET /api/debug/mcp?orgId=xxx
@@ -19,7 +20,7 @@ import { resolveGoogleAccessToken } from "@/lib/google-token-resolver";
  * whether their tools (MCP or Direct) can be loaded and called.
  */
 export async function GET(req: NextRequest) {
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const convex = new ConvexHttpClient(getServerConvexUrl());
   const clerkAuth = await auth();
   const { userId } = clerkAuth;
 

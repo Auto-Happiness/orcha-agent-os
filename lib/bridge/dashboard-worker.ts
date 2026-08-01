@@ -8,6 +8,7 @@ import { pruneColumns, getPruningModelId } from "@/lib/column-pruner";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { getNativeDialectRule } from "@/lib/dialects";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 // Zod Schema for strict AI responses matching Mantine and dashboard widgets
 const proposedWidgetSchema = z.object({
@@ -46,7 +47,7 @@ export class DashboardWorker {
           console.log(`\n📦 [DashboardWorker] RECEIVED NEW JOB: ${job.id}`);
           const { proposalId, draftPrompts, configIds, selectedModel, organizationId, clerkToken } = job.data;
 
-          const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+          const convex = new ConvexHttpClient(getServerConvexUrl());
           if (clerkToken) convex.setAuth(clerkToken);
 
           try {

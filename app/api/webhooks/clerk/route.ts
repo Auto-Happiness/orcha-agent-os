@@ -7,11 +7,37 @@ import { headers } from 'next/headers';
 import { WebhookEvent } from '@clerk/nextjs/server';
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = getServerConvexUrl();
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
+}
+
+/** Retry a Convex mutation with exponential backoff (handles transient ECONNREFUSED on startup). */
+async function retryMutation<T>(
+  convex: ConvexHttpClient,
+  mutation: any,
+  args: any,
+  maxRetries = 3,
+  baseDelayMs = 1000,
+): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await convex.mutation(mutation, args);
+    } catch (err: any) {
+      const isTransient = err?.cause?.code === 'ECONNREFUSED' || err?.message?.includes('fetch failed');
+      if (isTransient && attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        console.warn(`[Webhook] Convex unreachable (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error('retryMutation: unreachable');
 }
 
 export async function POST(req: Request) {
@@ -19,7 +45,8 @@ export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
   if (!WEBHOOK_SECRET) {
-    throw new Error('Please add CLERK_WEBHOOK_SECRET from Clerk Dashboard to .env or .env.local');
+    console.error('⨯ Error: CLERK_WEBHOOK_SECRET is not set. Please add CLERK_WEBHOOK_SECRET from Clerk Dashboard to .env or .env.local to enable Clerk webhook sync.');
+    return new Response('Error: CLERK_WEBHOOK_SECRET is missing', { status: 400 });
   }
 
   // Get the headers
@@ -71,7 +98,7 @@ export async function POST(req: Request) {
 
     console.log(`Syncing user: ${tokenIdentifier} (${email})...`);
     try {
-      const result = await convex.mutation(api.auth.syncUser, {
+      const result = await retryMutation(convex, api.auth.syncUser, {
         tokenIdentifier,
         email,
         name,
@@ -92,7 +119,7 @@ export async function POST(req: Request) {
     if (finalSlug) {
         console.log(`Syncing organization: ${finalSlug} (${name})...`);
         try {
-          const result = await convex.mutation(api.auth.syncOrganization, {
+          const result = await retryMutation(convex, api.auth.syncOrganization, {
               clerkOrgId: id,
               name,
               slug: finalSlug,
@@ -116,7 +143,7 @@ export async function POST(req: Request) {
 
     console.log(`Syncing membership for ${clerkUserId} in ${clerkOrgId}...`);
     try {
-      const result = await convex.mutation(api.auth.syncMembership, {
+      const result = await retryMutation(convex, api.auth.syncMembership, {
         clerkOrgId,
         tokenIdentifier,
         role,

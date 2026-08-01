@@ -11,6 +11,7 @@ import postgres from "postgres";
 import serverlessMysql from "serverless-mysql";
 import mysql2 from "mysql2";
 import * as mssql from "mssql";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 export const maxDuration = 300;
 
@@ -105,7 +106,7 @@ function escapeCell(v: any): string {
 }
 
 export async function POST(req: NextRequest) {
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const convex = new ConvexHttpClient(getServerConvexUrl());
 
   try {
     const clerkAuth = await auth();

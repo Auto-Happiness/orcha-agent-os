@@ -6,9 +6,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { auth } from "@clerk/nextjs/server";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function getConvexClient() {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = getServerConvexUrl();
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
   return new ConvexHttpClient(url);
 }

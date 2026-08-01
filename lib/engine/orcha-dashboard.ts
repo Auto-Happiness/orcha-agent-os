@@ -4,6 +4,7 @@ import { DbExecutor } from "../db-executor";
 import crypto from "crypto";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 interface CacheEntry {
   timestamp: number;
@@ -108,7 +109,7 @@ export class OrchaDashboard {
 
     this.sweepL1Cache();
 
-    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const convex = new ConvexHttpClient(getServerConvexUrl());
     if (convexToken) convex.setAuth(convexToken);
 
     const cacheKey = this.generateCacheKey(dashboardId, queries);

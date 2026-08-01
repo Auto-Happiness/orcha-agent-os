@@ -10,9 +10,10 @@ import { agentHelper } from "@/lib/agent-helper";
 import { Id } from "@/convex/_generated/dataModel";
 import { normalizeChatHistory } from "@/lib/chat-utils";
 import { withMetrics } from "@/lib/metrics";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 async function postHandler(req: NextRequest) {
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const convex = new ConvexHttpClient(getServerConvexUrl());
   let isAsync = process.env.ASYNC === "on";
   console.log(`[Chat] ASYNC flag: "${process.env.ASYNC}" | isAsync: ${isAsync}`);
 

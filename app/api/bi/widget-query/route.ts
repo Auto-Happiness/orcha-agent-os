@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 import { KeyManager } from "@/lib/key-manager";
 import { DbExecutor } from "@/lib/db-executor";
 import { withMetrics } from "@/lib/metrics";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 function looksLikeEncryptedPayload(value: string): boolean {
   const parts = value.split(":");
@@ -40,7 +41,7 @@ async function postHandler(req: NextRequest) {
       return NextResponse.json({ success: false, message: "widgetId and organizationId are required." }, { status: 400 });
     }
 
-    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const convex = new ConvexHttpClient(getServerConvexUrl());
     if (token) convex.setAuth(token);
 
     const widget: any = await convex.query(api.bi.getWidgetById, { widgetId });

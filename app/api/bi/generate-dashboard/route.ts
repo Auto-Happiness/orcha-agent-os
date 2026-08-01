@@ -8,9 +8,10 @@ import { api } from "@/convex/_generated/api";
 import { auth } from "@clerk/nextjs/server";
 import { Id } from "@/convex/_generated/dataModel";
 import { withMetrics } from "@/lib/metrics";
+import { getServerConvexUrl } from "@/lib/server-convex-url";
 
 async function postHandler(req: NextRequest) {
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const convex = new ConvexHttpClient(getServerConvexUrl());
   const isAsync = process.env.ASYNC === "on";
 
   console.log(`[Dashboard Generator] ASYNC flag: "${process.env.ASYNC}" | isAsync: ${isAsync}`);
